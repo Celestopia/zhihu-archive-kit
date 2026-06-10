@@ -95,7 +95,8 @@ export function renderBlock(node, media) {
       const link = node.querySelector("a[href]");
       if (link) {
         const text = cleanText(link.getAttribute("data-text") || link.textContent || link.href);
-        return `[${escapeLinkText(text)}](${normalizeLink(link.href)})`;
+        const href = normalizeLink(link.href);
+        return isZhidaEntityLink(href) ? text : `[${escapeLinkText(text)}](${href})`;
       }
     }
 
@@ -166,10 +167,18 @@ export function renderInlineCode(text) {
 export function renderInlineLink(el) {
   const href = normalizeLink(el.href || el.getAttribute("href") || "");
   const text = cleanText(el.textContent || href);
-  if (!href) {
+  if (!href || isZhidaEntityLink(href)) {
     return text;
   }
   return `[${escapeLinkText(text)}](${href})`;
+}
+
+export function isZhidaEntityLink(href) {
+  if (!href.startsWith("https://zhida.zhihu.com/") && !href.startsWith("http://zhida.zhihu.com/")) {
+    return false;
+  }
+  const url = new URL(href);
+  return url.pathname === "/search" || url.searchParams.get("zhida_source") === "entity";
 }
 
 export function renderMath(el) {

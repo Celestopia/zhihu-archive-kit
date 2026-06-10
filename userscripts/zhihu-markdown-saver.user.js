@@ -743,6 +743,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   applyMediaReplacements: () => (/* binding */ applyMediaReplacements),
 /* harmony export */   compactTableCell: () => (/* binding */ compactTableCell),
 /* harmony export */   extractPage: () => (/* binding */ extractPage),
+/* harmony export */   isZhidaEntityLink: () => (/* binding */ isZhidaEntityLink),
 /* harmony export */   parseBlocks: () => (/* binding */ parseBlocks),
 /* harmony export */   renderBlock: () => (/* binding */ renderBlock),
 /* harmony export */   renderCodeBlock: () => (/* binding */ renderCodeBlock),
@@ -859,7 +860,8 @@ function renderBlock(node, media) {
       const link = node.querySelector("a[href]");
       if (link) {
         const text = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(link.getAttribute("data-text") || link.textContent || link.href);
-        return `[${(0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.escapeLinkText)(text)}](${(0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.normalizeLink)(link.href)})`;
+        const href = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.normalizeLink)(link.href);
+        return isZhidaEntityLink(href) ? text : `[${(0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.escapeLinkText)(text)}](${href})`;
       }
     }
 
@@ -930,10 +932,18 @@ function renderInlineCode(text) {
 function renderInlineLink(el) {
   const href = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.normalizeLink)(el.href || el.getAttribute("href") || "");
   const text = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(el.textContent || href);
-  if (!href) {
+  if (!href || isZhidaEntityLink(href)) {
     return text;
   }
   return `[${(0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.escapeLinkText)(text)}](${href})`;
+}
+
+function isZhidaEntityLink(href) {
+  if (!href.startsWith("https://zhida.zhihu.com/") && !href.startsWith("http://zhida.zhihu.com/")) {
+    return false;
+  }
+  const url = new URL(href);
+  return url.pathname === "/search" || url.searchParams.get("zhida_source") === "entity";
 }
 
 function renderMath(el) {

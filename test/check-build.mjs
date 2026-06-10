@@ -34,6 +34,8 @@ assert.match(content, /zhmd-save-control/);
 assert.match(content, /AnswerItem:hover/);
 assert.match(content, /question-\$\{questionId\}-answer-\$\{target\.id\}/);
 assert.match(content, /downloadMediaAssets/);
+assert.match(content, /isZhidaEntityLink/);
+assert.match(content, /zhida\.zhihu\.com/);
 assert.match(content, /\/api\/job\/current/);
 assert.match(content, /uploadZip/);
 assert.match(content, /author_url:/);
