@@ -42,10 +42,13 @@ assert.match(content, /time_modified:/);
 assert.match(content, /time_exported:/);
 assert.match(content, /upvote_count:/);
 assert.match(content, /comment_count:/);
+assert.match(content, /like_count:/);
+assert.match(content, /favorite_count:/);
 assert.match(content, /dateCreated/);
 assert.match(content, /datePublished/);
 assert.match(content, /upvoteCount/);
 assert.match(content, /commentCount/);
+assert.match(content, /extractActionCount/);
 assert.doesNotMatch(content, /upvote_num:/);
 assert.doesNotMatch(content, /comment_num:/);
 

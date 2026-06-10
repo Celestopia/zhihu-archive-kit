@@ -56,6 +56,8 @@ time_modified: "..."
 time_exported: "..."
 upvote_count: 0
 comment_count: 0
+like_count: 0
+favorite_count: 0
 ---
 ```
 

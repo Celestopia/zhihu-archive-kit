@@ -190,7 +190,9 @@ export function extractMetadata({ target, itemRoot }) {
       ".BottomActions-CommentBtn",
       ".ContentItem-action",
       "[aria-label*='评论']"
-    ])
+    ]),
+    like_count: extractActionCount(itemRoot, ["喜欢"]),
+    favorite_count: extractActionCount(itemRoot, ["收藏"])
   };
 }
 
@@ -303,4 +305,47 @@ export function extractCount(itemRoot, selectors) {
     }
   }
   return null;
+}
+
+export function extractActionCount(itemRoot, labels) {
+  const selectors = [
+    ".ContentItem-actions button",
+    ".ContentItem-actions a",
+    ".ContentItem-action",
+    ".BottomActions button",
+    ".BottomActions a",
+    "button",
+    "a"
+  ];
+  const seen = new Set();
+
+  for (const selector of selectors) {
+    const elements = Array.from(itemRoot.querySelectorAll?.(selector) || []);
+    for (const el of elements) {
+      if (seen.has(el)) {
+        continue;
+      }
+      seen.add(el);
+
+      const text = actionText(el);
+      if (!labels.some((label) => text.includes(label))) {
+        continue;
+      }
+
+      const count = parseCount(text);
+      if (Number.isFinite(count)) {
+        return count;
+      }
+    }
+  }
+
+  return null;
+}
+
+function actionText(el) {
+  return cleanText([
+    el.getAttribute("aria-label") || "",
+    el.getAttribute("title") || "",
+    el.textContent || ""
+  ].filter(Boolean).join(" "));
 }

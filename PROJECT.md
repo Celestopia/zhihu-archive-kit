@@ -204,10 +204,14 @@ time_modified: "..."
 time_exported: "..."
 upvote_count: 0
 comment_count: 0
+like_count: 0
+favorite_count: 0
 ---
 ```
 
 `target.js` 优先从 `meta[itemprop]` 标签读取元数据。回答页通常使用 `dateCreated`、`dateModified`、`upvoteCount`、`commentCount`；文章页通常使用 `datePublished`、`dateModified`、`commentCount`。
+
+喜欢数和收藏数通常没有对应的 `meta[itemprop]`，项目会在当前回答/文章容器内查找包含“喜欢”或“收藏”的底部操作按钮，并从按钮文本、`aria-label` 或 `title` 中解析数量。
 
 标题层级映射如下：
 

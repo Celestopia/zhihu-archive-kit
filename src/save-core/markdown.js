@@ -290,6 +290,8 @@ export function renderDocument(metadata, body) {
     `time_exported: ${yamlString(metadata.time_exported)}`,
     `upvote_count: ${yamlNumber(metadata.upvote_count)}`,
     `comment_count: ${yamlNumber(metadata.comment_count)}`,
+    `like_count: ${yamlNumber(metadata.like_count)}`,
+    `favorite_count: ${yamlNumber(metadata.favorite_count)}`,
     "---",
     ""
   ].join("\n");

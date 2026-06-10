@@ -1054,6 +1054,8 @@ function renderDocument(metadata, body) {
     `time_exported: ${yamlString(metadata.time_exported)}`,
     `upvote_count: ${yamlNumber(metadata.upvote_count)}`,
     `comment_count: ${yamlNumber(metadata.comment_count)}`,
+    `like_count: ${yamlNumber(metadata.like_count)}`,
+    `favorite_count: ${yamlNumber(metadata.favorite_count)}`,
     "---",
     ""
   ].join("\n");
@@ -1318,6 +1320,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   answerItemMatches: () => (/* binding */ answerItemMatches),
 /* harmony export */   detectTarget: () => (/* binding */ detectTarget),
+/* harmony export */   extractActionCount: () => (/* binding */ extractActionCount),
 /* harmony export */   extractAnswerTarget: () => (/* binding */ extractAnswerTarget),
 /* harmony export */   extractArticleTarget: () => (/* binding */ extractArticleTarget),
 /* harmony export */   extractAuthorUrl: () => (/* binding */ extractAuthorUrl),
@@ -1529,7 +1532,9 @@ function extractMetadata({ target, itemRoot }) {
       ".BottomActions-CommentBtn",
       ".ContentItem-action",
       "[aria-label*='评论']"
-    ])
+    ]),
+    like_count: extractActionCount(itemRoot, ["喜欢"]),
+    favorite_count: extractActionCount(itemRoot, ["收藏"])
   };
 }
 
@@ -1642,6 +1647,49 @@ function extractCount(itemRoot, selectors) {
     }
   }
   return null;
+}
+
+function extractActionCount(itemRoot, labels) {
+  const selectors = [
+    ".ContentItem-actions button",
+    ".ContentItem-actions a",
+    ".ContentItem-action",
+    ".BottomActions button",
+    ".BottomActions a",
+    "button",
+    "a"
+  ];
+  const seen = new Set();
+
+  for (const selector of selectors) {
+    const elements = Array.from(itemRoot.querySelectorAll?.(selector) || []);
+    for (const el of elements) {
+      if (seen.has(el)) {
+        continue;
+      }
+      seen.add(el);
+
+      const text = actionText(el);
+      if (!labels.some((label) => text.includes(label))) {
+        continue;
+      }
+
+      const count = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseCount)(text);
+      if (Number.isFinite(count)) {
+        return count;
+      }
+    }
+  }
+
+  return null;
+}
+
+function actionText(el) {
+  return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)([
+    el.getAttribute("aria-label") || "",
+    el.getAttribute("title") || "",
+    el.textContent || ""
+  ].filter(Boolean).join(" "));
 }
 
 
