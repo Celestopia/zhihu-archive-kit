@@ -23,8 +23,11 @@ assert.match(content, /@require\s+https:\/\/cdn\.jsdelivr\.net\/npm\/jszip@3\.10
 assert.match(content, /@require\s+https:\/\/cdn\.jsdelivr\.net\/npm\/file-saver@2\.0\.5\/dist\/FileSaver\.min\.js/);
 assert.match(content, /@grant\s+none/);
 assert.match(content, /Heading levels map directly to Markdown heading depth/);
-assert.match(content, /保存为 ZIP/);
-assert.match(content, /downloadMediaToZip/);
+assert.match(content, /下载为 ZIP/);
+assert.match(content, /showDirectoryPicker/);
+assert.match(content, /writeArtifactToDirectory/);
+assert.match(content, /question-\$\{questionId\}-answer-\$\{target\.id\}/);
+assert.match(content, /downloadMediaAssets/);
 assert.match(content, /\/api\/job\/current/);
 assert.match(content, /uploadZip/);
 assert.match(content, /author_url:/);

@@ -15,7 +15,7 @@ import { detectSupportedTarget, targetKey } from "../shared/url.js";
 export async function loadBatchConfig(argv, cwd = process.cwd()) {
   const args = parseArgs(argv);
   if (!args.configPath) {
-    throw new Error("Usage: npm run batch -- <urls.json> [--browser default|chrome|edge|path] [--port 17891]");
+    throw new Error("Usage: npm run batch -- <urls.json> [--extract] [--browser default|chrome|edge|path] [--port 17891]");
   }
 
   const rawPath = path.resolve(cwd, args.configPath);
@@ -38,6 +38,7 @@ export async function loadBatchConfig(argv, cwd = process.cwd()) {
     delay,
     port: positiveInteger(args.port, DEFAULT_BATCH_PORT),
     browser: args.browser || "default",
+    extract: args.extract,
     jobs
   };
 }
@@ -46,7 +47,8 @@ export function parseArgs(argv) {
   const parsed = {
     configPath: "",
     browser: "default",
-    port: DEFAULT_BATCH_PORT
+    port: DEFAULT_BATCH_PORT,
+    extract: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -54,6 +56,8 @@ export function parseArgs(argv) {
     if (arg === "--browser") {
       parsed.browser = argv[index + 1] || "default";
       index += 1;
+    } else if (arg === "--extract") {
+      parsed.extract = true;
     } else if (arg === "--port") {
       parsed.port = Number(argv[index + 1]);
       index += 1;
@@ -97,7 +101,8 @@ function normalizeJobs(urls) {
       index: jobs.length + 1,
       url: target.url,
       type: target.type,
-      targetId: target.id
+      targetId: target.id,
+      questionId: target.questionId || ""
     });
   }
 

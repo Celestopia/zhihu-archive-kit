@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { DEFAULT_MAX_CONSECUTIVE_FAILURES, JOB_STATUS } from "./constants.js";
+import { extractSingleFolderZip } from "./extract-zip.mjs";
 import { formatIsoNow, randomDelaySeconds } from "./time.js";
 
 /**
@@ -65,6 +66,7 @@ function createInitialState(config) {
     pause_reason: "",
     consecutive_failures: 0,
     output_dir: config.outputDir,
+    output_mode: config.extract ? "folder" : "zip",
     delay: config.delay,
     jobs: config.jobs.map((job) => ({
       ...job,
@@ -138,9 +140,18 @@ async function handleZipUpload(req, res, config, state, lifecycle, jobId) {
   }
 
   const body = await readRequestBody(req);
-  const filename = `${String(job.index).padStart(3, "0")}-${job.type}-${job.targetId}.zip`;
-  const outputPath = path.join(config.outputDir, filename);
-  await fs.writeFile(outputPath, body);
+  let outputPath = "";
+  try {
+    if (config.extract) {
+      outputPath = (await extractSingleFolderZip(body, config.outputDir)).outputPath;
+    } else {
+      const filename = zipFileNameFromRequest(req);
+      outputPath = path.join(config.outputDir, filename);
+      await fs.writeFile(outputPath, body);
+    }
+  } catch (error) {
+    return handleUploadFailure(res, config, state, lifecycle, job, error.message);
+  }
 
   job.status = JOB_STATUS.done;
   job.finished_at = formatIsoNow();
@@ -151,13 +162,18 @@ async function handleZipUpload(req, res, config, state, lifecycle, jobId) {
   await appendLog(config, { event: "done", job: publicJob(job), output_file: outputPath });
   await writeState(config, state);
 
-  const counts = countJobs(state);
-  const done = !state.jobs.some((item) => item.status === JOB_STATUS.pending || item.status === JOB_STATUS.running);
-  const delaySeconds = done ? 0 : randomDelaySeconds(config.delay.minSeconds, config.delay.maxSeconds);
-  sendJson(res, 200, { ok: true, done, paused: state.paused, delay_seconds: delaySeconds, ...counts });
-  if (done) {
-    lifecycle.requestClose("completed");
-  }
+  sendJobUpdate(res, config, state, lifecycle, { ok: true, saved: true });
+}
+
+async function handleUploadFailure(res, config, state, lifecycle, job, reason) {
+  job.status = JOB_STATUS.failed;
+  job.finished_at = formatIsoNow();
+  job.output_file = "";
+  job.error = reason;
+
+  await appendLog(config, { event: "failed", job: publicJob(job), reason });
+  await writeState(config, state);
+  sendJobUpdate(res, config, state, lifecycle, { ok: true, saved: false, error: reason });
 }
 
 async function handleFailure(req, res, config, state, jobId) {
@@ -201,6 +217,7 @@ function publicState(state) {
     paused: state.paused,
     pause_reason: state.pause_reason,
     consecutive_failures: state.consecutive_failures,
+    output_mode: state.output_mode,
     jobs: state.jobs.map(publicJob)
   };
 }
@@ -229,6 +246,24 @@ function countJobs(state) {
 
 function isRiskReason(reason) {
   return /risk|challenge|403|40362|验证码|安全验证|风控|请求存在异常|暂时限制/i.test(reason);
+}
+
+function sendJobUpdate(res, config, state, lifecycle, payload) {
+  const counts = countJobs(state);
+  const done = !state.jobs.some((item) => item.status === JOB_STATUS.pending || item.status === JOB_STATUS.running);
+  const delaySeconds = done ? 0 : randomDelaySeconds(config.delay.minSeconds, config.delay.maxSeconds);
+  sendJson(res, 200, { ...payload, done, paused: state.paused, delay_seconds: delaySeconds, ...counts });
+  if (done) {
+    lifecycle.requestClose("completed");
+  }
+}
+
+function zipFileNameFromRequest(req) {
+  const value = String(req.headers["x-zhmd-filename"] || "");
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.zip$/.test(value) || path.basename(value) !== value) {
+    throw new Error("Missing or invalid ZIP filename.");
+  }
+  return value;
 }
 
 function sendJson(res, status, value) {

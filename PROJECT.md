@@ -1,10 +1,8 @@
 # 项目说明
 
-> 本文档面向开发者和 AI Agent，用于说明当前项目架构和关键运行逻辑。
+本文档面向开发者和 AI Agent，说明当前项目的架构、数据流和关键约束。
 
-本项目构建一个 Tampermonkey/油猴脚本和一个本地批量调度 CLI，用于将知乎回答详情页和知乎专栏文章页保存为 Markdown ZIP 文件。
-
-内容提取和 ZIP 生成运行在真实浏览器的知乎页面中；批量模式下，本地 CLI 负责读取 URL、调度队列、接收 ZIP 并写入磁盘。
+本项目由一个 Tampermonkey/油猴脚本和一个本地批量调度 CLI 组成，用于将知乎回答详情页和知乎专栏文章页保存为 Markdown 文件夹或 Markdown ZIP。
 
 ## 目录结构
 
@@ -20,6 +18,7 @@ src/save-core/
 
 src/userscript/
   constants.js
+  directory-save.js
   main.js
   single-save.js
   ui.js
@@ -28,8 +27,9 @@ src/batch/
   browser-open.mjs
   cli.mjs
   client.js
-  constants.js
   config.mjs
+  constants.js
+  extract-zip.mjs
   server.mjs
   time.js
 
@@ -38,6 +38,7 @@ src/shared/
 
 test/
   check-build.mjs
+  check-extract.mjs
 
 userscripts/
   zhihu-markdown-saver.user.js
@@ -45,73 +46,131 @@ userscripts/
 
 ## 架构分层
 
-`src/save-core/` 是浏览器内保存核心。它负责从当前知乎页面 DOM 中提取正文和元数据，转换 Markdown，下载媒体文件，生成 ZIP Blob。它不处理按钮、不调用 FileSaver，也不和 localhost 队列通信。
+`src/save-core/` 是浏览器内保存核心。它负责展开正文、定位 DOM、提取元数据、渲染 Markdown、下载媒体，并构造页面保存产物。核心产物结构为：
 
-`src/userscript/` 是油猴脚本入口和单页保存功能。它负责监听页面变化、注入“保存为 ZIP”按钮、处理按钮状态，并启动浏览器端批量客户端。
+```js
+{
+  folderName,
+  indexMarkdown,
+  assets,
+  fileName,
+  target,
+  metadata
+}
+```
 
-`src/batch/` 包含两部分：Node CLI 和浏览器端批量客户端。Node CLI 读取 JSON 配置、启动本地 HTTP 服务、可选打开浏览器、维护队列状态并保存 ZIP。浏览器端批量客户端被打包进油猴脚本，在知乎页面中向 localhost 请求任务并上传 ZIP。批量专用的默认配置、队列状态和调度时间工具也放在这个目录下。
+`buildCurrentPageArtifact()` 返回上述产物。`buildCurrentPageZip()` 基于同一产物生成 ZIP Blob。
 
-`src/shared/` 只存放真正同时服务单页保存和批量保存的纯工具函数。目前这里保留 URL 识别和清洗逻辑，因为 `save-core` 和 `batch` 都需要使用同一套支持范围判断。
+`src/userscript/` 是油猴脚本入口和单页保存界面。主按钮默认调用浏览器 File System Access API，把产物写入用户授权目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。
 
-## 构建方式
+`src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
-Webpack 以 `src/userscript/main.js` 作为入口文件，构建产物写入：
+`src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数。目前这里包含 URL 识别、清洗和目标文件夹命名逻辑。
+
+## 构建与依赖
+
+Webpack 以 `src/userscript/main.js` 为入口，输出单文件油猴脚本：
 
 ```text
 userscripts/zhihu-markdown-saver.user.js
 ```
 
-构建产物不做压缩，方便在 Tampermonkey 中查看和调试。
+构建产物不压缩，便于在 Tampermonkey 中查看和调试。
 
-Tampermonkey metadata 由 `webpack.config.cjs` 注入。当前脚本匹配：
-
-```text
-https://www.zhihu.com/question/*/answer/*
-https://www.zhihu.com/answer/*
-https://zhuanlan.zhihu.com/p/*
-```
-
-脚本通过 `@require` 加载：
+油猴脚本通过 Tampermonkey `@require` 加载浏览器端依赖：
 
 ```text
 https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
 https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js
 ```
 
-脚本使用页面上下文运行，因此 metadata 包含：
+Node 端批量解压使用项目依赖 `jszip`。它安装在项目 `node_modules/` 中，并记录在 `package-lock.json`。
+
+## 目标识别与命名
+
+支持的目标由 `src/shared/url.js` 识别：
 
 ```text
-@grant none
+https://www.zhihu.com/question/<question_id>/answer/<answer_id>
+https://www.zhihu.com/answer/<answer_id>
+https://zhuanlan.zhihu.com/p/<article_id>
 ```
 
-批量模式访问 localhost 时使用普通 `fetch`，本地服务负责返回 CORS 头。
+回答输出文件夹统一命名为：
+
+```text
+question-<question_id>-answer-<answer_id>
+```
+
+文章输出文件夹统一命名为：
+
+```text
+article-<article_id>
+```
+
+如果回答 URL 或页面 DOM 都无法提供 `question_id`，保存流程会报错。这样可以保证回答输出名称始终符合项目约定。
 
 ## 单页保存流程
 
-1. `main.js` 判断当前 URL 是否属于支持范围。
-2. 脚本等待回答或文章正文节点出现在 DOM 中。
-3. `ui.js` 注入固定位置的“保存为 ZIP”按钮。
-4. 用户点击按钮后，`single-save.js` 调用 `buildCurrentPageZip()`。
-5. `save-core` 展开正文、提取 DOM、转换 Markdown、下载媒体并生成 ZIP Blob。
-6. `single-save.js` 使用 FileSaver 将 ZIP 交给浏览器下载。
+1. `main.js` 监听知乎 SPA 页面变化。
+2. 当前 URL 属于支持范围且正文 DOM 已出现时，`ui.js` 注入右下角保存控件。
+3. 用户点击“保存”后，`single-save.js` 调用 `buildCurrentPageArtifact()`。
+4. `save-core` 生成 Markdown、下载媒体并返回保存产物。
+5. `directory-save.js` 检查或请求目录写入权限。
+6. 如果目标文件夹已存在，抛出错误并停止写入。
+7. 如果目标文件夹不存在，创建文件夹、写入 `index.md` 和 `assets/`。
+
+网页端目录写入使用 File System Access API。浏览器不会允许脚本通过字符串路径直接写入系统目录，因此保存根目录必须由用户通过目录选择器授权。目录句柄存放在 IndexedDB 中，后续保存会先检查权限再复用。
+
+齿轮菜单中的“下载为 ZIP”流程调用 `buildCurrentPageZip()`，再通过 FileSaver 交给浏览器下载。
 
 ## 批量保存流程
 
-1. 用户运行 `npm run batch -- urls.json`。
-2. `config.mjs` 读取 JSON、填充默认值、去重并过滤 URL。
+1. 用户运行 `npm run batch -- urls.json` 或 `npm run batch -- urls.json --extract`。
+2. `config.mjs` 读取 JSON、填充默认值、过滤并去重 URL。
 3. `server.mjs` 在 `127.0.0.1` 启动本地 API 服务。
 4. `browser-open.mjs` 用默认浏览器或指定浏览器打开第一个任务 URL。
-5. 油猴脚本中的 `client.js` 探测本地服务。
-6. 客户端通过 `GET /api/job/current` 获取任务。
-7. 当前页面不匹配任务 URL 时，客户端使用 `location.assign()` 跳转。
-8. 当前页面匹配任务 URL 时，客户端调用 `buildCurrentPageZip()` 生成 ZIP Blob。
-9. 客户端通过 `POST /api/job/:id/zip` 上传 ZIP。
-10. 服务端写入 ZIP、状态文件和日志，然后返回下一次访问前的随机等待时间。
-11. 所有任务完成后，服务端关闭 localhost 服务，CLI 进程退出。
+5. 油猴脚本中的 `client.js` 探测本地服务并请求当前任务。
+6. 当前页面不匹配任务 URL 时，客户端使用 `location.assign()` 跳转。
+7. 当前页面匹配任务 URL 时，客户端调用 `buildCurrentPageZip()`。
+8. 客户端通过 `POST /api/job/:id/zip` 上传 ZIP Blob。
+9. 服务端保存 ZIP，或在 `--extract` 模式下调用 `extract-zip.mjs` 解压。
+10. 服务端写入 `batch-state.json` 和 `batch-log.jsonl`，再返回下一项等待时间。
+11. 所有任务完成后，本地服务关闭，CLI 进程退出。
+
+## 批量输出
+
+ZIP 模式输出：
+
+```text
+output/
+  question-123-answer-456.zip
+  article-789.zip
+  batch-state.json
+  batch-log.jsonl
+```
+
+`--extract` 模式输出：
+
+```text
+output/
+  question-123-answer-456/
+    index.md
+    assets/
+  article-789/
+    index.md
+    assets/
+  batch-state.json
+  batch-log.jsonl
+```
+
+`--extract` 模式下，如果目标文件夹已经存在，该任务会被标记为失败并写入日志，服务端不会覆盖文件夹，队列会继续处理后续任务。
+
+ZIP 解压只接受单个顶层目录。解压模块会拒绝绝对路径、`..` 路径和解析后逃逸目标目录的条目。
 
 ## localhost API
 
-批量服务只监听 `127.0.0.1`。API 如下：
+批量服务只监听 `127.0.0.1`：
 
 ```text
 GET  /api/job/current
@@ -122,53 +181,13 @@ GET  /api/state
 
 `/api/job/current` 返回当前任务、队列状态和计数。
 
-`/api/job/:id/zip` 接收油猴脚本上传的 ZIP Blob，并保存到输出目录。
+`/api/job/:id/zip` 接收油猴脚本上传的 ZIP Blob，并按当前输出模式写入磁盘。
 
-`/api/job/:id/fail` 记录当前任务失败原因。连续失败或检测到风控原因时，队列会暂停。
+`/api/job/:id/fail` 记录浏览器端保存失败原因。连续失败或检测到风控原因时，队列会暂停。
 
 `/api/state` 用于查看当前批量状态。
 
-## 批量配置和输出
-
-JSON 配置格式：
-
-```json
-{
-  "output_dir": "output",
-  "delay": {
-    "min_seconds": 15,
-    "max_seconds": 45
-  },
-  "urls": [
-    "https://www.zhihu.com/question/123/answer/456",
-    "https://zhuanlan.zhihu.com/p/789"
-  ]
-}
-```
-
-批量输出结构：
-
-```text
-output/
-  001-answer-456.zip
-  002-article-789.zip
-  batch-state.json
-  batch-log.jsonl
-```
-
-ZIP 内部结构保持一致：
-
-```text
-answer-<id>/
-  index.md
-  assets/
-
-article-<id>/
-  index.md
-  assets/
-```
-
-## 元数据和 Markdown
+## Markdown 渲染
 
 Markdown frontmatter 字段为：
 
@@ -199,13 +218,11 @@ h5 -> #####
 h6 -> ######
 ```
 
-媒体会先在 Markdown 中登记为占位符。下载成功后替换为 `./assets/...`，下载失败时保留远程 URL。
-
-媒体下载采用有限并发，单个媒体请求超时后会回退到远程 URL，避免某个 CDN 请求长时间阻塞整个保存流程。
+媒体会先在 Markdown 中登记为占位符。下载成功后替换为 `./assets/...`，下载失败时保留远程 URL。媒体下载采用有限并发，单个媒体请求超时后会回退到远程 URL。
 
 ## 反爬虫相关策略
 
-批量模式采用保守调度，不做绕过行为：
+批量模式采用保守调度：
 
 - 严格串行，一次只处理一个 URL。
 - 每个任务完成后默认等待 `15-45` 秒。
@@ -231,6 +248,7 @@ npm run build
 
 ```bash
 npm run batch -- urls.json
+npm run batch -- urls.json --extract
 npm run batch -- urls.json --browser chrome
 ```
 
@@ -251,7 +269,8 @@ npm test
 自动检查覆盖：
 
 - Webpack 能否成功构建油猴脚本。
-- `save-core`、`userscript`、`batch` 和真正共享的 `shared` 模块能否通过 `node --check`。
-- 生成后的油猴脚本是否包含预期 metadata、批量 API 标记和关键 frontmatter 字段。
+- 源码模块和构建产物能否通过 `node --check`。
+- 构建后的油猴脚本是否包含预期 metadata、保存入口、批量 API 标记和 frontmatter 字段。
+- ZIP 解压是否拒绝路径逃逸，并在目标文件夹已存在时失败。
 
-真实知乎页面中的 DOM、登录状态、媒体 CDN 响应和 Tampermonkey 行为需要手动验收。
+真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、目录授权和 Tampermonkey 行为需要手动验收。

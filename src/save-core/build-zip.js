@@ -1,17 +1,17 @@
 import { expandCollapsedContent } from "./dom.js";
 import { applyMediaReplacements, extractPage, renderDocument } from "./markdown.js";
-import { downloadMediaToZip } from "./media.js";
+import { downloadMediaAssets } from "./media.js";
 import { detectTarget, extractMetadata, findContentRoot, findItemRoot } from "./target.js";
+import { targetFolderName } from "../shared/url.js";
 
 /**
  * Browser-side save core.
  *
- * This module only builds the ZIP Blob for the current Zhihu page. It does not
- * know whether the caller will download the Blob with FileSaver or upload it to
- * a local batch server.
+ * This module builds a page artifact first, then serializes it as a ZIP when a
+ * caller needs archive output.
  */
 
-export async function buildCurrentPageZip(options = {}) {
+export async function buildCurrentPageArtifact(options = {}) {
   const timeExported = new Date().toISOString();
   options.onProgress?.({ stage: "detect" });
   const target = detectTarget(options.href || location.href);
@@ -19,21 +19,13 @@ export async function buildCurrentPageZip(options = {}) {
     throw new Error("Only Zhihu answer/article detail pages are supported.");
   }
 
-  const ZipCtor = options.ZipCtor || getZipCtor();
-  if (!ZipCtor) {
-    throw new Error("JSZip is unavailable.");
-  }
-
   options.onProgress?.({ stage: "expand" });
   await expandCollapsedContent();
   options.onProgress?.({ stage: "extract" });
   const result = extractCurrentPage(target);
-  const folderName = `${target.type}-${target.id}`;
-  const zip = new ZipCtor();
-  const folder = zip.folder(folderName);
-  const assetsFolder = folder.folder("assets");
+  const folderName = targetFolderName(target, result.metadata);
   options.onProgress?.({ stage: "media", completed: 0, total: result.media.length });
-  const replacements = await downloadMediaToZip(result.media, assetsFolder, {
+  const media = await downloadMediaAssets(result.media, {
     onProgress: (progress) => options.onProgress?.({ stage: "media", ...progress })
   });
   options.onProgress?.({ stage: "markdown" });
@@ -41,9 +33,33 @@ export async function buildCurrentPageZip(options = {}) {
     ...result.metadata,
     time_exported: timeExported
   };
-  const markdown = applyMediaReplacements(renderDocument(metadata, result.markdown), replacements);
+  const indexMarkdown = applyMediaReplacements(renderDocument(metadata, result.markdown), media.replacements);
 
-  folder.file("index.md", markdown);
+  return {
+    folderName,
+    indexMarkdown,
+    assets: media.assets,
+    fileName: `${folderName}.zip`,
+    target,
+    metadata
+  };
+}
+
+export async function buildCurrentPageZip(options = {}) {
+  const ZipCtor = options.ZipCtor || getZipCtor();
+  if (!ZipCtor) {
+    throw new Error("JSZip is unavailable.");
+  }
+
+  const artifact = await buildCurrentPageArtifact(options);
+  const zip = new ZipCtor();
+  const folder = zip.folder(artifact.folderName);
+  const assetsFolder = folder.folder("assets");
+
+  folder.file("index.md", artifact.indexMarkdown);
+  for (const asset of artifact.assets) {
+    assetsFolder.file(asset.fileName, asset.data, { binary: true });
+  }
   options.onProgress?.({ stage: "zip", percent: 0 });
   const blob = await zip.generateAsync({
     type: "blob",
@@ -59,10 +75,10 @@ export async function buildCurrentPageZip(options = {}) {
 
   return {
     blob,
-    fileName: `${folderName}.zip`,
-    folderName,
-    target,
-    metadata
+    fileName: artifact.fileName,
+    folderName: artifact.folderName,
+    target: artifact.target,
+    metadata: artifact.metadata
   };
 }
 

@@ -5,7 +5,7 @@ import {
 } from "./constants.js";
 
 /**
- * Media selection and ZIP download helpers.
+ * Media selection and asset download helpers.
  *
  * Markdown rendering registers media URLs first and downloads them later. This
  * keeps DOM parsing synchronous and lets one failed media request fall back to
@@ -23,7 +23,7 @@ export function registerMedia(media, src, kind) {
   return placeholder;
 }
 
-export async function downloadMediaToZip(media, assetsFolder, options = {}) {
+export async function downloadMediaAssets(media, options = {}) {
   const replacements = new Map();
   const tasks = [];
   const seenSources = new Set();
@@ -54,19 +54,27 @@ export async function downloadMediaToZip(media, assetsFolder, options = {}) {
     });
   }
 
-  const sourceResults = await runMediaDownloadQueue(tasks, assetsFolder, options);
+  const sourceResults = await runMediaDownloadQueue(tasks, options);
+  const assets = [];
 
   for (const item of media) {
     if (!item.src) {
       continue;
     }
-    replacements.set(item.placeholder, sourceResults.get(item.src) || item.src);
+    const result = sourceResults.get(item.src);
+    replacements.set(item.placeholder, result?.localPath || item.src);
   }
 
-  return replacements;
+  for (const result of sourceResults.values()) {
+    if (result.asset) {
+      assets.push(result.asset);
+    }
+  }
+
+  return { replacements, assets };
 }
 
-async function runMediaDownloadQueue(tasks, assetsFolder, options) {
+async function runMediaDownloadQueue(tasks, options) {
   const results = new Map();
   const total = tasks.length;
   let nextIndex = 0;
@@ -79,11 +87,17 @@ async function runMediaDownloadQueue(tasks, assetsFolder, options) {
       nextIndex += 1;
 
       try {
-        const downloaded = await downloadOneMedia(task.src, task.kind, task.index, assetsFolder);
-        results.set(task.src, `./assets/${downloaded.fileName}`);
+        const downloaded = await downloadOneMedia(task.src, task.kind, task.index);
+        results.set(task.src, {
+          localPath: `./assets/${downloaded.fileName}`,
+          asset: downloaded
+        });
       } catch (error) {
         console.warn(`[Zhihu Markdown Saver] failed to download ${task.src}:`, error);
-        results.set(task.src, task.src);
+        results.set(task.src, {
+          localPath: task.src,
+          asset: null
+        });
       } finally {
         completed += 1;
         options.onProgress?.({ completed, total });
@@ -95,7 +109,7 @@ async function runMediaDownloadQueue(tasks, assetsFolder, options) {
   return results;
 }
 
-export async function downloadOneMedia(src, kind, index, assetsFolder) {
+export async function downloadOneMedia(src, kind, index) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), MEDIA_DOWNLOAD_TIMEOUT_MS);
 
@@ -113,8 +127,7 @@ export async function downloadOneMedia(src, kind, index, assetsFolder) {
     const data = await response.arrayBuffer();
     const ext = inferExtension(src, response.headers.get("content-type") || "", kind);
     const fileName = `${kind}-${String(index).padStart(3, "0")}${ext}`;
-    assetsFolder.file(fileName, data, { binary: true });
-    return { fileName };
+    return { fileName, data };
   } finally {
     window.clearTimeout(timer);
   }

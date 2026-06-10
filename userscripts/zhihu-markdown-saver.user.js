@@ -2,7 +2,7 @@
 // @name         Zhihu Markdown Saver
 // @namespace    https://github.com/local/zhihu-markdown-downloader
 // @version      0.1.0
-// @description  Save Zhihu answers and Zhuanlan articles as Markdown ZIP files.
+// @description  Save Zhihu answers and Zhuanlan articles as Markdown folders or ZIP files.
 // @author       local
 // @match        https://www.zhihu.com/question/*/answer/*
 // @match        https://www.zhihu.com/answer/*
@@ -155,6 +155,17 @@ async function runBatchLoop() {
       return;
     }
 
+    if (done.saved === false) {
+      renderBatchStatus({
+        ...context,
+        completedCount: done.completed_count,
+        failedCount: done.failed_count,
+        pendingCount: done.pending_count,
+        tone: "warn",
+        stage: "保存失败",
+        detail: done.error || "本地输出失败"
+      });
+    }
     if (done.paused) {
       renderBatchStatus({
         ...context,
@@ -480,6 +491,7 @@ function delay(ms) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   buildCurrentPageArtifact: () => (/* binding */ buildCurrentPageArtifact),
 /* harmony export */   buildCurrentPageZip: () => (/* binding */ buildCurrentPageZip),
 /* harmony export */   extractCurrentPage: () => (/* binding */ extractCurrentPage),
 /* harmony export */   getZipCtor: () => (/* binding */ getZipCtor)
@@ -488,6 +500,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _markdown_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./markdown.js */ "./src/save-core/markdown.js");
 /* harmony import */ var _media_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./media.js */ "./src/save-core/media.js");
 /* harmony import */ var _target_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./target.js */ "./src/save-core/target.js");
+/* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
+
 
 
 
@@ -496,12 +510,11 @@ __webpack_require__.r(__webpack_exports__);
 /**
  * Browser-side save core.
  *
- * This module only builds the ZIP Blob for the current Zhihu page. It does not
- * know whether the caller will download the Blob with FileSaver or upload it to
- * a local batch server.
+ * This module builds a page artifact first, then serializes it as a ZIP when a
+ * caller needs archive output.
  */
 
-async function buildCurrentPageZip(options = {}) {
+async function buildCurrentPageArtifact(options = {}) {
   const timeExported = new Date().toISOString();
   options.onProgress?.({ stage: "detect" });
   const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.detectTarget)(options.href || location.href);
@@ -509,21 +522,13 @@ async function buildCurrentPageZip(options = {}) {
     throw new Error("Only Zhihu answer/article detail pages are supported.");
   }
 
-  const ZipCtor = options.ZipCtor || getZipCtor();
-  if (!ZipCtor) {
-    throw new Error("JSZip is unavailable.");
-  }
-
   options.onProgress?.({ stage: "expand" });
   await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)();
   options.onProgress?.({ stage: "extract" });
   const result = extractCurrentPage(target);
-  const folderName = `${target.type}-${target.id}`;
-  const zip = new ZipCtor();
-  const folder = zip.folder(folderName);
-  const assetsFolder = folder.folder("assets");
+  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_4__.targetFolderName)(target, result.metadata);
   options.onProgress?.({ stage: "media", completed: 0, total: result.media.length });
-  const replacements = await (0,_media_js__WEBPACK_IMPORTED_MODULE_2__.downloadMediaToZip)(result.media, assetsFolder, {
+  const media = await (0,_media_js__WEBPACK_IMPORTED_MODULE_2__.downloadMediaAssets)(result.media, {
     onProgress: (progress) => options.onProgress?.({ stage: "media", ...progress })
   });
   options.onProgress?.({ stage: "markdown" });
@@ -531,9 +536,33 @@ async function buildCurrentPageZip(options = {}) {
     ...result.metadata,
     time_exported: timeExported
   };
-  const markdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.renderDocument)(metadata, result.markdown), replacements);
+  const indexMarkdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.renderDocument)(metadata, result.markdown), media.replacements);
 
-  folder.file("index.md", markdown);
+  return {
+    folderName,
+    indexMarkdown,
+    assets: media.assets,
+    fileName: `${folderName}.zip`,
+    target,
+    metadata
+  };
+}
+
+async function buildCurrentPageZip(options = {}) {
+  const ZipCtor = options.ZipCtor || getZipCtor();
+  if (!ZipCtor) {
+    throw new Error("JSZip is unavailable.");
+  }
+
+  const artifact = await buildCurrentPageArtifact(options);
+  const zip = new ZipCtor();
+  const folder = zip.folder(artifact.folderName);
+  const assetsFolder = folder.folder("assets");
+
+  folder.file("index.md", artifact.indexMarkdown);
+  for (const asset of artifact.assets) {
+    assetsFolder.file(asset.fileName, asset.data, { binary: true });
+  }
   options.onProgress?.({ stage: "zip", percent: 0 });
   const blob = await zip.generateAsync({
     type: "blob",
@@ -549,10 +578,10 @@ async function buildCurrentPageZip(options = {}) {
 
   return {
     blob,
-    fileName: `${folderName}.zip`,
-    folderName,
-    target,
-    metadata
+    fileName: artifact.fileName,
+    folderName: artifact.folderName,
+    target: artifact.target,
+    metadata: artifact.metadata
   };
 }
 
@@ -994,7 +1023,7 @@ function applyMediaReplacements(markdown, replacements) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   downloadMediaToZip: () => (/* binding */ downloadMediaToZip),
+/* harmony export */   downloadMediaAssets: () => (/* binding */ downloadMediaAssets),
 /* harmony export */   downloadOneMedia: () => (/* binding */ downloadOneMedia),
 /* harmony export */   extensionFromUrl: () => (/* binding */ extensionFromUrl),
 /* harmony export */   guessGifUrl: () => (/* binding */ guessGifUrl),
@@ -1008,7 +1037,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 /**
- * Media selection and ZIP download helpers.
+ * Media selection and asset download helpers.
  *
  * Markdown rendering registers media URLs first and downloads them later. This
  * keeps DOM parsing synchronous and lets one failed media request fall back to
@@ -1026,7 +1055,7 @@ function registerMedia(media, src, kind) {
   return placeholder;
 }
 
-async function downloadMediaToZip(media, assetsFolder, options = {}) {
+async function downloadMediaAssets(media, options = {}) {
   const replacements = new Map();
   const tasks = [];
   const seenSources = new Set();
@@ -1057,19 +1086,27 @@ async function downloadMediaToZip(media, assetsFolder, options = {}) {
     });
   }
 
-  const sourceResults = await runMediaDownloadQueue(tasks, assetsFolder, options);
+  const sourceResults = await runMediaDownloadQueue(tasks, options);
+  const assets = [];
 
   for (const item of media) {
     if (!item.src) {
       continue;
     }
-    replacements.set(item.placeholder, sourceResults.get(item.src) || item.src);
+    const result = sourceResults.get(item.src);
+    replacements.set(item.placeholder, result?.localPath || item.src);
   }
 
-  return replacements;
+  for (const result of sourceResults.values()) {
+    if (result.asset) {
+      assets.push(result.asset);
+    }
+  }
+
+  return { replacements, assets };
 }
 
-async function runMediaDownloadQueue(tasks, assetsFolder, options) {
+async function runMediaDownloadQueue(tasks, options) {
   const results = new Map();
   const total = tasks.length;
   let nextIndex = 0;
@@ -1082,11 +1119,17 @@ async function runMediaDownloadQueue(tasks, assetsFolder, options) {
       nextIndex += 1;
 
       try {
-        const downloaded = await downloadOneMedia(task.src, task.kind, task.index, assetsFolder);
-        results.set(task.src, `./assets/${downloaded.fileName}`);
+        const downloaded = await downloadOneMedia(task.src, task.kind, task.index);
+        results.set(task.src, {
+          localPath: `./assets/${downloaded.fileName}`,
+          asset: downloaded
+        });
       } catch (error) {
         console.warn(`[Zhihu Markdown Saver] failed to download ${task.src}:`, error);
-        results.set(task.src, task.src);
+        results.set(task.src, {
+          localPath: task.src,
+          asset: null
+        });
       } finally {
         completed += 1;
         options.onProgress?.({ completed, total });
@@ -1098,7 +1141,7 @@ async function runMediaDownloadQueue(tasks, assetsFolder, options) {
   return results;
 }
 
-async function downloadOneMedia(src, kind, index, assetsFolder) {
+async function downloadOneMedia(src, kind, index) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), _constants_js__WEBPACK_IMPORTED_MODULE_0__.MEDIA_DOWNLOAD_TIMEOUT_MS);
 
@@ -1116,8 +1159,7 @@ async function downloadOneMedia(src, kind, index, assetsFolder) {
     const data = await response.arrayBuffer();
     const ext = inferExtension(src, response.headers.get("content-type") || "", kind);
     const fileName = `${kind}-${String(index).padStart(3, "0")}${ext}`;
-    assetsFolder.file(fileName, data, { binary: true });
-    return { fileName };
+    return { fileName, data };
   } finally {
     window.clearTimeout(timer);
   }
@@ -1216,6 +1258,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   extractMetaContent: () => (/* binding */ extractMetaContent),
 /* harmony export */   extractMetaCount: () => (/* binding */ extractMetaCount),
 /* harmony export */   extractMetadata: () => (/* binding */ extractMetadata),
+/* harmony export */   extractQuestionId: () => (/* binding */ extractQuestionId),
+/* harmony export */   extractTargetIds: () => (/* binding */ extractTargetIds),
 /* harmony export */   extractTime: () => (/* binding */ extractTime),
 /* harmony export */   findContentRoot: () => (/* binding */ findContentRoot),
 /* harmony export */   findItemRoot: () => (/* binding */ findItemRoot)
@@ -1281,6 +1325,7 @@ function findItemRoot(contentRoot, type) {
 
 function extractMetadata({ target, itemRoot }) {
   const dataZop = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseJsonAttr)(itemRoot.getAttribute?.("data-zop"));
+  const ids = extractTargetIds(target, itemRoot);
   const title = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(
     target.type === "article"
       ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.pickText)([
@@ -1324,6 +1369,9 @@ function extractMetadata({ target, itemRoot }) {
     author_url: authorUrl,
     time_created: time.created,
     time_modified: time.modified,
+    question_id: ids.questionId,
+    answer_id: ids.answerId,
+    article_id: ids.articleId,
     upvote_count: extractMetaCount(itemRoot, "upvoteCount") ?? extractCount(itemRoot, [
       ".VoteButton--up",
       ".ContentItem-actions .VoteButton",
@@ -1335,6 +1383,44 @@ function extractMetadata({ target, itemRoot }) {
       "[aria-label*='评论']"
     ])
   };
+}
+
+function extractTargetIds(target, itemRoot) {
+  if (target.type === "article") {
+    return {
+      questionId: "",
+      answerId: "",
+      articleId: target.id
+    };
+  }
+
+  return {
+    questionId: extractQuestionId(target, itemRoot),
+    answerId: target.id,
+    articleId: ""
+  };
+}
+
+function extractQuestionId(target, itemRoot) {
+  if (target.questionId) {
+    return target.questionId;
+  }
+
+  const candidates = [
+    itemRoot.querySelector?.("meta[itemprop='url']")?.getAttribute("content") || "",
+    document.querySelector("link[rel='canonical']")?.getAttribute("href") || "",
+    document.querySelector("meta[property='og:url']")?.getAttribute("content") || "",
+    location.href
+  ];
+
+  for (const value of candidates) {
+    const match = String(value).match(new RegExp(`/question/(\\d+)/answer/${target.id}(?:$|[/?#])`));
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return "";
 }
 
 function extractTime(itemRoot) {
@@ -1409,7 +1495,6 @@ function extractCount(itemRoot, selectors) {
   }
   return null;
 }
-
 
 
 /***/ },
@@ -1531,6 +1616,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   cleanInputUrl: () => (/* binding */ cleanInputUrl),
 /* harmony export */   detectSupportedTarget: () => (/* binding */ detectSupportedTarget),
 /* harmony export */   normalizeSupportedUrl: () => (/* binding */ normalizeSupportedUrl),
+/* harmony export */   targetFolderName: () => (/* binding */ targetFolderName),
 /* harmony export */   targetKey: () => (/* binding */ targetKey)
 /* harmony export */ });
 /**
@@ -1548,11 +1634,22 @@ function detectSupportedTarget(input, baseHref = "https://www.zhihu.com/") {
     return null;
   }
 
-  const answerMatch = url.pathname.match(/\/answer\/(\d+)/);
+  const questionAnswerMatch = url.pathname.match(/^\/question\/(\d+)\/answer\/(\d+)/);
+  if (questionAnswerMatch && url.hostname === "www.zhihu.com") {
+    return {
+      type: "answer",
+      id: questionAnswerMatch[2],
+      questionId: questionAnswerMatch[1],
+      url: cleanInputUrl(url)
+    };
+  }
+
+  const answerMatch = url.pathname.match(/^\/answer\/(\d+)/);
   if (answerMatch && url.hostname === "www.zhihu.com") {
     return {
       type: "answer",
       id: answerMatch[1],
+      questionId: "",
       url: cleanInputUrl(url)
     };
   }
@@ -1585,6 +1682,21 @@ function normalizeSupportedUrl(input, baseHref) {
   return target ? target.url : "";
 }
 
+function targetFolderName(target, metadata = {}) {
+  if (target?.type === "article") {
+    return `article-${target.id}`;
+  }
+
+  if (target?.type === "answer") {
+    const questionId = metadata.question_id || target.questionId;
+    if (!questionId) {
+      throw new Error("Cannot determine the Zhihu question ID for this answer.");
+    }
+    return `question-${questionId}-answer-${target.id}`;
+  }
+
+  throw new Error("Unsupported Zhihu target.");
+}
 
 
 /***/ },
@@ -1600,8 +1712,135 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   BATCH_STATUS_ID: () => (/* binding */ BATCH_STATUS_ID),
 /* harmony export */   BUTTON_ID: () => (/* binding */ BUTTON_ID)
 /* harmony export */ });
-const BUTTON_ID = "zhmd-save-zip-button";
+const BUTTON_ID = "zhmd-save-control";
 const BATCH_STATUS_ID = "zhmd-batch-status";
+
+
+/***/ },
+
+/***/ "./src/userscript/directory-save.js"
+/*!******************************************!*\
+  !*** ./src/userscript/directory-save.js ***!
+  \******************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   supportsDirectoryPicker: () => (/* binding */ supportsDirectoryPicker),
+/* harmony export */   writeArtifactToDirectory: () => (/* binding */ writeArtifactToDirectory)
+/* harmony export */ });
+/**
+ * Browser directory persistence for the default single-page save action.
+ *
+ * Chrome and Edge expose File System Access API handles only after the user
+ * chooses a directory. The chosen handle is stored in IndexedDB so later saves
+ * can reuse the same export root after a permission check.
+ */
+
+const DB_NAME = "zhihu-markdown-saver";
+const DB_VERSION = 1;
+const STORE_NAME = "settings";
+const EXPORT_ROOT_KEY = "export-root-directory";
+
+async function writeArtifactToDirectory(artifact) {
+  if (!supportsDirectoryPicker()) {
+    throw new Error("当前浏览器不支持保存到文件夹，请使用 Chrome/Edge，或通过齿轮菜单下载 ZIP。");
+  }
+
+  const root = await getExportRootDirectory();
+  if (await directoryExists(root, artifact.folderName)) {
+    throw new Error(`目标文件夹已存在：${artifact.folderName}`);
+  }
+
+  const folder = await root.getDirectoryHandle(artifact.folderName, { create: true });
+  await writeFile(folder, "index.md", artifact.indexMarkdown);
+
+  const assetsFolder = await folder.getDirectoryHandle("assets", { create: true });
+  for (const asset of artifact.assets) {
+    await writeFile(assetsFolder, asset.fileName, asset.data);
+  }
+}
+
+function supportsDirectoryPicker() {
+  return typeof window.showDirectoryPicker === "function";
+}
+
+async function getExportRootDirectory() {
+  const stored = await readStoredDirectoryHandle();
+  if (stored && await ensureReadWritePermission(stored)) {
+    return stored;
+  }
+
+  const selected = await window.showDirectoryPicker({
+    id: "zhihu-markdown-saver",
+    mode: "readwrite"
+  });
+  if (!await ensureReadWritePermission(selected)) {
+    throw new Error("未获得目录写入权限。");
+  }
+  await storeDirectoryHandle(selected);
+  return selected;
+}
+
+async function ensureReadWritePermission(handle) {
+  const options = { mode: "readwrite" };
+  if (await handle.queryPermission(options) === "granted") {
+    return true;
+  }
+  return await handle.requestPermission(options) === "granted";
+}
+
+async function directoryExists(parent, name) {
+  try {
+    await parent.getDirectoryHandle(name, { create: false });
+    return true;
+  } catch (error) {
+    if (error?.name === "NotFoundError") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function writeFile(directory, fileName, data) {
+  const handle = await directory.getFileHandle(fileName, { create: true });
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(data);
+  } finally {
+    await writable.close();
+  }
+}
+
+async function readStoredDirectoryHandle() {
+  const db = await openDatabase();
+  return requestToPromise(db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(EXPORT_ROOT_KEY));
+}
+
+async function storeDirectoryHandle(handle) {
+  const db = await openDatabase();
+  await requestToPromise(
+    db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(handle, EXPORT_ROOT_KEY)
+  );
+}
+
+function openDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function requestToPromise(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
 
 
 /***/ },
@@ -1614,10 +1853,13 @@ const BATCH_STATUS_ID = "zhmd-batch-status";
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   saveCurrentPage: () => (/* binding */ saveCurrentPage)
+/* harmony export */   saveCurrentPage: () => (/* binding */ saveCurrentPage),
+/* harmony export */   saveCurrentPageAsZip: () => (/* binding */ saveCurrentPageAsZip)
 /* harmony export */ });
 /* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
-/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
+/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+
 
 
 
@@ -1626,41 +1868,69 @@ __webpack_require__.r(__webpack_exports__);
  */
 
 async function saveCurrentPage(button) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存中...", true);
+
+  try {
+    const artifact = await (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageArtifact)({
+      onProgress: (progress) => {
+        if (progress.stage === "media") {
+          (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
+        }
+      }
+    });
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "写入文件夹", true);
+    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_1__.writeArtifactToDirectory)(artifact);
+
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存成功", true);
+    resetButtonLater(button, originalText, 1600);
+  } catch (error) {
+    console.error("[Zhihu Markdown Saver] folder save failed:", error);
+    button.disabled = false;
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, error?.name === "AbortError" ? "已取消" : "保存失败", false);
+    resetButtonLater(button, originalText, 2600);
+  }
+}
+
+async function saveCurrentPageAsZip(button) {
   const saveFile = window.saveAs || (typeof saveAs === "function" ? saveAs : null);
   if (!saveFile) {
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, "缺少 FileSaver", false);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "缺少 FileSaver", false);
     return;
   }
 
   const originalText = button.textContent;
   button.disabled = true;
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, "保存中...", true);
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存中...", true);
 
   try {
     const result = await (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageZip)({
       onProgress: (progress) => {
         if (progress.stage === "media") {
-          (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
+          (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
         } else if (progress.stage === "zip") {
-          (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, `生成 ZIP ${progress.percent || 0}%`, true);
+          (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `生成 ZIP ${progress.percent || 0}%`, true);
         }
       }
     });
     saveFile(result.blob, result.fileName);
 
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, "保存成功", true);
-    window.setTimeout(() => {
-      button.disabled = false;
-      (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, originalText, true);
-    }, 1600);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存成功", true);
+    resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] save failed:", error);
+    console.error("[Zhihu Markdown Saver] ZIP save failed:", error);
     button.disabled = false;
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, "保存失败", false);
-    window.setTimeout(() => {
-      (0,_ui_js__WEBPACK_IMPORTED_MODULE_1__.setButtonState)(button, originalText, true);
-    }, 2200);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存失败", false);
+    resetButtonLater(button, originalText, 2200);
   }
+}
+
+function resetButtonLater(button, text, delayMs) {
+  window.setTimeout(() => {
+    button.disabled = false;
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, text, true);
+  }, delayMs);
 }
 
 
@@ -1685,24 +1955,32 @@ __webpack_require__.r(__webpack_exports__);
  * UI helpers for the floating save button.
  *
  * The UI is intentionally small because the userscript is a utility overlay on
- * top of Zhihu pages. All save orchestration stays in `save.js`.
+ * top of Zhihu pages. Save orchestration stays outside this module.
  */
 
 /**
- * Creates the fixed "Save as ZIP" button.
+ * Creates the fixed save control with a primary folder-save button and a small
+ * ZIP action behind the settings button.
  */
-function createSaveButton(onClick) {
+function createSaveButton(onSave, onZip) {
+  const wrapper = document.createElement("div");
+  wrapper.id = _constants_js__WEBPACK_IMPORTED_MODULE_0__.BUTTON_ID;
+  wrapper.style.position = "fixed";
+  wrapper.style.right = "72px";
+  wrapper.style.bottom = "12px";
+  wrapper.style.zIndex = "2147483647";
+  wrapper.style.display = "flex";
+  wrapper.style.alignItems = "center";
+  wrapper.style.gap = "6px";
+  wrapper.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
   const button = document.createElement("button");
-  button.id = _constants_js__WEBPACK_IMPORTED_MODULE_0__.BUTTON_ID;
   button.type = "button";
-  button.textContent = "保存为 ZIP";
-  button.title = "保存当前知乎回答/文章为 Markdown ZIP";
-  button.style.position = "fixed";
-  button.style.right = "72px";
-  button.style.bottom = "12px";
-  button.style.zIndex = "2147483647";
+  button.textContent = "保存";
+  button.title = "保存当前知乎回答/文章到授权目录";
   button.style.height = "38px";
-  button.style.padding = "0 14px";
+  button.style.minWidth = "78px";
+  button.style.padding = "0 16px";
   button.style.border = "none";
   button.style.borderRadius = "6px";
   button.style.background = "#056de8";
@@ -1713,10 +1991,62 @@ function createSaveButton(onClick) {
   button.style.cursor = "pointer";
 
   button.addEventListener("click", async () => {
-    await onClick(button);
+    await onSave(button);
   });
 
-  return button;
+  const menu = document.createElement("div");
+  menu.style.position = "absolute";
+  menu.style.right = "0";
+  menu.style.bottom = "44px";
+  menu.style.display = "none";
+  menu.style.padding = "6px";
+  menu.style.borderRadius = "6px";
+  menu.style.background = "rgba(23, 25, 31, .96)";
+  menu.style.boxShadow = "0 8px 24px rgba(0, 0, 0, .22)";
+
+  const zipButton = document.createElement("button");
+  zipButton.type = "button";
+  zipButton.textContent = "下载为 ZIP";
+  zipButton.title = "通过浏览器下载当前回答/文章 ZIP";
+  zipButton.style.height = "32px";
+  zipButton.style.padding = "0 12px";
+  zipButton.style.border = "none";
+  zipButton.style.borderRadius = "5px";
+  zipButton.style.background = "#303846";
+  zipButton.style.color = "#fff";
+  zipButton.style.fontSize = "13px";
+  zipButton.style.fontWeight = "600";
+  zipButton.style.cursor = "pointer";
+  zipButton.style.whiteSpace = "nowrap";
+  zipButton.addEventListener("click", async () => {
+    await onZip(zipButton);
+  });
+  menu.append(zipButton);
+
+  const gear = document.createElement("button");
+  gear.type = "button";
+  gear.textContent = "⚙";
+  gear.title = "保存选项";
+  gear.style.width = "32px";
+  gear.style.height = "32px";
+  gear.style.border = "none";
+  gear.style.borderRadius = "6px";
+  gear.style.background = "rgba(23, 25, 31, .88)";
+  gear.style.color = "#fff";
+  gear.style.fontSize = "16px";
+  gear.style.lineHeight = "32px";
+  gear.style.cursor = "pointer";
+  gear.style.boxShadow = "0 6px 20px rgba(0, 0, 0, .14)";
+
+  wrapper.addEventListener("mouseenter", () => {
+    menu.style.display = "block";
+  });
+  wrapper.addEventListener("mouseleave", () => {
+    menu.style.display = "none";
+  });
+
+  wrapper.append(button, gear, menu);
+  return wrapper;
 }
 
 /**
@@ -1861,6 +2191,7 @@ function boot() {
 function exposeTestApi() {
   window.zhihuMarkdownSaverTest = {
     applyMediaReplacements: _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__.applyMediaReplacements,
+    buildCurrentPageArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildCurrentPageArtifact,
     buildCurrentPageZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildCurrentPageZip,
     detectTarget: _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget,
     extractCurrentPage: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.extractCurrentPage,
@@ -1897,7 +2228,7 @@ function injectButton() {
     return;
   }
 
-  document.body.append((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveButton)(_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveCurrentPage));
+  document.body.append((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveButton)(_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveCurrentPage, _single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveCurrentPageAsZip));
 }
 
 })();

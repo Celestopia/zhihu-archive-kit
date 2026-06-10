@@ -5,7 +5,7 @@ const userscriptHeader = `// ==UserScript==
 // @name         Zhihu Markdown Saver
 // @namespace    https://github.com/local/zhihu-markdown-downloader
 // @version      0.1.0
-// @description  Save Zhihu answers and Zhuanlan articles as Markdown ZIP files.
+// @description  Save Zhihu answers and Zhuanlan articles as Markdown folders or ZIP files.
 // @author       local
 // @match        https://www.zhihu.com/question/*/answer/*
 // @match        https://www.zhihu.com/answer/*

@@ -120,6 +120,17 @@ async function runBatchLoop() {
       return;
     }
 
+    if (done.saved === false) {
+      renderBatchStatus({
+        ...context,
+        completedCount: done.completed_count,
+        failedCount: done.failed_count,
+        pendingCount: done.pending_count,
+        tone: "warn",
+        stage: "保存失败",
+        detail: done.error || "本地输出失败"
+      });
+    }
     if (done.paused) {
       renderBatchStatus({
         ...context,

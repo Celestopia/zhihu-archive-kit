@@ -57,6 +57,7 @@ export function findItemRoot(contentRoot, type) {
 
 export function extractMetadata({ target, itemRoot }) {
   const dataZop = parseJsonAttr(itemRoot.getAttribute?.("data-zop"));
+  const ids = extractTargetIds(target, itemRoot);
   const title = cleanText(
     target.type === "article"
       ? pickText([
@@ -100,6 +101,9 @@ export function extractMetadata({ target, itemRoot }) {
     author_url: authorUrl,
     time_created: time.created,
     time_modified: time.modified,
+    question_id: ids.questionId,
+    answer_id: ids.answerId,
+    article_id: ids.articleId,
     upvote_count: extractMetaCount(itemRoot, "upvoteCount") ?? extractCount(itemRoot, [
       ".VoteButton--up",
       ".ContentItem-actions .VoteButton",
@@ -111,6 +115,44 @@ export function extractMetadata({ target, itemRoot }) {
       "[aria-label*='评论']"
     ])
   };
+}
+
+export function extractTargetIds(target, itemRoot) {
+  if (target.type === "article") {
+    return {
+      questionId: "",
+      answerId: "",
+      articleId: target.id
+    };
+  }
+
+  return {
+    questionId: extractQuestionId(target, itemRoot),
+    answerId: target.id,
+    articleId: ""
+  };
+}
+
+export function extractQuestionId(target, itemRoot) {
+  if (target.questionId) {
+    return target.questionId;
+  }
+
+  const candidates = [
+    itemRoot.querySelector?.("meta[itemprop='url']")?.getAttribute("content") || "",
+    document.querySelector("link[rel='canonical']")?.getAttribute("href") || "",
+    document.querySelector("meta[property='og:url']")?.getAttribute("content") || "",
+    location.href
+  ];
+
+  for (const value of candidates) {
+    const match = String(value).match(new RegExp(`/question/(\\d+)/answer/${target.id}(?:$|[/?#])`));
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return "";
 }
 
 export function extractTime(itemRoot) {
@@ -185,4 +227,3 @@ export function extractCount(itemRoot, selectors) {
   }
   return null;
 }
-

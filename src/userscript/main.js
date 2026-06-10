@@ -1,9 +1,9 @@
 import { BUTTON_ID } from "./constants.js";
 import { startBatchClient } from "../batch/client.js";
-import { buildCurrentPageZip, extractCurrentPage } from "../save-core/build-zip.js";
+import { buildCurrentPageArtifact, buildCurrentPageZip, extractCurrentPage } from "../save-core/build-zip.js";
 import { applyMediaReplacements, renderDocument } from "../save-core/markdown.js";
 import { detectTarget, findContentRoot } from "../save-core/target.js";
-import { saveCurrentPage } from "./single-save.js";
+import { saveCurrentPage, saveCurrentPageAsZip } from "./single-save.js";
 import { createSaveButton, removeSaveButton } from "./ui.js";
 
 /**
@@ -46,6 +46,7 @@ function boot() {
 function exposeTestApi() {
   window.zhihuMarkdownSaverTest = {
     applyMediaReplacements,
+    buildCurrentPageArtifact,
     buildCurrentPageZip,
     detectTarget,
     extractCurrentPage,
@@ -82,5 +83,5 @@ function injectButton() {
     return;
   }
 
-  document.body.append(createSaveButton(saveCurrentPage));
+  document.body.append(createSaveButton(saveCurrentPage, saveCurrentPageAsZip));
 }

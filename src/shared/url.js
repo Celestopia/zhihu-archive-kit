@@ -13,11 +13,22 @@ export function detectSupportedTarget(input, baseHref = "https://www.zhihu.com/"
     return null;
   }
 
-  const answerMatch = url.pathname.match(/\/answer\/(\d+)/);
+  const questionAnswerMatch = url.pathname.match(/^\/question\/(\d+)\/answer\/(\d+)/);
+  if (questionAnswerMatch && url.hostname === "www.zhihu.com") {
+    return {
+      type: "answer",
+      id: questionAnswerMatch[2],
+      questionId: questionAnswerMatch[1],
+      url: cleanInputUrl(url)
+    };
+  }
+
+  const answerMatch = url.pathname.match(/^\/answer\/(\d+)/);
   if (answerMatch && url.hostname === "www.zhihu.com") {
     return {
       type: "answer",
       id: answerMatch[1],
+      questionId: "",
       url: cleanInputUrl(url)
     };
   }
@@ -50,3 +61,18 @@ export function normalizeSupportedUrl(input, baseHref) {
   return target ? target.url : "";
 }
 
+export function targetFolderName(target, metadata = {}) {
+  if (target?.type === "article") {
+    return `article-${target.id}`;
+  }
+
+  if (target?.type === "answer") {
+    const questionId = metadata.question_id || target.questionId;
+    if (!questionId) {
+      throw new Error("Cannot determine the Zhihu question ID for this answer.");
+    }
+    return `question-${questionId}-answer-${target.id}`;
+  }
+
+  throw new Error("Unsupported Zhihu target.");
+}

@@ -16,6 +16,7 @@ async function main() {
   console.log(`Batch server running at http://127.0.0.1:${config.port}`);
   console.log(`Loaded ${config.jobs.length} supported URL(s).`);
   console.log(`Output directory: ${config.outputDir}`);
+  console.log(`Output mode: ${config.extract ? "folder" : "zip"}`);
 
   const openedBy = openBatchUrl(config.jobs[0].url, {
     browser: config.browser,
