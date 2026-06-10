@@ -1,16 +1,30 @@
-import { BUTTON_ID } from "./constants.js";
+import { CONTROL_BOUND_ATTR } from "./constants.js";
 import { startBatchClient } from "../batch/client.js";
-import { buildCurrentPageArtifact, buildCurrentPageZip, extractCurrentPage } from "../save-core/build-zip.js";
+import {
+  buildAnswerItemArtifact,
+  buildAnswerItemZip,
+  buildArticleRootArtifact,
+  buildArticleRootZip,
+  buildCurrentPageArtifact,
+  buildCurrentPageZip,
+  extractCurrentPage
+} from "../save-core/build-zip.js";
 import { applyMediaReplacements, renderDocument } from "../save-core/markdown.js";
-import { detectTarget, findContentRoot } from "../save-core/target.js";
-import { saveCurrentPage, saveCurrentPageAsZip } from "./single-save.js";
-import { createSaveButton, removeSaveButton } from "./ui.js";
+import {
+  detectTarget,
+  extractAnswerTarget,
+  findAnswerContentRoot,
+  findArticleContentRoot,
+  findArticleRoot
+} from "../save-core/target.js";
+import { changeDirectoryWithButton, saveArtifactWithButton, saveZipWithButton } from "./single-save.js";
+import { createSaveControl, ensureSaveControlStyle, removeSaveControls } from "./ui.js";
 
 /**
  * Tampermonkey entry point.
  *
- * The script reads Zhihu's rendered DOM, converts supported answer/article rich
- * text to Markdown, downloads media into a ZIP, and ignores comments entirely.
+ * The script binds save controls to Zhihu answer cards and article content,
+ * converts the related DOM to Markdown, and ignores comments.
  */
 
 let scheduled = 0;
@@ -18,9 +32,6 @@ let lastHref = "";
 
 boot();
 
-/**
- * Starts the userscript and keeps the save button in sync with Zhihu's SPA.
- */
 function boot() {
   exposeTestApi();
   startBatchClient();
@@ -40,12 +51,13 @@ function boot() {
   }, 800);
 }
 
-/**
- * Exposes selected pure functions for optional browser-console diagnostics.
- */
 function exposeTestApi() {
   window.zhihuMarkdownSaverTest = {
     applyMediaReplacements,
+    buildAnswerItemArtifact,
+    buildAnswerItemZip,
+    buildArticleRootArtifact,
+    buildArticleRootZip,
     buildCurrentPageArtifact,
     buildCurrentPageZip,
     detectTarget,
@@ -54,34 +66,79 @@ function exposeTestApi() {
   };
 }
 
-/**
- * Debounces button injection after DOM mutations.
- */
 function scheduleInject() {
   window.clearTimeout(scheduled);
-  scheduled = window.setTimeout(injectButton, 250);
+  scheduled = window.setTimeout(injectControls, 250);
 }
 
-/**
- * Injects the fixed save button on supported detail pages.
- */
-function injectButton() {
+function injectControls() {
+  if (!isManualSavePage()) {
+    removeSaveControls();
+    return;
+  }
+
+  ensureSaveControlStyle();
+  injectAnswerControls();
+  injectArticleControl();
+}
+
+function injectAnswerControls() {
+  for (const answerItem of Array.from(document.querySelectorAll(".AnswerItem"))) {
+    if (answerItem.getAttribute(CONTROL_BOUND_ATTR) === "answer") {
+      continue;
+    }
+    if (!findAnswerContentRoot(answerItem)) {
+      continue;
+    }
+
+    try {
+      extractAnswerTarget(answerItem);
+    } catch {
+      continue;
+    }
+
+    const host = answerItem.querySelector(".RichContent") || answerItem;
+    host.prepend(createSaveControl(
+      (button) => saveArtifactWithButton(button, (options) => buildAnswerItemArtifact(answerItem, options)),
+      (button) => saveZipWithButton(button, (options) => buildAnswerItemZip(answerItem, options)),
+      changeDirectoryWithButton
+    ));
+    answerItem.setAttribute(CONTROL_BOUND_ATTR, "answer");
+  }
+}
+
+function injectArticleControl() {
   const target = detectTarget(location.href);
-  const existing = document.getElementById(BUTTON_ID);
-
-  if (!target) {
-    removeSaveButton();
+  if (target?.type !== "article") {
     return;
   }
 
-  if (!findContentRoot(target)) {
+  const articleRoot = findArticleRoot();
+  if (!articleRoot || articleRoot.getAttribute(CONTROL_BOUND_ATTR) === "article") {
+    return;
+  }
+  if (!findArticleContentRoot(articleRoot)) {
     return;
   }
 
-  if (existing) {
-    existing.hidden = false;
-    return;
+  articleRoot.prepend(createSaveControl(
+    (button) => saveArtifactWithButton(button, (options) => buildArticleRootArtifact(articleRoot, options)),
+    (button) => saveZipWithButton(button, (options) => buildArticleRootZip(articleRoot, options)),
+    changeDirectoryWithButton
+  ));
+  articleRoot.setAttribute(CONTROL_BOUND_ATTR, "article");
+}
+
+function isManualSavePage() {
+  const target = detectTarget(location.href);
+  if (target?.type === "answer" || target?.type === "article") {
+    return true;
   }
 
-  document.body.append(createSaveButton(saveCurrentPage, saveCurrentPageAsZip));
+  try {
+    const url = new URL(location.href);
+    return url.hostname === "www.zhihu.com" && /^\/question\/\d+/.test(url.pathname);
+  } catch {
+    return false;
+  }
 }

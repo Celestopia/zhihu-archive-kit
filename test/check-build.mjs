@@ -16,6 +16,7 @@ const userscriptPath = path.join(rootDir, "userscripts", "zhihu-markdown-saver.u
 const content = await readFile(userscriptPath, "utf8");
 
 assert.match(content, /\/\/ ==UserScript==/);
+assert.match(content, /@match\s+https:\/\/www\.zhihu\.com\/question\/\*/);
 assert.match(content, /@match\s+https:\/\/www\.zhihu\.com\/question\/\*\/answer\/\*/);
 assert.match(content, /@match\s+https:\/\/www\.zhihu\.com\/answer\/\*/);
 assert.match(content, /@match\s+https:\/\/zhuanlan\.zhihu\.com\/p\/\*/);
@@ -24,8 +25,13 @@ assert.match(content, /@require\s+https:\/\/cdn\.jsdelivr\.net\/npm\/file-saver@
 assert.match(content, /@grant\s+none/);
 assert.match(content, /Heading levels map directly to Markdown heading depth/);
 assert.match(content, /下载为 ZIP/);
+assert.match(content, /更改保存目录/);
 assert.match(content, /showDirectoryPicker/);
 assert.match(content, /writeArtifactToDirectory/);
+assert.match(content, /buildAnswerItemArtifact/);
+assert.match(content, /buildArticleRootArtifact/);
+assert.match(content, /zhmd-save-control/);
+assert.match(content, /AnswerItem:hover/);
 assert.match(content, /question-\$\{questionId\}-answer-\$\{target\.id\}/);
 assert.match(content, /downloadMediaAssets/);
 assert.match(content, /\/api\/job\/current/);

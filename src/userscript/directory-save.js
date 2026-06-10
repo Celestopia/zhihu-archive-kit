@@ -34,10 +34,9 @@ export function supportsDirectoryPicker() {
   return typeof window.showDirectoryPicker === "function";
 }
 
-async function getExportRootDirectory() {
-  const stored = await readStoredDirectoryHandle();
-  if (stored && await ensureReadWritePermission(stored)) {
-    return stored;
+export async function changeExportRootDirectory() {
+  if (!supportsDirectoryPicker()) {
+    throw new Error("当前浏览器不支持选择保存目录。");
   }
 
   const selected = await window.showDirectoryPicker({
@@ -49,6 +48,15 @@ async function getExportRootDirectory() {
   }
   await storeDirectoryHandle(selected);
   return selected;
+}
+
+async function getExportRootDirectory() {
+  const stored = await readStoredDirectoryHandle();
+  if (stored && await ensureReadWritePermission(stored)) {
+    return stored;
+  }
+
+  return changeExportRootDirectory();
 }
 
 async function ensureReadWritePermission(handle) {

@@ -2,9 +2,9 @@
  * Browser DOM helpers used before extracting Zhihu rich text.
  */
 
-export async function expandCollapsedContent() {
+export async function expandCollapsedContent(scope = document) {
   const labels = ["阅读全文", "展开阅读全文", "继续阅读", "显示全部", "展开全部"];
-  const candidates = Array.from(document.querySelectorAll("button, a"));
+  const candidates = Array.from(scope.querySelectorAll("button, a"));
 
   for (const el of candidates) {
     const text = (el.textContent || "").replace(/\s+/g, "");

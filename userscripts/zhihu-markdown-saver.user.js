@@ -4,6 +4,7 @@
 // @version      0.1.0
 // @description  Save Zhihu answers and Zhuanlan articles as Markdown folders or ZIP files.
 // @author       local
+// @match        https://www.zhihu.com/question/*
 // @match        https://www.zhihu.com/question/*/answer/*
 // @match        https://www.zhihu.com/answer/*
 // @match        https://zhuanlan.zhihu.com/p/*
@@ -491,8 +492,13 @@ function delay(ms) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   buildAnswerItemArtifact: () => (/* binding */ buildAnswerItemArtifact),
+/* harmony export */   buildAnswerItemZip: () => (/* binding */ buildAnswerItemZip),
+/* harmony export */   buildArticleRootArtifact: () => (/* binding */ buildArticleRootArtifact),
+/* harmony export */   buildArticleRootZip: () => (/* binding */ buildArticleRootZip),
 /* harmony export */   buildCurrentPageArtifact: () => (/* binding */ buildCurrentPageArtifact),
 /* harmony export */   buildCurrentPageZip: () => (/* binding */ buildCurrentPageZip),
+/* harmony export */   buildZipFromArtifact: () => (/* binding */ buildZipFromArtifact),
 /* harmony export */   extractCurrentPage: () => (/* binding */ extractCurrentPage),
 /* harmony export */   getZipCtor: () => (/* binding */ getZipCtor)
 /* harmony export */ });
@@ -523,38 +529,67 @@ async function buildCurrentPageArtifact(options = {}) {
   }
 
   options.onProgress?.({ stage: "expand" });
-  await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)();
+  await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)(findExpansionScope(target) || document);
   options.onProgress?.({ stage: "extract" });
   const result = extractCurrentPage(target);
-  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_4__.targetFolderName)(target, result.metadata);
-  options.onProgress?.({ stage: "media", completed: 0, total: result.media.length });
-  const media = await (0,_media_js__WEBPACK_IMPORTED_MODULE_2__.downloadMediaAssets)(result.media, {
-    onProgress: (progress) => options.onProgress?.({ stage: "media", ...progress })
-  });
-  options.onProgress?.({ stage: "markdown" });
-  const metadata = {
-    ...result.metadata,
-    time_exported: timeExported
-  };
-  const indexMarkdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.renderDocument)(metadata, result.markdown), media.replacements);
-
-  return {
-    folderName,
-    indexMarkdown,
-    assets: media.assets,
-    fileName: `${folderName}.zip`,
-    target,
-    metadata
-  };
+  return buildArtifactFromExtracted({ target, result, options, timeExported });
 }
 
 async function buildCurrentPageZip(options = {}) {
+  return buildZipFromArtifact(await buildCurrentPageArtifact(options), options);
+}
+
+async function buildAnswerItemArtifact(answerItem, options = {}) {
+  const timeExported = new Date().toISOString();
+  options.onProgress?.({ stage: "detect" });
+  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractAnswerTarget)(answerItem);
+
+  options.onProgress?.({ stage: "expand" });
+  await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)(answerItem);
+  options.onProgress?.({ stage: "extract" });
+  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findAnswerContentRoot)(answerItem);
+  if (!root) {
+    throw new Error("Cannot find answer content root.");
+  }
+
+  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractMetadata)({ target, itemRoot: answerItem });
+  const result = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.extractPage)({ root, metadata });
+  return buildArtifactFromExtracted({ target, result, options, timeExported });
+}
+
+async function buildAnswerItemZip(answerItem, options = {}) {
+  return buildZipFromArtifact(await buildAnswerItemArtifact(answerItem, options), options);
+}
+
+async function buildArticleRootArtifact(articleRoot, options = {}) {
+  const timeExported = new Date().toISOString();
+  options.onProgress?.({ stage: "detect" });
+  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractArticleTarget)(articleRoot);
+
+  options.onProgress?.({ stage: "expand" });
+  await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)(articleRoot);
+  options.onProgress?.({ stage: "extract" });
+  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findArticleContentRoot)(articleRoot);
+  if (!root) {
+    throw new Error("Cannot find article content root.");
+  }
+
+  const itemRoot = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findItemRoot)(root, "article");
+  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractMetadata)({ target, itemRoot });
+  const result = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.extractPage)({ root, metadata });
+  return buildArtifactFromExtracted({ target, result, options, timeExported });
+}
+
+async function buildArticleRootZip(articleRoot, options = {}) {
+  return buildZipFromArtifact(await buildArticleRootArtifact(articleRoot, options), options);
+}
+
+async function buildZipFromArtifact(artifact, options = {}) {
   const ZipCtor = options.ZipCtor || getZipCtor();
   if (!ZipCtor) {
     throw new Error("JSZip is unavailable.");
   }
 
-  const artifact = await buildCurrentPageArtifact(options);
   const zip = new ZipCtor();
   const folder = zip.folder(artifact.folderName);
   const assetsFolder = folder.folder("assets");
@@ -583,6 +618,36 @@ async function buildCurrentPageZip(options = {}) {
     target: artifact.target,
     metadata: artifact.metadata
   };
+}
+
+async function buildArtifactFromExtracted({ target, result, options, timeExported }) {
+  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_4__.targetFolderName)(target, result.metadata);
+  options.onProgress?.({ stage: "media", completed: 0, total: result.media.length });
+  const media = await (0,_media_js__WEBPACK_IMPORTED_MODULE_2__.downloadMediaAssets)(result.media, {
+    onProgress: (progress) => options.onProgress?.({ stage: "media", ...progress })
+  });
+  options.onProgress?.({ stage: "markdown" });
+  const metadata = {
+    ...result.metadata,
+    time_exported: timeExported
+  };
+  const indexMarkdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.renderDocument)(metadata, result.markdown), media.replacements);
+
+  return {
+    folderName,
+    indexMarkdown,
+    assets: media.assets,
+    fileName: `${folderName}.zip`,
+    target,
+    metadata
+  };
+}
+
+function findExpansionScope(target) {
+  if (target.type === "answer") {
+    return (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findAnswerItemByTarget)(target);
+  }
+  return (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findArticleRoot)();
 }
 
 function extractCurrentPage(target) {
@@ -641,9 +706,9 @@ __webpack_require__.r(__webpack_exports__);
  * Browser DOM helpers used before extracting Zhihu rich text.
  */
 
-async function expandCollapsedContent() {
+async function expandCollapsedContent(scope = document) {
   const labels = ["阅读全文", "展开阅读全文", "继续阅读", "显示全部", "展开全部"];
-  const candidates = Array.from(document.querySelectorAll("button, a"));
+  const candidates = Array.from(scope.querySelectorAll("button, a"));
 
   for (const el of candidates) {
     const text = (el.textContent || "").replace(/\s+/g, "");
@@ -1253,6 +1318,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   answerItemMatches: () => (/* binding */ answerItemMatches),
 /* harmony export */   detectTarget: () => (/* binding */ detectTarget),
+/* harmony export */   extractAnswerTarget: () => (/* binding */ extractAnswerTarget),
+/* harmony export */   extractArticleTarget: () => (/* binding */ extractArticleTarget),
 /* harmony export */   extractAuthorUrl: () => (/* binding */ extractAuthorUrl),
 /* harmony export */   extractCount: () => (/* binding */ extractCount),
 /* harmony export */   extractMetaContent: () => (/* binding */ extractMetaContent),
@@ -1261,6 +1328,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   extractQuestionId: () => (/* binding */ extractQuestionId),
 /* harmony export */   extractTargetIds: () => (/* binding */ extractTargetIds),
 /* harmony export */   extractTime: () => (/* binding */ extractTime),
+/* harmony export */   findAnswerContentRoot: () => (/* binding */ findAnswerContentRoot),
+/* harmony export */   findAnswerItemByTarget: () => (/* binding */ findAnswerItemByTarget),
+/* harmony export */   findArticleContentRoot: () => (/* binding */ findArticleContentRoot),
+/* harmony export */   findArticleRoot: () => (/* binding */ findArticleRoot),
 /* harmony export */   findContentRoot: () => (/* binding */ findContentRoot),
 /* harmony export */   findItemRoot: () => (/* binding */ findItemRoot)
 /* harmony export */ });
@@ -1279,20 +1350,31 @@ function detectTarget(input) {
 
 function findContentRoot(target) {
   if (target.type === "article") {
-    return document.querySelector(".Post-content .RichText")
-      || document.querySelector(".Post-RichTextContainer .RichText")
-      || document.querySelector(".Post-RichText")
-      || document.querySelector("article .RichText");
+    return findArticleContentRoot(document);
   }
 
-  const answerItems = Array.from(document.querySelectorAll(".AnswerItem"));
-  const matched = answerItems.find((item) => answerItemMatches(item, target.id));
-  const item = matched || answerItems[0] || document;
+  const item = findAnswerItemByTarget(target);
+  return item ? findAnswerContentRoot(item) : null;
+}
 
-  return item.querySelector(".RichContent-inner .RichText")
-    || item.querySelector(".RichContent .RichText")
-    || item.querySelector(".RichText.ztext")
-    || item.querySelector(".RichText");
+function findAnswerItemByTarget(target) {
+  return Array.from(document.querySelectorAll(".AnswerItem"))
+    .find((item) => answerItemMatches(item, target.id)) || null;
+}
+
+function findAnswerContentRoot(answerItem) {
+  return answerItem.querySelector(".RichContent-inner .RichText")
+    || answerItem.querySelector(".RichContent .RichText")
+    || answerItem.querySelector(".RichText.ztext")
+    || answerItem.querySelector(".RichText");
+}
+
+function findArticleContentRoot(articleRoot = document) {
+  return articleRoot.querySelector(".Post-content .RichText")
+    || articleRoot.querySelector(".Post-RichTextContainer .RichText")
+    || articleRoot.querySelector(".Post-RichText")
+    || articleRoot.querySelector("article .RichText")
+    || articleRoot.querySelector(".RichText");
 }
 
 function answerItemMatches(item, id) {
@@ -1309,6 +1391,72 @@ function answerItemMatches(item, id) {
   const urlMeta = item.querySelector("meta[itemprop='url']");
   const url = urlMeta?.getAttribute("content") || "";
   return url.includes(`/answer/${id}`);
+}
+
+function extractAnswerTarget(answerItem) {
+  const metaUrl = answerItem.querySelector?.("meta[itemprop='url']")?.getAttribute("content") || "";
+  const metaTarget = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_0__.detectSupportedTarget)(metaUrl, location.href);
+  if (metaTarget?.type === "answer" && metaTarget.questionId) {
+    return metaTarget;
+  }
+
+  const dataZop = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseJsonAttr)(answerItem.getAttribute?.("data-zop"));
+  const attrId = answerIdFromAttributes(answerItem);
+  const itemId = String(dataZop?.itemId || attrId || "");
+  if (!itemId) {
+    throw new Error("Cannot determine the Zhihu answer ID for this card.");
+  }
+
+  for (const value of answerTargetUrls(answerItem)) {
+    const target = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_0__.detectSupportedTarget)(value, location.href);
+    if (target?.type === "answer" && target.id === itemId && target.questionId) {
+      return target;
+    }
+  }
+
+  throw new Error("Cannot determine the Zhihu question ID for this answer card.");
+}
+
+function extractArticleTarget(articleRoot) {
+  const candidates = [
+    articleRoot.querySelector?.("meta[itemprop='url']")?.getAttribute("content") || "",
+    document.querySelector("meta[property='og:url']")?.getAttribute("content") || "",
+    document.querySelector("link[rel='canonical']")?.getAttribute("href") || "",
+    location.href
+  ];
+
+  for (const value of candidates) {
+    const target = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_0__.detectSupportedTarget)(value, location.href);
+    if (target?.type === "article") {
+      return target;
+    }
+  }
+
+  throw new Error("Cannot determine the Zhihu article ID for this article.");
+}
+
+function findArticleRoot() {
+  return document.querySelector(".Post-content")
+    || document.querySelector(".Post-RichTextContainer")
+    || document.querySelector(".Post-Main")
+    || null;
+}
+
+function answerTargetUrls(answerItem) {
+  return Array.from(answerItem.querySelectorAll?.("a[href*='/question/'][href*='/answer/']") || [])
+    .map((link) => link.getAttribute("href") || link.href || "")
+    .filter(Boolean);
+}
+
+function answerIdFromAttributes(answerItem) {
+  const name = answerItem.getAttribute("name") || answerItem.id || "";
+  const answerName = name.match(/answer-(\d+)/);
+  if (answerName) {
+    return answerName[1];
+  }
+
+  const numberOnly = name.match(/^(\d+)$/);
+  return numberOnly ? numberOnly[1] : "";
 }
 
 function findItemRoot(contentRoot, type) {
@@ -1710,9 +1858,13 @@ function targetFolderName(target, metadata = {}) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   BATCH_STATUS_ID: () => (/* binding */ BATCH_STATUS_ID),
-/* harmony export */   BUTTON_ID: () => (/* binding */ BUTTON_ID)
+/* harmony export */   CONTROL_BOUND_ATTR: () => (/* binding */ CONTROL_BOUND_ATTR),
+/* harmony export */   CONTROL_CLASS: () => (/* binding */ CONTROL_CLASS),
+/* harmony export */   CONTROL_STYLE_ID: () => (/* binding */ CONTROL_STYLE_ID)
 /* harmony export */ });
-const BUTTON_ID = "zhmd-save-control";
+const CONTROL_CLASS = "zhmd-save-control";
+const CONTROL_STYLE_ID = "zhmd-save-control-style";
+const CONTROL_BOUND_ATTR = "data-zhmd-save-bound";
 const BATCH_STATUS_ID = "zhmd-batch-status";
 
 
@@ -1726,6 +1878,7 @@ const BATCH_STATUS_ID = "zhmd-batch-status";
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   changeExportRootDirectory: () => (/* binding */ changeExportRootDirectory),
 /* harmony export */   supportsDirectoryPicker: () => (/* binding */ supportsDirectoryPicker),
 /* harmony export */   writeArtifactToDirectory: () => (/* binding */ writeArtifactToDirectory)
 /* harmony export */ });
@@ -1765,10 +1918,9 @@ function supportsDirectoryPicker() {
   return typeof window.showDirectoryPicker === "function";
 }
 
-async function getExportRootDirectory() {
-  const stored = await readStoredDirectoryHandle();
-  if (stored && await ensureReadWritePermission(stored)) {
-    return stored;
+async function changeExportRootDirectory() {
+  if (!supportsDirectoryPicker()) {
+    throw new Error("当前浏览器不支持选择保存目录。");
   }
 
   const selected = await window.showDirectoryPicker({
@@ -1780,6 +1932,15 @@ async function getExportRootDirectory() {
   }
   await storeDirectoryHandle(selected);
   return selected;
+}
+
+async function getExportRootDirectory() {
+  const stored = await readStoredDirectoryHandle();
+  if (stored && await ensureReadWritePermission(stored)) {
+    return stored;
+  }
+
+  return changeExportRootDirectory();
 }
 
 async function ensureReadWritePermission(handle) {
@@ -1853,8 +2014,11 @@ function requestToPromise(request) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   changeDirectoryWithButton: () => (/* binding */ changeDirectoryWithButton),
+/* harmony export */   saveArtifactWithButton: () => (/* binding */ saveArtifactWithButton),
 /* harmony export */   saveCurrentPage: () => (/* binding */ saveCurrentPage),
-/* harmony export */   saveCurrentPageAsZip: () => (/* binding */ saveCurrentPageAsZip)
+/* harmony export */   saveCurrentPageAsZip: () => (/* binding */ saveCurrentPageAsZip),
+/* harmony export */   saveZipWithButton: () => (/* binding */ saveZipWithButton)
 /* harmony export */ });
 /* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
 /* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
@@ -1864,16 +2028,46 @@ __webpack_require__.r(__webpack_exports__);
 
 
 /**
- * Single-page save entry used by the visible userscript button.
+ * Single-page save actions used by content-bound userscript controls.
  */
 
 async function saveCurrentPage(button) {
+  await saveArtifactWithButton(button, _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageArtifact);
+}
+
+async function saveCurrentPageAsZip(button) {
+  await saveZipWithButton(button, _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageZip);
+}
+
+async function changeDirectoryWithButton(button) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "选择目录...", true);
+
+  try {
+    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_1__.changeExportRootDirectory)();
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "目录已更改", true);
+    resetButtonLater(button, originalText, 1600);
+  } catch (error) {
+    console.error("[Zhihu Markdown Saver] change directory failed:", error);
+    button.disabled = false;
+    if (error?.name === "AbortError") {
+      (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, originalText, true);
+      return;
+    }
+    showUserError(error, "更改保存目录失败");
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "更改失败", false);
+    resetButtonLater(button, originalText, 2200);
+  }
+}
+
+async function saveArtifactWithButton(button, buildArtifact) {
   const originalText = button.textContent;
   button.disabled = true;
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存中...", true);
 
   try {
-    const artifact = await (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageArtifact)({
+    const artifact = await buildArtifact({
       onProgress: (progress) => {
         if (progress.stage === "media") {
           (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
@@ -1888,15 +2082,22 @@ async function saveCurrentPage(button) {
   } catch (error) {
     console.error("[Zhihu Markdown Saver] folder save failed:", error);
     button.disabled = false;
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, error?.name === "AbortError" ? "已取消" : "保存失败", false);
+    if (error?.name === "AbortError") {
+      (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "已取消", false);
+      resetButtonLater(button, originalText, 2600);
+      return;
+    }
+    showUserError(error, "保存失败");
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存失败", false);
     resetButtonLater(button, originalText, 2600);
   }
 }
 
-async function saveCurrentPageAsZip(button) {
+async function saveZipWithButton(button, buildZip) {
   const saveFile = window.saveAs || (typeof saveAs === "function" ? saveAs : null);
   if (!saveFile) {
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "缺少 FileSaver", false);
+    window.alert("下载 ZIP 失败：缺少 FileSaver。");
     return;
   }
 
@@ -1905,7 +2106,7 @@ async function saveCurrentPageAsZip(button) {
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存中...", true);
 
   try {
-    const result = await (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageZip)({
+    const result = await buildZip({
       onProgress: (progress) => {
         if (progress.stage === "media") {
           (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
@@ -1921,9 +2122,15 @@ async function saveCurrentPageAsZip(button) {
   } catch (error) {
     console.error("[Zhihu Markdown Saver] ZIP save failed:", error);
     button.disabled = false;
+    showUserError(error, "下载 ZIP 失败");
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存失败", false);
     resetButtonLater(button, originalText, 2200);
   }
+}
+
+function showUserError(error, fallbackMessage) {
+  const message = error?.message ? String(error.message) : fallbackMessage;
+  window.alert(`${fallbackMessage}：${message}`);
 }
 
 function resetButtonLater(button, text, delayMs) {
@@ -1944,124 +2151,191 @@ function resetButtonLater(button, text, delayMs) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   createSaveButton: () => (/* binding */ createSaveButton),
-/* harmony export */   removeSaveButton: () => (/* binding */ removeSaveButton),
+/* harmony export */   createSaveControl: () => (/* binding */ createSaveControl),
+/* harmony export */   ensureSaveControlStyle: () => (/* binding */ ensureSaveControlStyle),
+/* harmony export */   removeSaveControls: () => (/* binding */ removeSaveControls),
 /* harmony export */   setButtonState: () => (/* binding */ setButtonState)
 /* harmony export */ });
 /* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./constants.js */ "./src/userscript/constants.js");
 
 
 /**
- * UI helpers for the floating save button.
+ * UI helpers for content-bound save controls.
  *
- * The UI is intentionally small because the userscript is a utility overlay on
- * top of Zhihu pages. Save orchestration stays outside this module.
+ * Controls are inserted into answer/article containers and revealed by CSS when
+ * the user hovers over the related content area.
  */
 
-/**
- * Creates the fixed save control with a primary folder-save button and a small
- * ZIP action behind the settings button.
- */
-function createSaveButton(onSave, onZip) {
+function ensureSaveControlStyle() {
+  if (document.getElementById(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = _constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_STYLE_ID;
+  style.textContent = `
+    .AnswerItem .RichContent,
+    .Post-content,
+    .Post-RichTextContainer {
+      position: relative;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS} {
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      left: -240px;
+      top: -48px;
+      bottom: -48px;
+      width: 240px;
+      min-height: 220px;
+      z-index: 2147483646;
+      transition: opacity .16s ease;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__inner {
+      position: sticky;
+      top: 120px;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin-left: 96px;
+      margin-top: 48px;
+    }
+
+    .AnswerItem:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
+    .Post-content:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
+    .Post-RichTextContainer:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}:hover {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS} button {
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, .14);
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__primary {
+      min-width: 64px;
+      height: 38px;
+      padding: 0 14px;
+      background: #056de8;
+      font-size: 14px;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__gear {
+      width: 30px;
+      height: 30px;
+      background: rgba(23, 25, 31, .88);
+      font-size: 15px;
+      line-height: 30px;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__menu {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 44px;
+      padding: 6px;
+      border-radius: 6px;
+      background: rgba(23, 25, 31, .96);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__menu {
+      display: block;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__zip {
+      height: 32px;
+      padding: 0 12px;
+      background: #303846;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__directory {
+      display: block;
+      height: 32px;
+      margin-bottom: 6px;
+      padding: 0 12px;
+      background: #303846;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+  `;
+  document.documentElement.append(style);
+}
+
+function createSaveControl(onSave, onZip, onChangeDirectory) {
   const wrapper = document.createElement("div");
-  wrapper.id = _constants_js__WEBPACK_IMPORTED_MODULE_0__.BUTTON_ID;
-  wrapper.style.position = "fixed";
-  wrapper.style.right = "72px";
-  wrapper.style.bottom = "12px";
-  wrapper.style.zIndex = "2147483647";
-  wrapper.style.display = "flex";
-  wrapper.style.alignItems = "center";
-  wrapper.style.gap = "6px";
-  wrapper.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  wrapper.className = _constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS;
+
+  const inner = document.createElement("div");
+  inner.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__inner`;
 
   const button = document.createElement("button");
   button.type = "button";
+  button.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__primary`;
   button.textContent = "保存";
-  button.title = "保存当前知乎回答/文章到授权目录";
-  button.style.height = "38px";
-  button.style.minWidth = "78px";
-  button.style.padding = "0 16px";
-  button.style.border = "none";
-  button.style.borderRadius = "6px";
-  button.style.background = "#056de8";
-  button.style.color = "#fff";
-  button.style.fontSize = "14px";
-  button.style.fontWeight = "600";
-  button.style.boxShadow = "0 6px 20px rgba(0, 0, 0, .18)";
-  button.style.cursor = "pointer";
-
-  button.addEventListener("click", async () => {
+  button.title = "保存当前知乎回答/文章到本地目录";
+  button.addEventListener("click", async (event) => {
+    event.stopPropagation();
     await onSave(button);
   });
 
+  const gear = document.createElement("button");
+  gear.type = "button";
+  gear.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__gear`;
+  gear.textContent = "⚙";
+  gear.title = "保存选项";
+  gear.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
   const menu = document.createElement("div");
-  menu.style.position = "absolute";
-  menu.style.right = "0";
-  menu.style.bottom = "44px";
-  menu.style.display = "none";
-  menu.style.padding = "6px";
-  menu.style.borderRadius = "6px";
-  menu.style.background = "rgba(23, 25, 31, .96)";
-  menu.style.boxShadow = "0 8px 24px rgba(0, 0, 0, .22)";
+  menu.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__menu`;
+
+  const directoryButton = document.createElement("button");
+  directoryButton.type = "button";
+  directoryButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__directory`;
+  directoryButton.textContent = "更改保存目录";
+  directoryButton.title = "重新选择保存到本地的文件夹";
+  directoryButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await onChangeDirectory(directoryButton);
+  });
 
   const zipButton = document.createElement("button");
   zipButton.type = "button";
+  zipButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__zip`;
   zipButton.textContent = "下载为 ZIP";
-  zipButton.title = "通过浏览器下载当前回答/文章 ZIP";
-  zipButton.style.height = "32px";
-  zipButton.style.padding = "0 12px";
-  zipButton.style.border = "none";
-  zipButton.style.borderRadius = "5px";
-  zipButton.style.background = "#303846";
-  zipButton.style.color = "#fff";
-  zipButton.style.fontSize = "13px";
-  zipButton.style.fontWeight = "600";
-  zipButton.style.cursor = "pointer";
-  zipButton.style.whiteSpace = "nowrap";
-  zipButton.addEventListener("click", async () => {
+  zipButton.title = "通过浏览器下载当前内容为 ZIP；下载目录为浏览器默认下载目录";
+  zipButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
     await onZip(zipButton);
   });
-  menu.append(zipButton);
 
-  const gear = document.createElement("button");
-  gear.type = "button";
-  gear.textContent = "⚙";
-  gear.title = "保存选项";
-  gear.style.width = "32px";
-  gear.style.height = "32px";
-  gear.style.border = "none";
-  gear.style.borderRadius = "6px";
-  gear.style.background = "rgba(23, 25, 31, .88)";
-  gear.style.color = "#fff";
-  gear.style.fontSize = "16px";
-  gear.style.lineHeight = "32px";
-  gear.style.cursor = "pointer";
-  gear.style.boxShadow = "0 6px 20px rgba(0, 0, 0, .14)";
-
-  wrapper.addEventListener("mouseenter", () => {
-    menu.style.display = "block";
-  });
-  wrapper.addEventListener("mouseleave", () => {
-    menu.style.display = "none";
-  });
-
-  wrapper.append(button, gear, menu);
+  menu.append(directoryButton, zipButton);
+  inner.append(button, gear, menu);
+  wrapper.append(inner);
   return wrapper;
 }
 
-/**
- * Updates the floating button text and color.
- */
 function setButtonState(button, text, ok) {
   button.textContent = text;
-  button.style.background = ok ? "#056de8" : "#c02c38";
+  button.style.background = ok ? "" : "#c02c38";
 }
 
-/**
- * Removes the injected button when navigating away from supported pages.
- */
-function removeSaveButton() {
-  document.getElementById(_constants_js__WEBPACK_IMPORTED_MODULE_0__.BUTTON_ID)?.remove();
+function removeSaveControls() {
+  document.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}`).forEach((item) => item.remove());
 }
 
 
@@ -2154,8 +2428,8 @@ __webpack_require__.r(__webpack_exports__);
 /**
  * Tampermonkey entry point.
  *
- * The script reads Zhihu's rendered DOM, converts supported answer/article rich
- * text to Markdown, downloads media into a ZIP, and ignores comments entirely.
+ * The script binds save controls to Zhihu answer cards and article content,
+ * converts the related DOM to Markdown, and ignores comments.
  */
 
 let scheduled = 0;
@@ -2163,9 +2437,6 @@ let lastHref = "";
 
 boot();
 
-/**
- * Starts the userscript and keeps the save button in sync with Zhihu's SPA.
- */
 function boot() {
   exposeTestApi();
   (0,_batch_client_js__WEBPACK_IMPORTED_MODULE_1__.startBatchClient)();
@@ -2185,12 +2456,13 @@ function boot() {
   }, 800);
 }
 
-/**
- * Exposes selected pure functions for optional browser-console diagnostics.
- */
 function exposeTestApi() {
   window.zhihuMarkdownSaverTest = {
     applyMediaReplacements: _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__.applyMediaReplacements,
+    buildAnswerItemArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact,
+    buildAnswerItemZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip,
+    buildArticleRootArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact,
+    buildArticleRootZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip,
     buildCurrentPageArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildCurrentPageArtifact,
     buildCurrentPageZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildCurrentPageZip,
     detectTarget: _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget,
@@ -2199,36 +2471,81 @@ function exposeTestApi() {
   };
 }
 
-/**
- * Debounces button injection after DOM mutations.
- */
 function scheduleInject() {
   window.clearTimeout(scheduled);
-  scheduled = window.setTimeout(injectButton, 250);
+  scheduled = window.setTimeout(injectControls, 250);
 }
 
-/**
- * Injects the fixed save button on supported detail pages.
- */
-function injectButton() {
+function injectControls() {
+  if (!isManualSavePage()) {
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.removeSaveControls)();
+    return;
+  }
+
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.ensureSaveControlStyle)();
+  injectAnswerControls();
+  injectArticleControl();
+}
+
+function injectAnswerControls() {
+  for (const answerItem of Array.from(document.querySelectorAll(".AnswerItem"))) {
+    if (answerItem.getAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR) === "answer") {
+      continue;
+    }
+    if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findAnswerContentRoot)(answerItem)) {
+      continue;
+    }
+
+    try {
+      (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractAnswerTarget)(answerItem);
+    } catch {
+      continue;
+    }
+
+    const host = answerItem.querySelector(".RichContent") || answerItem;
+    host.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveControl)(
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveArtifactWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, options)),
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveZipWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, options)),
+      _single_save_js__WEBPACK_IMPORTED_MODULE_5__.changeDirectoryWithButton
+    ));
+    answerItem.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "answer");
+  }
+}
+
+function injectArticleControl() {
   const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget)(location.href);
-  const existing = document.getElementById(_constants_js__WEBPACK_IMPORTED_MODULE_0__.BUTTON_ID);
-
-  if (!target) {
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.removeSaveButton)();
+  if (target?.type !== "article") {
     return;
   }
 
-  if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findContentRoot)(target)) {
+  const articleRoot = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findArticleRoot)();
+  if (!articleRoot || articleRoot.getAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR) === "article") {
+    return;
+  }
+  if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findArticleContentRoot)(articleRoot)) {
     return;
   }
 
-  if (existing) {
-    existing.hidden = false;
-    return;
+  articleRoot.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveControl)(
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveArtifactWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, options)),
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveZipWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, options)),
+    _single_save_js__WEBPACK_IMPORTED_MODULE_5__.changeDirectoryWithButton
+  ));
+  articleRoot.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "article");
+}
+
+function isManualSavePage() {
+  const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget)(location.href);
+  if (target?.type === "answer" || target?.type === "article") {
+    return true;
   }
 
-  document.body.append((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveButton)(_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveCurrentPage, _single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveCurrentPageAsZip));
+  try {
+    const url = new URL(location.href);
+    return url.hostname === "www.zhihu.com" && /^\/question\/\d+/.test(url.pathname);
+  } catch {
+    return false;
+  }
 }
 
 })();

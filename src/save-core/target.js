@@ -11,20 +11,31 @@ export function detectTarget(input) {
 
 export function findContentRoot(target) {
   if (target.type === "article") {
-    return document.querySelector(".Post-content .RichText")
-      || document.querySelector(".Post-RichTextContainer .RichText")
-      || document.querySelector(".Post-RichText")
-      || document.querySelector("article .RichText");
+    return findArticleContentRoot(document);
   }
 
-  const answerItems = Array.from(document.querySelectorAll(".AnswerItem"));
-  const matched = answerItems.find((item) => answerItemMatches(item, target.id));
-  const item = matched || answerItems[0] || document;
+  const item = findAnswerItemByTarget(target);
+  return item ? findAnswerContentRoot(item) : null;
+}
 
-  return item.querySelector(".RichContent-inner .RichText")
-    || item.querySelector(".RichContent .RichText")
-    || item.querySelector(".RichText.ztext")
-    || item.querySelector(".RichText");
+export function findAnswerItemByTarget(target) {
+  return Array.from(document.querySelectorAll(".AnswerItem"))
+    .find((item) => answerItemMatches(item, target.id)) || null;
+}
+
+export function findAnswerContentRoot(answerItem) {
+  return answerItem.querySelector(".RichContent-inner .RichText")
+    || answerItem.querySelector(".RichContent .RichText")
+    || answerItem.querySelector(".RichText.ztext")
+    || answerItem.querySelector(".RichText");
+}
+
+export function findArticleContentRoot(articleRoot = document) {
+  return articleRoot.querySelector(".Post-content .RichText")
+    || articleRoot.querySelector(".Post-RichTextContainer .RichText")
+    || articleRoot.querySelector(".Post-RichText")
+    || articleRoot.querySelector("article .RichText")
+    || articleRoot.querySelector(".RichText");
 }
 
 export function answerItemMatches(item, id) {
@@ -41,6 +52,72 @@ export function answerItemMatches(item, id) {
   const urlMeta = item.querySelector("meta[itemprop='url']");
   const url = urlMeta?.getAttribute("content") || "";
   return url.includes(`/answer/${id}`);
+}
+
+export function extractAnswerTarget(answerItem) {
+  const metaUrl = answerItem.querySelector?.("meta[itemprop='url']")?.getAttribute("content") || "";
+  const metaTarget = detectSupportedTarget(metaUrl, location.href);
+  if (metaTarget?.type === "answer" && metaTarget.questionId) {
+    return metaTarget;
+  }
+
+  const dataZop = parseJsonAttr(answerItem.getAttribute?.("data-zop"));
+  const attrId = answerIdFromAttributes(answerItem);
+  const itemId = String(dataZop?.itemId || attrId || "");
+  if (!itemId) {
+    throw new Error("Cannot determine the Zhihu answer ID for this card.");
+  }
+
+  for (const value of answerTargetUrls(answerItem)) {
+    const target = detectSupportedTarget(value, location.href);
+    if (target?.type === "answer" && target.id === itemId && target.questionId) {
+      return target;
+    }
+  }
+
+  throw new Error("Cannot determine the Zhihu question ID for this answer card.");
+}
+
+export function extractArticleTarget(articleRoot) {
+  const candidates = [
+    articleRoot.querySelector?.("meta[itemprop='url']")?.getAttribute("content") || "",
+    document.querySelector("meta[property='og:url']")?.getAttribute("content") || "",
+    document.querySelector("link[rel='canonical']")?.getAttribute("href") || "",
+    location.href
+  ];
+
+  for (const value of candidates) {
+    const target = detectSupportedTarget(value, location.href);
+    if (target?.type === "article") {
+      return target;
+    }
+  }
+
+  throw new Error("Cannot determine the Zhihu article ID for this article.");
+}
+
+export function findArticleRoot() {
+  return document.querySelector(".Post-content")
+    || document.querySelector(".Post-RichTextContainer")
+    || document.querySelector(".Post-Main")
+    || null;
+}
+
+function answerTargetUrls(answerItem) {
+  return Array.from(answerItem.querySelectorAll?.("a[href*='/question/'][href*='/answer/']") || [])
+    .map((link) => link.getAttribute("href") || link.href || "")
+    .filter(Boolean);
+}
+
+function answerIdFromAttributes(answerItem) {
+  const name = answerItem.getAttribute("name") || answerItem.id || "";
+  const answerName = name.match(/answer-(\d+)/);
+  if (answerName) {
+    return answerName[1];
+  }
+
+  const numberOnly = name.match(/^(\d+)$/);
+  return numberOnly ? numberOnly[1] : "";
 }
 
 export function findItemRoot(contentRoot, type) {

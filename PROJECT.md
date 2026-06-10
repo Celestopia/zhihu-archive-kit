@@ -59,9 +59,9 @@ userscripts/
 }
 ```
 
-`buildCurrentPageArtifact()` 返回上述产物。`buildCurrentPageZip()` 基于同一产物生成 ZIP Blob。
+`buildCurrentPageArtifact()` 使用当前 URL 构建产物，供批量模式使用。`buildAnswerItemArtifact()` 和 `buildArticleRootArtifact()` 使用明确传入的 DOM 节点构建产物，供网页端手动保存使用。对应的 ZIP 函数基于同一产物生成 ZIP Blob。
 
-`src/userscript/` 是油猴脚本入口和单页保存界面。主按钮默认调用浏览器 File System Access API，把产物写入用户授权目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。
+`src/userscript/` 是油猴脚本入口和单页保存界面。它把保存控件注入到回答卡片或文章正文区域；主按钮默认调用浏览器 File System Access API，把产物写入用户授权目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
@@ -88,11 +88,12 @@ Node 端批量解压使用项目依赖 `jszip`。它安装在项目 `node_module
 
 ## 目标识别与命名
 
-支持的目标由 `src/shared/url.js` 识别：
+网页端支持的页面路径包括：
 
 ```text
 https://www.zhihu.com/question/<question_id>/answer/<answer_id>
 https://www.zhihu.com/answer/<answer_id>
+https://www.zhihu.com/question/<question_id>
 https://zhuanlan.zhihu.com/p/<article_id>
 ```
 
@@ -113,16 +114,17 @@ article-<article_id>
 ## 单页保存流程
 
 1. `main.js` 监听知乎 SPA 页面变化。
-2. 当前 URL 属于支持范围且正文 DOM 已出现时，`ui.js` 注入右下角保存控件。
-3. 用户点击“保存”后，`single-save.js` 调用 `buildCurrentPageArtifact()`。
-4. `save-core` 生成 Markdown、下载媒体并返回保存产物。
-5. `directory-save.js` 检查或请求目录写入权限。
-6. 如果目标文件夹已存在，抛出错误并停止写入。
-7. 如果目标文件夹不存在，创建文件夹、写入 `index.md` 和 `assets/`。
+2. 问题页或回答详情页中，脚本扫描 `.AnswerItem`，为每个有效回答卡片注入一次保存控件。
+3. 专栏文章页中，脚本为文章正文区域注入一次保存控件。
+4. 用户点击某个控件的“保存”后，`single-save.js` 调用对应的 DOM 驱动 artifact 构建函数。
+5. `save-core` 只从绑定的回答卡片或文章区域生成 Markdown、下载媒体并返回保存产物。
+6. `directory-save.js` 检查或请求目录写入权限。
+7. 如果目标文件夹已存在，抛出错误并停止写入。
+8. 如果目标文件夹不存在，创建文件夹、写入 `index.md` 和 `assets/`。
 
 网页端目录写入使用 File System Access API。浏览器不会允许脚本通过字符串路径直接写入系统目录，因此保存根目录必须由用户通过目录选择器授权。目录句柄存放在 IndexedDB 中，后续保存会先检查权限再复用。
 
-齿轮菜单中的“下载为 ZIP”流程调用 `buildCurrentPageZip()`，再通过 FileSaver 交给浏览器下载。
+齿轮菜单中的“下载为 ZIP”流程调用绑定 DOM 对应的 ZIP 构建函数，再通过 FileSaver 交给浏览器下载。
 
 ## 批量保存流程
 

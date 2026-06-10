@@ -1,114 +1,180 @@
-import { BUTTON_ID } from "./constants.js";
+import { CONTROL_CLASS, CONTROL_STYLE_ID } from "./constants.js";
 
 /**
- * UI helpers for the floating save button.
+ * UI helpers for content-bound save controls.
  *
- * The UI is intentionally small because the userscript is a utility overlay on
- * top of Zhihu pages. Save orchestration stays outside this module.
+ * Controls are inserted into answer/article containers and revealed by CSS when
+ * the user hovers over the related content area.
  */
 
-/**
- * Creates the fixed save control with a primary folder-save button and a small
- * ZIP action behind the settings button.
- */
-export function createSaveButton(onSave, onZip) {
+export function ensureSaveControlStyle() {
+  if (document.getElementById(CONTROL_STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = CONTROL_STYLE_ID;
+  style.textContent = `
+    .AnswerItem .RichContent,
+    .Post-content,
+    .Post-RichTextContainer {
+      position: relative;
+    }
+
+    .${CONTROL_CLASS} {
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      left: -240px;
+      top: -48px;
+      bottom: -48px;
+      width: 240px;
+      min-height: 220px;
+      z-index: 2147483646;
+      transition: opacity .16s ease;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .${CONTROL_CLASS}__inner {
+      position: sticky;
+      top: 120px;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin-left: 96px;
+      margin-top: 48px;
+    }
+
+    .AnswerItem:hover .${CONTROL_CLASS},
+    .Post-content:hover .${CONTROL_CLASS},
+    .Post-RichTextContainer:hover .${CONTROL_CLASS},
+    .${CONTROL_CLASS}:hover {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .${CONTROL_CLASS} button {
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, .14);
+    }
+
+    .${CONTROL_CLASS}__primary {
+      min-width: 64px;
+      height: 38px;
+      padding: 0 14px;
+      background: #056de8;
+      font-size: 14px;
+    }
+
+    .${CONTROL_CLASS}__gear {
+      width: 30px;
+      height: 30px;
+      background: rgba(23, 25, 31, .88);
+      font-size: 15px;
+      line-height: 30px;
+    }
+
+    .${CONTROL_CLASS}__menu {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 44px;
+      padding: 6px;
+      border-radius: 6px;
+      background: rgba(23, 25, 31, .96);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+    }
+
+    .${CONTROL_CLASS}:hover .${CONTROL_CLASS}__menu {
+      display: block;
+    }
+
+    .${CONTROL_CLASS}__zip {
+      height: 32px;
+      padding: 0 12px;
+      background: #303846;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .${CONTROL_CLASS}__directory {
+      display: block;
+      height: 32px;
+      margin-bottom: 6px;
+      padding: 0 12px;
+      background: #303846;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+  `;
+  document.documentElement.append(style);
+}
+
+export function createSaveControl(onSave, onZip, onChangeDirectory) {
   const wrapper = document.createElement("div");
-  wrapper.id = BUTTON_ID;
-  wrapper.style.position = "fixed";
-  wrapper.style.right = "72px";
-  wrapper.style.bottom = "12px";
-  wrapper.style.zIndex = "2147483647";
-  wrapper.style.display = "flex";
-  wrapper.style.alignItems = "center";
-  wrapper.style.gap = "6px";
-  wrapper.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  wrapper.className = CONTROL_CLASS;
+
+  const inner = document.createElement("div");
+  inner.className = `${CONTROL_CLASS}__inner`;
 
   const button = document.createElement("button");
   button.type = "button";
+  button.className = `${CONTROL_CLASS}__primary`;
   button.textContent = "保存";
-  button.title = "保存当前知乎回答/文章到授权目录";
-  button.style.height = "38px";
-  button.style.minWidth = "78px";
-  button.style.padding = "0 16px";
-  button.style.border = "none";
-  button.style.borderRadius = "6px";
-  button.style.background = "#056de8";
-  button.style.color = "#fff";
-  button.style.fontSize = "14px";
-  button.style.fontWeight = "600";
-  button.style.boxShadow = "0 6px 20px rgba(0, 0, 0, .18)";
-  button.style.cursor = "pointer";
-
-  button.addEventListener("click", async () => {
+  button.title = "保存当前知乎回答/文章到本地目录";
+  button.addEventListener("click", async (event) => {
+    event.stopPropagation();
     await onSave(button);
   });
 
+  const gear = document.createElement("button");
+  gear.type = "button";
+  gear.className = `${CONTROL_CLASS}__gear`;
+  gear.textContent = "⚙";
+  gear.title = "保存选项";
+  gear.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
   const menu = document.createElement("div");
-  menu.style.position = "absolute";
-  menu.style.right = "0";
-  menu.style.bottom = "44px";
-  menu.style.display = "none";
-  menu.style.padding = "6px";
-  menu.style.borderRadius = "6px";
-  menu.style.background = "rgba(23, 25, 31, .96)";
-  menu.style.boxShadow = "0 8px 24px rgba(0, 0, 0, .22)";
+  menu.className = `${CONTROL_CLASS}__menu`;
+
+  const directoryButton = document.createElement("button");
+  directoryButton.type = "button";
+  directoryButton.className = `${CONTROL_CLASS}__directory`;
+  directoryButton.textContent = "更改保存目录";
+  directoryButton.title = "重新选择保存到本地的文件夹";
+  directoryButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await onChangeDirectory(directoryButton);
+  });
 
   const zipButton = document.createElement("button");
   zipButton.type = "button";
+  zipButton.className = `${CONTROL_CLASS}__zip`;
   zipButton.textContent = "下载为 ZIP";
-  zipButton.title = "通过浏览器下载当前回答/文章 ZIP";
-  zipButton.style.height = "32px";
-  zipButton.style.padding = "0 12px";
-  zipButton.style.border = "none";
-  zipButton.style.borderRadius = "5px";
-  zipButton.style.background = "#303846";
-  zipButton.style.color = "#fff";
-  zipButton.style.fontSize = "13px";
-  zipButton.style.fontWeight = "600";
-  zipButton.style.cursor = "pointer";
-  zipButton.style.whiteSpace = "nowrap";
-  zipButton.addEventListener("click", async () => {
+  zipButton.title = "通过浏览器下载当前内容为 ZIP；下载目录为浏览器默认下载目录";
+  zipButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
     await onZip(zipButton);
   });
-  menu.append(zipButton);
 
-  const gear = document.createElement("button");
-  gear.type = "button";
-  gear.textContent = "⚙";
-  gear.title = "保存选项";
-  gear.style.width = "32px";
-  gear.style.height = "32px";
-  gear.style.border = "none";
-  gear.style.borderRadius = "6px";
-  gear.style.background = "rgba(23, 25, 31, .88)";
-  gear.style.color = "#fff";
-  gear.style.fontSize = "16px";
-  gear.style.lineHeight = "32px";
-  gear.style.cursor = "pointer";
-  gear.style.boxShadow = "0 6px 20px rgba(0, 0, 0, .14)";
-
-  wrapper.addEventListener("mouseenter", () => {
-    menu.style.display = "block";
-  });
-  wrapper.addEventListener("mouseleave", () => {
-    menu.style.display = "none";
-  });
-
-  wrapper.append(button, gear, menu);
+  menu.append(directoryButton, zipButton);
+  inner.append(button, gear, menu);
+  wrapper.append(inner);
   return wrapper;
 }
 
-/**
- * Updates the floating button text and color.
- */
 export function setButtonState(button, text, ok) {
   button.textContent = text;
-  button.style.background = ok ? "#056de8" : "#c02c38";
+  button.style.background = ok ? "" : "#c02c38";
 }
 
-/**
- * Removes the injected button when navigating away from supported pages.
- */
-export function removeSaveButton() {
-  document.getElementById(BUTTON_ID)?.remove();
+export function removeSaveControls() {
+  document.querySelectorAll(`.${CONTROL_CLASS}`).forEach((item) => item.remove());
 }

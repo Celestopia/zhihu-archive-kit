@@ -7,6 +7,7 @@ const userscriptHeader = `// ==UserScript==
 // @version      0.1.0
 // @description  Save Zhihu answers and Zhuanlan articles as Markdown folders or ZIP files.
 // @author       local
+// @match        https://www.zhihu.com/question/*
 // @match        https://www.zhihu.com/question/*/answer/*
 // @match        https://www.zhihu.com/answer/*
 // @match        https://zhuanlan.zhihu.com/p/*
