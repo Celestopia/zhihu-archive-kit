@@ -714,7 +714,7 @@ const COMMENTS_SCHEMA_VERSION = 1;
 
 function parseCommentContainer(container) {
   const elements = Array.from(container.querySelectorAll?.("[data-id]") || [])
-    .filter((el) => el.querySelector?.(".CommentContent"));
+    .filter((el) => firstOwnCommentElement(el, ".CommentContent"));
 
   return elements.map((el) => parseCommentElement(el, container));
 }
@@ -722,16 +722,16 @@ function parseCommentContainer(container) {
 function parseCommentElement(commentElement, container) {
   const authorLink = findAuthorLink(commentElement);
   const replyToLink = findReplyToLink(commentElement, authorLink);
-  const contentRoot = commentElement.querySelector(".CommentContent");
+  const contentRoot = firstOwnCommentElement(commentElement, ".CommentContent");
 
   return {
     id: commentElement.getAttribute("data-id") || "",
     author: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(authorLink?.textContent || ""),
     author_url: authorLink ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(authorLink.getAttribute("href") || authorLink.href) : "",
     content: renderCommentContent(contentRoot),
-    time_created: normalizeCommentTime(commentElement.querySelector(".css-12cl38p")?.textContent || ""),
+    time_created: normalizeCommentTime(firstOwnCommentElement(commentElement, ".css-12cl38p")?.textContent || ""),
     like_count: extractCommentLikeCount(commentElement),
-    ip_location: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(commentElement.querySelector(".css-ntkn7q")?.textContent || ""),
+    ip_location: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(firstOwnCommentElement(commentElement, ".css-ntkn7q")?.textContent || ""),
     image_url: extractCommentImageUrl(contentRoot),
     reply_to_author: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(replyToLink?.textContent || ""),
     reply_to_author_url: replyToLink ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(replyToLink.getAttribute("href") || replyToLink.href) : "",
@@ -842,15 +842,26 @@ function publicComment(comment) {
   };
 }
 
+function firstOwnCommentElement(commentElement, selector) {
+  return ownCommentElements(commentElement, selector)[0] || null;
+}
+
+function ownCommentElements(commentElement, selector) {
+  return Array.from(commentElement.querySelectorAll(selector))
+    .filter((el) => el.closest("[data-id]") === commentElement);
+}
+
 function findAuthorLink(commentElement) {
-  return Array.from(commentElement.querySelectorAll("a[href*='/people/']"))
+  return ownCommentElements(commentElement, "a[href*='/people/']")
     .find((link) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(link.textContent)) || null;
 }
 
 function findReplyToLink(commentElement, authorLink) {
-  return Array.from(commentElement.querySelectorAll("a[href*='/people/']"))
+  const authorHref = authorLink ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(authorLink.getAttribute("href") || authorLink.href) : "";
+
+  return ownCommentElements(commentElement, "a[href*='/people/']")
     .filter((link) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(link.textContent))
-    .find((link) => link !== authorLink) || null;
+    .find((link) => link !== authorLink && (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(link.getAttribute("href") || link.href) !== authorHref) || null;
 }
 
 function renderCommentContent(contentRoot) {
@@ -921,8 +932,8 @@ function extractCommentImageUrl(contentRoot) {
 
 function extractCommentLikeCount(commentElement) {
   const buttons = [
-    ...Array.from(commentElement.querySelectorAll(".css-1vd72tl")),
-    ...Array.from(commentElement.querySelectorAll("button"))
+    ...ownCommentElements(commentElement, ".css-1vd72tl"),
+    ...ownCommentElements(commentElement, "button")
   ];
   const seen = new Set();
 

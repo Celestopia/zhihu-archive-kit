@@ -2,10 +2,11 @@
 
 本项目用于把知乎回答和知乎专栏文章保存为本地 Markdown 文件，并把图片、视频等媒体文件放到同一个内容文件夹中。
 
-支持两种使用方式：
+支持三种使用方式：
 
 - 网页端单页保存：悬浮回答卡片或文章正文，点击左侧“保存”。
 - 命令行批量保存：从 JSON 文件读取 URL 列表，逐个保存。
+- HTML 预览：把已保存的内容文件夹渲染为可直接打开的网页。
 
 ## 支持范围
 
@@ -202,6 +203,30 @@ npm run batch -- urls.json --browser "C:\\Path\\To\\browser.exe"
 如果检测到知乎风控提示、验证码、安全验证页面或连续失败，队列会暂停，不会继续访问后续 URL。
 
 当队列全部完成后，命令行中的本地服务会自动停止，PowerShell 会恢复可输入状态。
+
+## 渲染为 HTML
+
+已保存的内容文件夹可以渲染为静态 HTML 页面：
+
+```bash
+npm run render -- output/question-123-answer-456
+```
+
+命令会读取该文件夹中的：
+
+```text
+index.md
+comments.json
+assets/
+```
+
+并生成：
+
+```text
+preview.html
+```
+
+`preview.html` 与 `assets/` 位于同一文件夹内，可以直接用浏览器打开。页面上方显示回答或文章正文，下方是可展开的评论区。每次运行会覆盖同名 `preview.html`，不会修改 `index.md`、`comments.json` 或 `assets/`。
 
 ## 从源码构建
 

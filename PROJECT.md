@@ -35,12 +35,18 @@ src/batch/
   server.mjs
   time.js
 
+src/render/
+  cli.mjs
+  render.mjs
+  template.mjs
+
 src/shared/
   url.js
 
 test/
   check-build.mjs
   check-extract.mjs
+  check-render.mjs
 
 userscripts/
   zhihu-markdown-saver.user.js
@@ -68,6 +74,8 @@ userscripts/
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
+`src/render/` 包含静态 HTML 预览生成器。它只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成同目录 `preview.html`，不读取知乎页面 DOM。
+
 `src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数。目前这里包含 URL 识别、清洗和目标文件夹命名逻辑。
 
 ## 构建与依赖
@@ -87,7 +95,7 @@ https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
 https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js
 ```
 
-Node 端批量解压使用项目依赖 `jszip`。它安装在项目 `node_modules/` 中，并记录在 `package-lock.json`。
+Node 端批量解压使用项目依赖 `jszip`。HTML 预览生成器使用项目依赖 `marked` 将 Markdown 转为 HTML。它们安装在项目 `node_modules/` 中，并记录在 `package-lock.json`。
 
 ## 目标识别与命名
 
@@ -208,6 +216,24 @@ ZIP 解压只接受单个顶层目录。解压模块会拒绝绝对路径、`..`
 
 批量模式不自动打开或解析评论区，因此批量产物中的 `comments.json` 使用空评论数组。
 
+## HTML 预览流程
+
+用户运行：
+
+```bash
+npm run render -- output/question-123-answer-456
+```
+
+`render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。
+
+输出固定为：
+
+```text
+preview.html
+```
+
+`preview.html` 与 `assets/` 保持同级，因此正文图片、视频和评论图片继续使用项目已有的相对路径。页面上方显示正文和元数据，下方用 `<details>` 展示可展开评论区。
+
 ## localhost API
 
 批量服务只监听 `127.0.0.1`：
@@ -298,6 +324,12 @@ npm run batch -- urls.json --extract
 npm run batch -- urls.json --browser chrome
 ```
 
+渲染保存结果：
+
+```bash
+npm run render -- output/question-123-answer-456
+```
+
 检查源码和构建产物：
 
 ```bash
@@ -318,5 +350,6 @@ npm test
 - 源码模块和构建产物能否通过 `node --check`。
 - 构建后的油猴脚本是否包含预期 metadata、保存入口、评论暂存入口、批量 API 标记和 frontmatter 字段。
 - ZIP 解压是否拒绝路径逃逸，并在目标文件夹已存在时失败。
+- HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
 
 真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、目录授权和 Tampermonkey 行为需要手动验收。
