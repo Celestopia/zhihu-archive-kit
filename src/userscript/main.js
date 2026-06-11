@@ -17,6 +17,7 @@ import {
   findArticleContentRoot,
   findArticleRoot
 } from "../save-core/target.js";
+import { getStagedCommentsForTarget, mountCommentStaging } from "./comment-staging.js";
 import { changeDirectoryWithButton, saveArtifactWithButton, saveZipWithButton } from "./single-save.js";
 import { createSaveControl, ensureSaveControlStyle, removeSaveControls } from "./ui.js";
 
@@ -24,7 +25,7 @@ import { createSaveControl, ensureSaveControlStyle, removeSaveControls } from ".
  * Tampermonkey entry point.
  *
  * The script binds save controls to Zhihu answer cards and article content,
- * converts the related DOM to Markdown, and ignores comments.
+ * converts the related DOM to Markdown, and attaches staged comments.
  */
 
 let scheduled = 0;
@@ -34,6 +35,7 @@ boot();
 
 function boot() {
   exposeTestApi();
+  mountCommentStaging();
   startBatchClient();
   scheduleInject();
 
@@ -99,8 +101,14 @@ function injectAnswerControls() {
 
     const host = answerItem.querySelector(".RichContent") || answerItem;
     host.prepend(createSaveControl(
-      (button) => saveArtifactWithButton(button, (options) => buildAnswerItemArtifact(answerItem, options)),
-      (button) => saveZipWithButton(button, (options) => buildAnswerItemZip(answerItem, options)),
+      (button) => saveArtifactWithButton(
+        button,
+        (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options))
+      ),
+      (button) => saveZipWithButton(
+        button,
+        (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
+      ),
       changeDirectoryWithButton
     ));
     answerItem.setAttribute(CONTROL_BOUND_ATTR, "answer");
@@ -122,11 +130,24 @@ function injectArticleControl() {
   }
 
   articleRoot.prepend(createSaveControl(
-    (button) => saveArtifactWithButton(button, (options) => buildArticleRootArtifact(articleRoot, options)),
-    (button) => saveZipWithButton(button, (options) => buildArticleRootZip(articleRoot, options)),
+    (button) => saveArtifactWithButton(
+      button,
+      (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options))
+    ),
+    (button) => saveZipWithButton(
+      button,
+      (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
+    ),
     changeDirectoryWithButton
   ));
   articleRoot.setAttribute(CONTROL_BOUND_ATTR, "article");
+}
+
+function withCommentProvider(options) {
+  return {
+    ...options,
+    commentsProvider: ({ target }) => getStagedCommentsForTarget(target)
+  };
 }
 
 function isManualSavePage() {

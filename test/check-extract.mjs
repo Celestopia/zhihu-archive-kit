@@ -20,12 +20,14 @@ assert.equal(targetFolderName({ type: "article", id: "789" }), "article-789");
 
 const zip = new JSZip();
 zip.file("question-123-answer-456/index.md", "# hello\n");
+zip.file("question-123-answer-456/comments.json", "{\"comments\":[]}\n");
 zip.file("question-123-answer-456/assets/image-001.jpg", Buffer.from([1, 2, 3]));
 const buffer = await zip.generateAsync({ type: "nodebuffer" });
 
 const extracted = await extractSingleFolderZip(buffer, outputDir);
 assert.equal(extracted.folderName, "question-123-answer-456");
 assert.equal(await fs.readFile(path.join(extracted.outputPath, "index.md"), "utf8"), "# hello\n");
+assert.equal(await fs.readFile(path.join(extracted.outputPath, "comments.json"), "utf8"), "{\"comments\":[]}\n");
 assert.deepEqual(
   await fs.readFile(path.join(extracted.outputPath, "assets", "image-001.jpg")),
   Buffer.from([1, 2, 3])

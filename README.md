@@ -16,7 +16,7 @@
 - 知乎问题页：`https://www.zhihu.com/question/...`
 - 知乎专栏文章页：`https://zhuanlan.zhihu.com/p/...`
 
-本项目只保存正文，不保存评论区。
+本项目保存正文，并支持把手动暂存的评论保存为 `comments.json`。
 
 ## 保存结果
 
@@ -25,6 +25,7 @@
 ```text
 question-<question_id>-answer-<answer_id>/
   index.md
+  comments.json
   assets/
 ```
 
@@ -33,12 +34,14 @@ question-<question_id>-answer-<answer_id>/
 ```text
 article-<article_id>/
   index.md
+  comments.json
   assets/
 ```
 
 其中：
 
 - `index.md` 是转换后的 Markdown 正文。
+- `comments.json` 是评论暂存结果；未暂存评论时也会生成空评论文件。
 - `assets/` 存放成功下载到本地的媒体文件。
 - 如果某个媒体下载失败，Markdown 中会保留原始远程链接。
 - 知乎直答实体解释链接会保存为纯文本，不保留 `zhida.zhihu.com` 链接。
@@ -94,6 +97,18 @@ userscripts/zhihu-markdown-saver.user.js
 浏览器安全机制不允许油猴脚本通过文本配置任意系统路径，因此网页端的默认保存位置必须由你在目录选择器中授权。
 
 如果只想下载 ZIP，把鼠标悬浮到“保存”按钮右侧的齿轮图标上，点击“下载为 ZIP”。ZIP 会通过浏览器下载到默认下载目录。
+
+## 评论保存
+
+评论保存需要先手动暂存：
+
+1. 打开回答或文章的评论区。
+2. 手动展开需要保存的评论、二级回复或“查看全部评论”弹窗。
+3. 点击评论区里的“暂存当前评论”。
+4. 继续加载更多评论后，可以重复点击暂存；脚本会按评论 ID 去重。
+5. 最后点击回答或文章左侧的“保存”或齿轮菜单里的“下载为 ZIP”。
+
+保存结果中的 `comments.json` 会包含评论 ID、作者、作者主页、正文、发布时间、喜欢数、IP 属地、评论图片路径和二级回复结构。评论图片会下载到 `assets/`，文件名形如 `comment-image-001.png`；如果下载失败，`image_url` 会保留远程 URL。评论暂存只保存在当前页面内存中，刷新页面后需要重新暂存。
 
 ## 批量保存
 
@@ -156,15 +171,19 @@ npm run batch -- urls.json --extract
 output/
   question-123-answer-456/
     index.md
+    comments.json
     assets/
   article-789/
     index.md
+    comments.json
     assets/
   batch-state.json
   batch-log.jsonl
 ```
 
 如果某个目标文件夹已经存在，该任务会被标记为失败，批量流程会继续处理后续 URL。
+
+批量模式不会自动打开或抓取评论区，因此批量输出中的 `comments.json` 为空评论文件。
 
 ### 指定浏览器
 

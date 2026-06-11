@@ -23,6 +23,7 @@ export async function writeArtifactToDirectory(artifact) {
 
   const folder = await root.getDirectoryHandle(artifact.folderName, { create: true });
   await writeFile(folder, "index.md", artifact.indexMarkdown);
+  await writeFile(folder, "comments.json", artifact.commentsJson);
 
   const assetsFolder = await folder.getDirectoryHandle("assets", { create: true });
   for (const asset of artifact.assets) {

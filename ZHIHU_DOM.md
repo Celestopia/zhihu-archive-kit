@@ -18,6 +18,7 @@
 - DOM 定位：`src/save-core/target.js`
 - 元数据提取：`src/save-core/target.js`
 - 正文解析：`src/save-core/markdown.js`
+- 评论解析：`src/save-core/comments.js`
 - 保存按钮注入：`src/userscript/main.js`、`src/userscript/ui.js`
 
 最重要的稳定锚点如下：
@@ -324,7 +325,57 @@ src/save-core/target.js -> extractActionCount()
 .Comments-container
 ```
 
-本项目不保存评论区，也不解析评论区 DOM。正文解析入口限制在 `.RichText`，保存流程不应把 `.Comments-container` 纳入 Markdown。
+本项目不会把评论区渲染进 `index.md`，而是由用户手动暂存已加载的评论 DOM，并在保存时写入 `comments.json`。
+
+评论区顶部工具栏常见位置：
+
+```text
+.Comments-container .css-1onritu
+```
+
+项目会在这里注入“暂存当前评论 / 查看暂存数 / 清空暂存”。如果评论进入弹窗，项目会在 `.Modal-content` 内查找评论容器并复用同一套暂存逻辑。
+
+一级评论节点使用带 `data-id` 的元素，且内部包含：
+
+```text
+[data-id]
+.CommentContent
+```
+
+已确认的评论字段来源：
+
+```text
+评论 ID        -> [data-id]
+评论正文       -> .CommentContent
+作者名称       -> .css-10u695f 或评论节点内第一个有文本的 a[href*='/people/']
+作者主页       -> 作者链接 href
+发布时间       -> .css-12cl38p
+IP 属地        -> .css-ntkn7q
+点赞数         -> .css-1vd72tl 或带 Heart 图标的按钮
+评论图片       -> .comment_img img[data-original]
+贴纸表情       -> img.sticker 的 alt
+查看全部评论   -> .css-wu78cf
+```
+
+评论正文解析规则：
+
+- `br` 转换为换行；
+- `p` 保留为段落文本；
+- 普通链接转换为 Markdown 链接；
+- `img.sticker` 使用 `alt` 文本；
+- `.comment_img` 不写入正文，图片下载成功后 `image_url` 指向 `./assets/comment-image-001.ext`，下载失败时保留远程 URL。
+
+二级评论优先通过嵌套的 `[data-id]` 关系判断父评论；弹窗回复结构按参考项目的 `.css-1kwt8l8`、`.css-16zdamy` 和 `.css-tpyajk` 逻辑处理。导出时一级评论位于 `comments[]`，二级评论位于父评论的 `children[]`。
+
+代码依赖：
+
+```text
+src/save-core/comments.js -> parseCommentContainer()
+src/save-core/comments.js -> parseCommentElement()
+src/save-core/comments.js -> localizeCommentImages()
+src/save-core/comments.js -> buildCommentsPayload()
+src/userscript/comment-staging.js -> mountCommentStaging()
+```
 
 ## 专栏文章界面
 

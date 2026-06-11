@@ -9,6 +9,7 @@
 ```text
 src/save-core/
   build-zip.js
+  comments.js
   constants.js
   dom.js
   markdown.js
@@ -17,6 +18,7 @@ src/save-core/
   utils.js
 
 src/userscript/
+  comment-staging.js
   constants.js
   directory-save.js
   main.js
@@ -52,6 +54,7 @@ userscripts/
 {
   folderName,
   indexMarkdown,
+  commentsJson,
   assets,
   fileName,
   target,
@@ -61,7 +64,7 @@ userscripts/
 
 `buildCurrentPageArtifact()` 使用当前 URL 构建产物，供批量模式使用。`buildAnswerItemArtifact()` 和 `buildArticleRootArtifact()` 使用明确传入的 DOM 节点构建产物，供网页端手动保存使用。对应的 ZIP 函数基于同一产物生成 ZIP Blob。
 
-`src/userscript/` 是油猴脚本入口和单页保存界面。它把保存控件注入到回答卡片或文章正文区域；主按钮默认调用浏览器 File System Access API，把产物写入用户授权目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。
+`src/userscript/` 是油猴脚本入口和单页保存界面。它把保存控件注入到回答卡片或文章正文区域；主按钮默认调用浏览器 File System Access API，把产物写入用户授权目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。评论暂存按钮也在这一层注入，暂存数据只保存在当前页面内存中。
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
@@ -120,11 +123,42 @@ article-<article_id>
 5. `save-core` 只从绑定的回答卡片或文章区域生成 Markdown、下载媒体并返回保存产物。
 6. `directory-save.js` 检查或请求目录写入权限。
 7. 如果目标文件夹已存在，抛出错误并停止写入。
-8. 如果目标文件夹不存在，创建文件夹、写入 `index.md` 和 `assets/`。
+8. 如果目标文件夹不存在，创建文件夹、写入 `index.md`、`comments.json` 和 `assets/`。
 
 网页端目录写入使用 File System Access API。浏览器不会允许脚本通过字符串路径直接写入系统目录，因此保存根目录必须由用户通过目录选择器授权。目录句柄存放在 IndexedDB 中，后续保存会先检查权限再复用。
 
 齿轮菜单中的“下载为 ZIP”流程调用绑定 DOM 对应的 ZIP 构建函数，再通过 FileSaver 交给浏览器下载。
+
+## 评论保存流程
+
+评论保存参考 `others/zhihu-backup-collect` 的暂存机制。脚本不调用知乎评论 API，也不自动翻页或展开回复；它只解析用户已经打开并加载到 DOM 中的评论。
+
+1. `comment-staging.js` 监听评论区、查看全部评论、查看回复和 modal 打开等页面变化。
+2. 发现 `.Comments-container` 或 modal 评论容器后，在 `.css-1onritu` 附近注入“暂存当前评论 / 查看暂存数 / 清空暂存”。
+3. 用户点击暂存时，`comments.js` 解析当前容器内带 `[data-id]` 和 `.CommentContent` 的评论节点。
+4. 暂存区按 `answer:<question_id>:<answer_id>` 或 `article:<article_id>` 隔离，并用 `Map` 按评论 ID 去重。
+5. 手动保存回答或文章时，`main.js` 通过 `commentsProvider` 把当前 target 的暂存评论传给保存核心。
+6. `build-zip.js` 下载评论图片、替换 `image_url`，并生成固定结构的 `comments.json`；没有暂存评论时 `comments` 为空数组。
+
+`comments.json` 的顶层结构为：
+
+```json
+{
+  "schema_version": 1,
+  "target": {
+    "type": "answer",
+    "question_id": "123",
+    "answer_id": "456",
+    "article_id": ""
+  },
+  "url": "...",
+  "time_exported": "...",
+  "staged_count": 0,
+  "comments": []
+}
+```
+
+单条评论包含 `id`、`author`、`author_url`、`content`、`time_created`、`like_count`、`ip_location`、`image_url`、`reply_to_author`、`reply_to_author_url` 和 `children`。二级评论只出现在父评论的 `children` 中。评论图片下载成功时，`image_url` 指向 `./assets/comment-image-001.ext`；下载失败时保留远程 URL。
 
 ## 批量保存流程
 
@@ -158,9 +192,11 @@ output/
 output/
   question-123-answer-456/
     index.md
+    comments.json
     assets/
   article-789/
     index.md
+    comments.json
     assets/
   batch-state.json
   batch-log.jsonl
@@ -169,6 +205,8 @@ output/
 `--extract` 模式下，如果目标文件夹已经存在，该任务会被标记为失败并写入日志，服务端不会覆盖文件夹，队列会继续处理后续任务。
 
 ZIP 解压只接受单个顶层目录。解压模块会拒绝绝对路径、`..` 路径和解析后逃逸目标目录的条目。
+
+批量模式不自动打开或解析评论区，因此批量产物中的 `comments.json` 使用空评论数组。
 
 ## localhost API
 
@@ -278,7 +316,7 @@ npm test
 
 - Webpack 能否成功构建油猴脚本。
 - 源码模块和构建产物能否通过 `node --check`。
-- 构建后的油猴脚本是否包含预期 metadata、保存入口、批量 API 标记和 frontmatter 字段。
+- 构建后的油猴脚本是否包含预期 metadata、保存入口、评论暂存入口、批量 API 标记和 frontmatter 字段。
 - ZIP 解压是否拒绝路径逃逸，并在目标文件夹已存在时失败。
 
 真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、目录授权和 Tampermonkey 行为需要手动验收。

@@ -1,4 +1,5 @@
 import { expandCollapsedContent } from "./dom.js";
+import { buildCommentsPayload, localizeCommentImages, stringifyCommentsPayload } from "./comments.js";
 import { applyMediaReplacements, extractPage, renderDocument } from "./markdown.js";
 import { downloadMediaAssets } from "./media.js";
 import {
@@ -97,6 +98,7 @@ export async function buildZipFromArtifact(artifact, options = {}) {
   const assetsFolder = folder.folder("assets");
 
   folder.file("index.md", artifact.indexMarkdown);
+  folder.file("comments.json", artifact.commentsJson);
   for (const asset of artifact.assets) {
     assetsFolder.file(asset.fileName, asset.data, { binary: true });
   }
@@ -134,11 +136,22 @@ async function buildArtifactFromExtracted({ target, result, options, timeExporte
     time_exported: timeExported
   };
   const indexMarkdown = applyMediaReplacements(renderDocument(metadata, result.markdown), media.replacements);
+  const stagedComments = options.commentsProvider
+    ? await options.commentsProvider({ target, metadata })
+    : [];
+  const commentMedia = await localizeCommentImages(stagedComments);
+  const commentsJson = stringifyCommentsPayload(buildCommentsPayload({
+    target,
+    metadata,
+    timeExported,
+    comments: commentMedia.comments
+  }));
 
   return {
     folderName,
     indexMarkdown,
-    assets: media.assets,
+    commentsJson,
+    assets: media.assets.concat(commentMedia.assets),
     fileName: `${folderName}.zip`,
     target,
     metadata

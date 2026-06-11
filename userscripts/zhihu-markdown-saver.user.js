@@ -503,10 +503,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   getZipCtor: () => (/* binding */ getZipCtor)
 /* harmony export */ });
 /* harmony import */ var _dom_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./dom.js */ "./src/save-core/dom.js");
-/* harmony import */ var _markdown_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./markdown.js */ "./src/save-core/markdown.js");
-/* harmony import */ var _media_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./media.js */ "./src/save-core/media.js");
-/* harmony import */ var _target_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./target.js */ "./src/save-core/target.js");
-/* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
+/* harmony import */ var _comments_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./comments.js */ "./src/save-core/comments.js");
+/* harmony import */ var _markdown_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./markdown.js */ "./src/save-core/markdown.js");
+/* harmony import */ var _media_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./media.js */ "./src/save-core/media.js");
+/* harmony import */ var _target_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./target.js */ "./src/save-core/target.js");
+/* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
+
 
 
 
@@ -523,7 +525,7 @@ __webpack_require__.r(__webpack_exports__);
 async function buildCurrentPageArtifact(options = {}) {
   const timeExported = new Date().toISOString();
   options.onProgress?.({ stage: "detect" });
-  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.detectTarget)(options.href || location.href);
+  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget)(options.href || location.href);
   if (!target) {
     throw new Error("Only Zhihu answer/article detail pages are supported.");
   }
@@ -542,18 +544,18 @@ async function buildCurrentPageZip(options = {}) {
 async function buildAnswerItemArtifact(answerItem, options = {}) {
   const timeExported = new Date().toISOString();
   options.onProgress?.({ stage: "detect" });
-  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractAnswerTarget)(answerItem);
+  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.extractAnswerTarget)(answerItem);
 
   options.onProgress?.({ stage: "expand" });
   await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)(answerItem);
   options.onProgress?.({ stage: "extract" });
-  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findAnswerContentRoot)(answerItem);
+  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findAnswerContentRoot)(answerItem);
   if (!root) {
     throw new Error("Cannot find answer content root.");
   }
 
-  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractMetadata)({ target, itemRoot: answerItem });
-  const result = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.extractPage)({ root, metadata });
+  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.extractMetadata)({ target, itemRoot: answerItem });
+  const result = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.extractPage)({ root, metadata });
   return buildArtifactFromExtracted({ target, result, options, timeExported });
 }
 
@@ -564,19 +566,19 @@ async function buildAnswerItemZip(answerItem, options = {}) {
 async function buildArticleRootArtifact(articleRoot, options = {}) {
   const timeExported = new Date().toISOString();
   options.onProgress?.({ stage: "detect" });
-  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractArticleTarget)(articleRoot);
+  const target = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.extractArticleTarget)(articleRoot);
 
   options.onProgress?.({ stage: "expand" });
   await (0,_dom_js__WEBPACK_IMPORTED_MODULE_0__.expandCollapsedContent)(articleRoot);
   options.onProgress?.({ stage: "extract" });
-  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findArticleContentRoot)(articleRoot);
+  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findArticleContentRoot)(articleRoot);
   if (!root) {
     throw new Error("Cannot find article content root.");
   }
 
-  const itemRoot = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findItemRoot)(root, "article");
-  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractMetadata)({ target, itemRoot });
-  const result = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.extractPage)({ root, metadata });
+  const itemRoot = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findItemRoot)(root, "article");
+  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.extractMetadata)({ target, itemRoot });
+  const result = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.extractPage)({ root, metadata });
   return buildArtifactFromExtracted({ target, result, options, timeExported });
 }
 
@@ -595,6 +597,7 @@ async function buildZipFromArtifact(artifact, options = {}) {
   const assetsFolder = folder.folder("assets");
 
   folder.file("index.md", artifact.indexMarkdown);
+  folder.file("comments.json", artifact.commentsJson);
   for (const asset of artifact.assets) {
     assetsFolder.file(asset.fileName, asset.data, { binary: true });
   }
@@ -621,9 +624,9 @@ async function buildZipFromArtifact(artifact, options = {}) {
 }
 
 async function buildArtifactFromExtracted({ target, result, options, timeExported }) {
-  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_4__.targetFolderName)(target, result.metadata);
+  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(target, result.metadata);
   options.onProgress?.({ stage: "media", completed: 0, total: result.media.length });
-  const media = await (0,_media_js__WEBPACK_IMPORTED_MODULE_2__.downloadMediaAssets)(result.media, {
+  const media = await (0,_media_js__WEBPACK_IMPORTED_MODULE_3__.downloadMediaAssets)(result.media, {
     onProgress: (progress) => options.onProgress?.({ stage: "media", ...progress })
   });
   options.onProgress?.({ stage: "markdown" });
@@ -631,12 +634,23 @@ async function buildArtifactFromExtracted({ target, result, options, timeExporte
     ...result.metadata,
     time_exported: timeExported
   };
-  const indexMarkdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.renderDocument)(metadata, result.markdown), media.replacements);
+  const indexMarkdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.renderDocument)(metadata, result.markdown), media.replacements);
+  const stagedComments = options.commentsProvider
+    ? await options.commentsProvider({ target, metadata })
+    : [];
+  const commentMedia = await (0,_comments_js__WEBPACK_IMPORTED_MODULE_1__.localizeCommentImages)(stagedComments);
+  const commentsJson = (0,_comments_js__WEBPACK_IMPORTED_MODULE_1__.stringifyCommentsPayload)((0,_comments_js__WEBPACK_IMPORTED_MODULE_1__.buildCommentsPayload)({
+    target,
+    metadata,
+    timeExported,
+    comments: commentMedia.comments
+  }));
 
   return {
     folderName,
     indexMarkdown,
-    assets: media.assets,
+    commentsJson,
+    assets: media.assets.concat(commentMedia.assets),
     fileName: `${folderName}.zip`,
     target,
     metadata
@@ -645,24 +659,367 @@ async function buildArtifactFromExtracted({ target, result, options, timeExporte
 
 function findExpansionScope(target) {
   if (target.type === "answer") {
-    return (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findAnswerItemByTarget)(target);
+    return (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findAnswerItemByTarget)(target);
   }
-  return (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findArticleRoot)();
+  return (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findArticleRoot)();
 }
 
 function extractCurrentPage(target) {
-  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findContentRoot)(target);
+  const root = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findContentRoot)(target);
   if (!root) {
     throw new Error(`Cannot find ${target.type} content root.`);
   }
 
-  const itemRoot = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.findItemRoot)(root, target.type);
-  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_3__.extractMetadata)({ target, itemRoot });
-  return (0,_markdown_js__WEBPACK_IMPORTED_MODULE_1__.extractPage)({ root, itemRoot, metadata });
+  const itemRoot = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.findItemRoot)(root, target.type);
+  const metadata = (0,_target_js__WEBPACK_IMPORTED_MODULE_4__.extractMetadata)({ target, itemRoot });
+  return (0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.extractPage)({ root, itemRoot, metadata });
 }
 
 function getZipCtor() {
   return window.JSZip || (typeof JSZip !== "undefined" ? JSZip : null);
+}
+
+
+/***/ },
+
+/***/ "./src/save-core/comments.js"
+/*!***********************************!*\
+  !*** ./src/save-core/comments.js ***!
+  \***********************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   COMMENTS_SCHEMA_VERSION: () => (/* binding */ COMMENTS_SCHEMA_VERSION),
+/* harmony export */   buildCommentTree: () => (/* binding */ buildCommentTree),
+/* harmony export */   buildCommentsPayload: () => (/* binding */ buildCommentsPayload),
+/* harmony export */   localizeCommentImages: () => (/* binding */ localizeCommentImages),
+/* harmony export */   parseCommentContainer: () => (/* binding */ parseCommentContainer),
+/* harmony export */   parseCommentElement: () => (/* binding */ parseCommentElement),
+/* harmony export */   stringifyCommentsPayload: () => (/* binding */ stringifyCommentsPayload)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./utils.js */ "./src/save-core/utils.js");
+/* harmony import */ var _media_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./media.js */ "./src/save-core/media.js");
+
+
+
+/**
+ * Comment parsing helpers for Zhihu-rendered comment DOM.
+ *
+ * The parser only reads comments that already exist in the browser DOM. It does
+ * not request Zhihu APIs, open comment pages, or expand hidden replies.
+ */
+
+const COMMENTS_SCHEMA_VERSION = 1;
+
+function parseCommentContainer(container) {
+  const elements = Array.from(container.querySelectorAll?.("[data-id]") || [])
+    .filter((el) => el.querySelector?.(".CommentContent"));
+
+  return elements.map((el) => parseCommentElement(el, container));
+}
+
+function parseCommentElement(commentElement, container) {
+  const authorLink = findAuthorLink(commentElement);
+  const replyToLink = findReplyToLink(commentElement, authorLink);
+  const contentRoot = commentElement.querySelector(".CommentContent");
+
+  return {
+    id: commentElement.getAttribute("data-id") || "",
+    author: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(authorLink?.textContent || ""),
+    author_url: authorLink ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(authorLink.getAttribute("href") || authorLink.href) : "",
+    content: renderCommentContent(contentRoot),
+    time_created: normalizeCommentTime(commentElement.querySelector(".css-12cl38p")?.textContent || ""),
+    like_count: extractCommentLikeCount(commentElement),
+    ip_location: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(commentElement.querySelector(".css-ntkn7q")?.textContent || ""),
+    image_url: extractCommentImageUrl(contentRoot),
+    reply_to_author: (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(replyToLink?.textContent || ""),
+    reply_to_author_url: replyToLink ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(replyToLink.getAttribute("href") || replyToLink.href) : "",
+    parent_id: findParentCommentId(commentElement, container),
+    children: []
+  };
+}
+
+function buildCommentsPayload({ target, metadata, timeExported, comments }) {
+  const flatComments = Array.isArray(comments) ? comments : [];
+
+  return {
+    schema_version: COMMENTS_SCHEMA_VERSION,
+    target: commentsTarget(target, metadata),
+    url: metadata.url || target.url || location.href.split("#")[0].split("?")[0],
+    time_exported: timeExported,
+    staged_count: flatComments.length,
+    comments: buildCommentTree(flatComments)
+  };
+}
+
+function stringifyCommentsPayload(payload) {
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+async function localizeCommentImages(comments) {
+  const imageUrls = Array.from(new Set(
+    comments.map((comment) => comment.image_url).filter(Boolean)
+  ));
+  const replacements = new Map();
+  const assets = [];
+
+  for (let i = 0; i < imageUrls.length; i += 1) {
+    const imageUrl = imageUrls[i];
+    try {
+      const asset = await (0,_media_js__WEBPACK_IMPORTED_MODULE_1__.downloadOneMedia)(imageUrl, "comment-image", i + 1);
+      assets.push(asset);
+      replacements.set(imageUrl, `./assets/${asset.fileName}`);
+    } catch (error) {
+      console.warn(`[Zhihu Markdown Saver] failed to download comment image ${imageUrl}:`, error);
+      replacements.set(imageUrl, imageUrl);
+    }
+  }
+
+  return {
+    comments: comments.map((comment) => ({
+      ...comment,
+      image_url: comment.image_url ? replacements.get(comment.image_url) : ""
+    })),
+    assets
+  };
+}
+
+function buildCommentTree(comments) {
+  const byId = new Map();
+  const roots = [];
+
+  for (const comment of comments) {
+    byId.set(comment.id, {
+      ...publicComment(comment),
+      children: []
+    });
+  }
+
+  for (const comment of comments) {
+    const current = byId.get(comment.id);
+    const parent = comment.parent_id ? byId.get(comment.parent_id) : null;
+    if (parent) {
+      parent.children.push(current);
+    } else {
+      roots.push(current);
+    }
+  }
+
+  return roots;
+}
+
+function commentsTarget(target, metadata) {
+  if (target.type === "article") {
+    return {
+      type: "article",
+      question_id: "",
+      answer_id: "",
+      article_id: target.id
+    };
+  }
+
+  return {
+    type: "answer",
+    question_id: metadata.question_id || target.questionId || "",
+    answer_id: target.id,
+    article_id: ""
+  };
+}
+
+function publicComment(comment) {
+  return {
+    id: comment.id,
+    author: comment.author,
+    author_url: comment.author_url,
+    content: comment.content,
+    time_created: comment.time_created,
+    like_count: comment.like_count,
+    ip_location: comment.ip_location,
+    image_url: comment.image_url,
+    reply_to_author: comment.reply_to_author,
+    reply_to_author_url: comment.reply_to_author_url
+  };
+}
+
+function findAuthorLink(commentElement) {
+  return Array.from(commentElement.querySelectorAll("a[href*='/people/']"))
+    .find((link) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(link.textContent)) || null;
+}
+
+function findReplyToLink(commentElement, authorLink) {
+  return Array.from(commentElement.querySelectorAll("a[href*='/people/']"))
+    .filter((link) => (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(link.textContent))
+    .find((link) => link !== authorLink) || null;
+}
+
+function renderCommentContent(contentRoot) {
+  if (!contentRoot) {
+    return "";
+  }
+
+  return cleanCommentText(renderCommentChildren(contentRoot));
+}
+
+function renderCommentChildren(node) {
+  let output = "";
+
+  for (const child of Array.from(node.childNodes || [])) {
+    output += renderCommentNode(child);
+  }
+
+  return output;
+}
+
+function renderCommentNode(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || "";
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return "";
+  }
+
+  const el = node;
+  const tag = el.tagName.toLowerCase();
+
+  if (tag === "br") {
+    return "\n";
+  }
+  if (el.classList.contains("comment_img") || el.classList.contains("comment_sticker")) {
+    return "";
+  }
+  if (tag === "img") {
+    return el.getAttribute("alt") || "";
+  }
+  if (tag === "a") {
+    const href = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(el.getAttribute("href") || el.href || "");
+    const text = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(el.textContent || href);
+    return href ? `[${text}](${href})` : text;
+  }
+  if (tag === "p") {
+    return `${renderCommentChildren(el)}\n\n`;
+  }
+
+  return renderCommentChildren(el);
+}
+
+function cleanCommentText(value) {
+  return String(value || "")
+    .replace(/\u200B/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractCommentImageUrl(contentRoot) {
+  const img = contentRoot?.querySelector(".comment_img img[data-original], .comment_img img[src]");
+  if (!img) {
+    return "";
+  }
+  return (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.normalizeLink)(img.getAttribute("data-original") || img.getAttribute("src") || "");
+}
+
+function extractCommentLikeCount(commentElement) {
+  const buttons = [
+    ...Array.from(commentElement.querySelectorAll(".css-1vd72tl")),
+    ...Array.from(commentElement.querySelectorAll("button"))
+  ];
+  const seen = new Set();
+
+  for (const button of buttons) {
+    if (seen.has(button)) {
+      continue;
+    }
+    seen.add(button);
+
+    const isLikeButton = button.classList.contains("css-1vd72tl")
+      || Boolean(button.querySelector("svg[class*='Heart']"))
+      || (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(button.textContent).includes("喜欢");
+    if (!isLikeButton) {
+      continue;
+    }
+
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.parseCount)(button.getAttribute("aria-label") || button.textContent || "") ?? 0;
+  }
+
+  return 0;
+}
+
+function findParentCommentId(commentElement, container) {
+  const nestedParent = commentElement.parentElement?.closest("[data-id]");
+  if (nestedParent && nestedParent !== commentElement && container.contains(nestedParent)) {
+    return nestedParent.getAttribute("data-id") || "";
+  }
+
+  const firstChild = commentElement.firstElementChild;
+  if (firstChild?.classList.contains("css-1kwt8l8")) {
+    const parent = commentElement.parentElement?.closest("[data-id]");
+    return parent?.getAttribute("data-id") || "";
+  }
+
+  if (commentElement.closest(".css-16zdamy")) {
+    const modalRoot = container.querySelector(".css-tpyajk [data-id]");
+    if (modalRoot && modalRoot !== commentElement) {
+      return modalRoot.getAttribute("data-id") || "";
+    }
+  }
+
+  return "";
+}
+
+function normalizeCommentTime(value) {
+  const text = (0,_utils_js__WEBPACK_IMPORTED_MODULE_0__.cleanText)(value);
+  if (!text) {
+    return "";
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+    return text;
+  }
+  if (/^\d{2}-\d{2}$/.test(text)) {
+    const date = new Date();
+    const [month, day] = text.split("-").map((part) => Number(part));
+    date.setMonth(month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    return formatLocalDate(date, false);
+  }
+  if (text.includes("分钟前")) {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - Number.parseInt(text, 10));
+    date.setSeconds(0, 0);
+    return formatLocalDate(date, true);
+  }
+  if (text.includes("小时前")) {
+    const date = new Date();
+    date.setHours(date.getHours() - Number.parseInt(text, 10));
+    date.setMinutes(0, 0, 0);
+    return formatLocalDate(date, true);
+  }
+  if (text.includes("昨天")) {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    date.setSeconds(0, 0);
+    return formatLocalDate(date, true);
+  }
+  if (text === "刚刚") {
+    const date = new Date();
+    date.setSeconds(0, 0);
+    return formatLocalDate(date, true);
+  }
+  return text;
+}
+
+function formatLocalDate(date, includeTime) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  if (!includeTime) {
+    return `${year}-${month}-${day}`;
+  }
+
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 
@@ -1907,6 +2264,323 @@ function targetFolderName(target, metadata = {}) {
 
 /***/ },
 
+/***/ "./src/userscript/comment-staging.js"
+/*!*******************************************!*\
+  !*** ./src/userscript/comment-staging.js ***!
+  \*******************************************/
+(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   getStagedCommentsForTarget: () => (/* binding */ getStagedCommentsForTarget),
+/* harmony export */   mountCommentStaging: () => (/* binding */ mountCommentStaging)
+/* harmony export */ });
+/* harmony import */ var _save_core_comments_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../save-core/comments.js */ "./src/save-core/comments.js");
+/* harmony import */ var _save_core_target_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../save-core/target.js */ "./src/save-core/target.js");
+
+
+
+/**
+ * Browser-side comment staging.
+ *
+ * Comments are collected from the currently rendered Zhihu comment DOM and kept
+ * in memory until the user saves the matching answer or article.
+ */
+
+const COMMENT_TOOLBAR_ATTR = "data-zhmd-comment-toolbar";
+const COMMENT_OWNER_KEY_ATTR = "data-zhmd-comment-owner-key";
+const COMMENT_OWNER_TYPE_ATTR = "data-zhmd-comment-owner-type";
+const COMMENT_OWNER_ID_ATTR = "data-zhmd-comment-owner-id";
+const COMMENT_OWNER_QUESTION_ID_ATTR = "data-zhmd-comment-owner-question-id";
+
+const stagedByOwner = new Map();
+let pendingOwner = null;
+let scheduled = 0;
+
+function mountCommentStaging() {
+  ensureCommentStagingStyle();
+  scheduleCommentToolbarScan(900);
+
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    if (!target) {
+      return;
+    }
+
+    const owner = findOwnerFromElement(target);
+    if (owner) {
+      pendingOwner = owner;
+    }
+    if (shouldRescanAfterClick(target)) {
+      window.setTimeout(bindPendingOwnerToModal, 1100);
+      scheduleCommentToolbarScan(1300);
+    }
+  }, true);
+
+  const observer = new MutationObserver(() => scheduleCommentToolbarScan(300));
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+}
+
+function getStagedCommentsForTarget(target) {
+  const store = stagedByOwner.get(commentOwnerKey(target));
+  if (!store) {
+    return [];
+  }
+
+  return store.order
+    .map((id) => store.comments.get(id))
+    .filter(Boolean)
+    .map((comment) => ({
+      ...comment,
+      children: []
+    }));
+}
+
+function scheduleCommentToolbarScan(delayMs) {
+  window.clearTimeout(scheduled);
+  scheduled = window.setTimeout(injectCommentToolbars, delayMs);
+}
+
+function injectCommentToolbars() {
+  bindPendingOwnerToModal();
+
+  for (const container of findCommentContainers()) {
+    if (container.querySelector(`[${COMMENT_TOOLBAR_ATTR}]`)) {
+      continue;
+    }
+    if (!container.querySelector("[data-id] .CommentContent")) {
+      continue;
+    }
+
+    const owner = findOwnerForCommentContainer(container);
+    if (!owner) {
+      continue;
+    }
+
+    applyOwnerAttrs(container, owner);
+    const toolbarHost = container.querySelector(".css-1onritu")
+      || container.querySelector(".css-14eeh9e")
+      || container;
+    toolbarHost.append(createCommentToolbar(owner, container));
+  }
+}
+
+function findCommentContainers() {
+  return Array.from(document.querySelectorAll(".Comments-container, .Modal-content .css-tpyajk, .Modal-content"))
+    .filter((container) => container.querySelector?.("[data-id] .CommentContent"));
+}
+
+function createCommentToolbar(owner, container) {
+  const wrap = document.createElement("div");
+  wrap.className = "zhmd-comment-toolbar";
+  wrap.setAttribute(COMMENT_TOOLBAR_ATTR, "1");
+
+  const stageButton = document.createElement("button");
+  stageButton.type = "button";
+  stageButton.className = "zhmd-comment-toolbar__button";
+  stageButton.textContent = "暂存当前评论";
+  stageButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const result = stageVisibleComments(owner, container);
+    stageButton.textContent = `已暂存 +${result.added} / 共 ${result.total}`;
+    window.setTimeout(() => {
+      stageButton.textContent = "暂存当前评论";
+    }, 1600);
+  });
+
+  const countButton = document.createElement("button");
+  countButton.type = "button";
+  countButton.className = "zhmd-comment-toolbar__button";
+  countButton.textContent = "查看暂存数";
+  countButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    window.alert(`当前内容已暂存 ${stagedCount(owner.key)} 条评论。`);
+  });
+
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.className = "zhmd-comment-toolbar__button zhmd-comment-toolbar__button--danger";
+  clearButton.textContent = "清空暂存";
+  clearButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    stagedByOwner.delete(owner.key);
+    window.alert("已清空当前内容的评论暂存。");
+  });
+
+  wrap.append(stageButton, countButton, clearButton);
+  return wrap;
+}
+
+function stageVisibleComments(owner, container) {
+  const parsed = (0,_save_core_comments_js__WEBPACK_IMPORTED_MODULE_0__.parseCommentContainer)(container);
+  const store = ensureStore(owner.key);
+  let added = 0;
+
+  for (const comment of parsed) {
+    if (!comment.id) {
+      continue;
+    }
+    if (!store.comments.has(comment.id)) {
+      store.order.push(comment.id);
+      added += 1;
+    }
+    store.comments.set(comment.id, comment);
+  }
+
+  return {
+    added,
+    total: store.order.length
+  };
+}
+
+function ensureStore(key) {
+  if (!stagedByOwner.has(key)) {
+    stagedByOwner.set(key, {
+      comments: new Map(),
+      order: []
+    });
+  }
+  return stagedByOwner.get(key);
+}
+
+function stagedCount(key) {
+  return stagedByOwner.get(key)?.order.length || 0;
+}
+
+function findOwnerForCommentContainer(container) {
+  const attrs = ownerFromAttrs(container) || ownerFromAttrs(container.closest(".Modal-content"));
+  if (attrs) {
+    return attrs;
+  }
+
+  const owner = findOwnerFromElement(container);
+  if (owner) {
+    return owner;
+  }
+
+  return container.closest(".Modal-content") ? pendingOwner : null;
+}
+
+function findOwnerFromElement(element) {
+  const answerItem = element.closest?.(".AnswerItem");
+  if (answerItem) {
+    try {
+      const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_1__.extractAnswerTarget)(answerItem);
+      return {
+        key: commentOwnerKey(target),
+        target
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  const articleRoot = element.closest?.(".Post-content, .Post-Main, .Post-RichTextContainer");
+  if (articleRoot) {
+    try {
+      const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_1__.extractArticleTarget)(articleRoot);
+      return {
+        key: commentOwnerKey(target),
+        target
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function bindPendingOwnerToModal() {
+  const modal = document.querySelector(".Modal-content");
+  if (modal && pendingOwner) {
+    applyOwnerAttrs(modal, pendingOwner);
+  }
+}
+
+function ownerFromAttrs(element) {
+  const key = element?.getAttribute?.(COMMENT_OWNER_KEY_ATTR);
+  const type = element?.getAttribute?.(COMMENT_OWNER_TYPE_ATTR);
+  const id = element?.getAttribute?.(COMMENT_OWNER_ID_ATTR);
+  if (!key || !type || !id) {
+    return null;
+  }
+
+  return {
+    key,
+    target: {
+      type,
+      id,
+      questionId: element.getAttribute(COMMENT_OWNER_QUESTION_ID_ATTR) || ""
+    }
+  };
+}
+
+function applyOwnerAttrs(element, owner) {
+  element.setAttribute(COMMENT_OWNER_KEY_ATTR, owner.key);
+  element.setAttribute(COMMENT_OWNER_TYPE_ATTR, owner.target.type);
+  element.setAttribute(COMMENT_OWNER_ID_ATTR, owner.target.id);
+  element.setAttribute(COMMENT_OWNER_QUESTION_ID_ATTR, owner.target.questionId || "");
+}
+
+function shouldRescanAfterClick(target) {
+  const text = target.closest("button, .css-wu78cf, .css-1r40vb1, .css-tpyajk .css-1jm49l2")?.textContent || "";
+  return /(评论|回复|查看|展开)/.test(text);
+}
+
+function commentOwnerKey(target) {
+  if (target?.type === "article") {
+    return `article:${target.id}`;
+  }
+  return `answer:${target.questionId || ""}:${target.id}`;
+}
+
+function ensureCommentStagingStyle() {
+  if (document.getElementById("zhmd-comment-staging-style")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = "zhmd-comment-staging-style";
+  style.textContent = `
+    .zhmd-comment-toolbar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 12px;
+      vertical-align: middle;
+    }
+    .zhmd-comment-toolbar__button {
+      border: 0;
+      border-radius: 4px;
+      background: #e8f1ff;
+      color: #1677ff;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 22px;
+      padding: 3px 9px;
+      white-space: nowrap;
+    }
+    .zhmd-comment-toolbar__button:hover {
+      background: #dceaff;
+    }
+    .zhmd-comment-toolbar__button--danger {
+      color: #b42318;
+      background: #fff1f0;
+    }
+  `;
+  document.head.append(style);
+}
+
+
+/***/ },
+
 /***/ "./src/userscript/constants.js"
 /*!*************************************!*\
   !*** ./src/userscript/constants.js ***!
@@ -1965,6 +2639,7 @@ async function writeArtifactToDirectory(artifact) {
 
   const folder = await root.getDirectoryHandle(artifact.folderName, { create: true });
   await writeFile(folder, "index.md", artifact.indexMarkdown);
+  await writeFile(folder, "comments.json", artifact.commentsJson);
 
   const assetsFolder = await folder.getDirectoryHandle("assets", { create: true });
   for (const asset of artifact.assets) {
@@ -2473,8 +3148,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
 /* harmony import */ var _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../save-core/markdown.js */ "./src/save-core/markdown.js");
 /* harmony import */ var _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../save-core/target.js */ "./src/save-core/target.js");
-/* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
-/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+/* harmony import */ var _comment_staging_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./comment-staging.js */ "./src/userscript/comment-staging.js");
+/* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
+/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+
 
 
 
@@ -2487,7 +3164,7 @@ __webpack_require__.r(__webpack_exports__);
  * Tampermonkey entry point.
  *
  * The script binds save controls to Zhihu answer cards and article content,
- * converts the related DOM to Markdown, and ignores comments.
+ * converts the related DOM to Markdown, and attaches staged comments.
  */
 
 let scheduled = 0;
@@ -2497,6 +3174,7 @@ boot();
 
 function boot() {
   exposeTestApi();
+  (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_5__.mountCommentStaging)();
   (0,_batch_client_js__WEBPACK_IMPORTED_MODULE_1__.startBatchClient)();
   scheduleInject();
 
@@ -2536,11 +3214,11 @@ function scheduleInject() {
 
 function injectControls() {
   if (!isManualSavePage()) {
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.removeSaveControls)();
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.removeSaveControls)();
     return;
   }
 
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.ensureSaveControlStyle)();
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.ensureSaveControlStyle)();
   injectAnswerControls();
   injectArticleControl();
 }
@@ -2561,10 +3239,16 @@ function injectAnswerControls() {
     }
 
     const host = answerItem.querySelector(".RichContent") || answerItem;
-    host.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveControl)(
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveArtifactWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, options)),
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveZipWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, options)),
-      _single_save_js__WEBPACK_IMPORTED_MODULE_5__.changeDirectoryWithButton
+    host.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveArtifactWithButton)(
+        button,
+        (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options))
+      ),
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveZipWithButton)(
+        button,
+        (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
+      ),
+      _single_save_js__WEBPACK_IMPORTED_MODULE_6__.changeDirectoryWithButton
     ));
     answerItem.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "answer");
   }
@@ -2584,12 +3268,25 @@ function injectArticleControl() {
     return;
   }
 
-  articleRoot.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_6__.createSaveControl)(
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveArtifactWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, options)),
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_5__.saveZipWithButton)(button, (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, options)),
-    _single_save_js__WEBPACK_IMPORTED_MODULE_5__.changeDirectoryWithButton
+  articleRoot.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveArtifactWithButton)(
+      button,
+      (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options))
+    ),
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveZipWithButton)(
+      button,
+      (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
+    ),
+    _single_save_js__WEBPACK_IMPORTED_MODULE_6__.changeDirectoryWithButton
   ));
   articleRoot.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "article");
+}
+
+function withCommentProvider(options) {
+  return {
+    ...options,
+    commentsProvider: ({ target }) => (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_5__.getStagedCommentsForTarget)(target)
+  };
 }
 
 function isManualSavePage() {
