@@ -37,7 +37,11 @@ src/batch/
 
 src/render/
   cli.mjs
+  index-cli.mjs
+  index-page.mjs
   render.mjs
+  serve-cli.mjs
+  serve.mjs
   template.mjs
 
 src/shared/
@@ -47,6 +51,8 @@ test/
   check-build.mjs
   check-extract.mjs
   check-render.mjs
+  check-render-index.mjs
+  check-render-serve.mjs
 
 userscripts/
   zhihu-markdown-saver.user.js
@@ -74,7 +80,7 @@ userscripts/
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
-`src/render/` 包含静态 HTML 预览生成器。它只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成同目录 `preview.html`，不读取知乎页面 DOM。
+`src/render/` 包含静态 HTML 预览、导航页生成器和本地浏览服务。它只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。
 
 `src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数。目前这里包含 URL 识别、清洗和目标文件夹命名逻辑。
 
@@ -232,7 +238,35 @@ npm run render -- output/question-123-answer-456
 preview.html
 ```
 
-`preview.html` 与 `assets/` 保持同级，因此正文图片、视频和评论图片继续使用项目已有的相对路径。页面上方显示正文和元数据，下方用 `<details>` 展示可展开评论区。
+`preview.html` 与 `assets/` 保持同级，因此正文图片、视频和评论图片继续使用项目已有的相对路径。页面使用和导航页相同的内容卡片模板，默认显示完整正文，评论区由卡片底部的“评论区”按钮展开。
+
+## HTML 导航页流程
+
+用户运行：
+
+```bash
+npm run render:index
+npm run render:index -- output
+```
+
+`index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录的直接子文件夹，跳过缺少 `index.md` 或 `comments.json` 的目录。
+
+每个有效内容目录会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter 和正文摘要，按 `time_exported` 倒序生成：
+
+```text
+index.html
+```
+
+导航页只内置标题、摘要、元数据、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单页预览，右上角“阅读原文”链接在新窗口打开知乎原文。`preview.html` 和导航页卡片共用同一套渲染模板；区别是单篇预览默认显示全文，不显示摘要折叠控件。
+
+推荐通过本地服务打开：
+
+```bash
+npm run render:serve
+npm run render:serve -- output --port 17892
+```
+
+`serve.mjs` 会先刷新导航页，再用 Node 内置 HTTP 服务托管保存根目录。服务只绑定 `127.0.0.1`。直接用 `file://` 打开 `index.html` 只能浏览列表，展开正文或评论时会提示使用本地服务。
 
 ## localhost API
 
@@ -330,6 +364,18 @@ npm run batch -- urls.json --browser chrome
 npm run render -- output/question-123-answer-456
 ```
 
+生成导航页：
+
+```bash
+npm run render:index
+```
+
+本地浏览导航页：
+
+```bash
+npm run render:serve
+```
+
 检查源码和构建产物：
 
 ```bash
@@ -351,5 +397,7 @@ npm test
 - 构建后的油猴脚本是否包含预期 metadata、保存入口、评论暂存入口、批量 API 标记和 frontmatter 字段。
 - ZIP 解压是否拒绝路径逃逸，并在目标文件夹已存在时失败。
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
+- HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录并生成轻量 `index.html`。
+- 本地浏览服务能否只绑定 `127.0.0.1`，并正确返回导航页、单篇预览页和 404。
 
 真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、目录授权和 Tampermonkey 行为需要手动验收。

@@ -1,7 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { marked } from "marked";
-import { escapeAttr, escapeHtml, renderHtmlDocument } from "./template.mjs";
+import { renderContentCard } from "./card-template.mjs";
+import { escapeAttr, escapeHtml } from "./html-utils.mjs";
+import { renderHtmlDocument } from "./template.mjs";
 
 const OUTPUT_FILE = "preview.html";
 
@@ -17,12 +19,29 @@ export async function renderSavedFolder(folderPath) {
   const indexMarkdown = await fs.readFile(indexPath, "utf8");
   const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
   const parsed = parseMarkdownDocument(indexMarkdown);
+  const type = commentsJson.target?.type === "article" ? "article" : "answer";
+  const comments = commentsJson.comments || [];
+  const title = parsed.metadata.title || (type === "article" ? "知乎文章" : "知乎回答");
 
   const html = renderHtmlDocument({
-    title: parsed.metadata.title || commentsJson.target?.type || "",
-    metadataHtml: renderMetadata(parsed.metadata),
-    bodyHtml: marked.parse(parsed.body),
-    commentsHtml: renderComments(commentsJson.comments || [])
+    title,
+    cardHtml: renderContentCard({
+      type,
+      title,
+      url: parsed.metadata.url || commentsJson.url || "",
+      author: parsed.metadata.author || "",
+      authorUrl: parsed.metadata.author_url || "",
+      timeCreated: parsed.metadata.time_created || "",
+      timeModified: parsed.metadata.time_modified || "",
+      timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
+      upvoteCount: parsed.metadata.upvote_count,
+      commentCount: parsed.metadata.comment_count,
+      likeCount: parsed.metadata.like_count,
+      favoriteCount: parsed.metadata.favorite_count,
+      bodyHtml: marked.parse(parsed.body),
+      storedCommentCount: countStoredComments(comments),
+      commentsHtml: renderComments(comments)
+    }, { mode: "preview" })
   });
 
   await fs.writeFile(outputPath, html, "utf8");
@@ -78,92 +97,19 @@ function parseFrontmatterValue(value) {
   return trimmed;
 }
 
-function renderMetadata(metadata) {
-  const items = [
-    ["原文", linkValue(metadata.url, metadata.url)],
-    ["作者", linkValue(metadata.author, metadata.author_url)],
-    ["创建", timeValue(metadata.time_created)],
-    ["修改", timeValue(metadata.time_modified)],
-    ["导出", timeValue(metadata.time_exported)],
-    ["赞同", countValue(metadata.upvote_count)],
-    ["评论", countValue(metadata.comment_count)],
-    ["喜欢", countValue(metadata.like_count)],
-    ["收藏", countValue(metadata.favorite_count)]
-  ];
-
-  return items
-    .filter(([, value]) => value !== "")
-    .map(([label, value]) => `<li><strong>${escapeHtml(label)}：</strong><span>${value}</span></li>`)
-    .join("");
-}
-
-function linkValue(text, href) {
-  if (!text && !href) {
-    return "";
-  }
-  if (!href) {
-    return escapeHtml(text);
-  }
-  return `<a href="${escapeAttr(href)}">${escapeHtml(text || href)}</a>`;
-}
-
-function countValue(value) {
-  if (value === null || value === undefined || value === "") {
-    return "";
-  }
-  return escapeHtml(value);
-}
-
-function timeValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  const date = parseTimeValue(value);
-  return date ? formatChinaTime(date) : escapeHtml(value);
-}
-
-function parseTimeValue(value) {
-  const text = String(value).trim();
-  if (!text) {
-    return null;
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    const date = new Date(`${text}T00:00:00+08:00`);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(text)) {
-    const date = new Date(`${text.replace(" ", "T")}+08:00`);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  const date = new Date(text);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatChinaTime(date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  }).formatToParts(date);
-  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second}`;
-}
-
 function renderComments(comments) {
   if (!comments.length) {
     return `<div class="empty">暂无暂存评论。</div>`;
   }
 
   return `<div class="comment-list">${comments.map((comment) => renderComment(comment, 0)).join("")}</div>`;
+}
+
+function countStoredComments(comments) {
+  return comments.reduce((total, comment) => {
+    const children = Array.isArray(comment.children) ? comment.children : [];
+    return total + 1 + countStoredComments(children);
+  }, 0);
 }
 
 function renderComment(comment, level) {

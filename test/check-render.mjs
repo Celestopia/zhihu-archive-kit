@@ -20,7 +20,7 @@ author: "作者 A"
 author_url: "https://www.zhihu.com/people/a"
 time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-02T08:30:40.000Z"
-time_exported: "2026-06-11T00:00:00.000Z"
+time_exported: "2026-06-11T16:46:52.000Z"
 upvote_count: 10
 comment_count: 2
 like_count: 3
@@ -81,13 +81,28 @@ assert.equal(outputPath, path.join(root, "preview.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
 assert.match(html, /测试回答/);
-assert.match(html, /<ul class="meta-list">/);
+assert.match(html, /<section class="feed feed--preview">/);
+assert.match(html, /<h1 class="title">测试回答<\/h1>/);
+assert.match(html, /<div class="expand-panel expand-panel--body" data-panel="body" data-loaded="1">/);
+assert.match(html, /data-card-body/);
+assert.doesNotMatch(html, /<ul class="meta-list">/);
 assert.doesNotMatch(html, /meta-grid/);
 assert.match(html, /2026-06-01 08:00:00/);
 assert.match(html, /2026-06-02 16:30:40/);
-assert.match(html, /2026-06-11 08:00:00/);
+assert.match(html, /2026-06-12 00:46:52/);
+assert.doesNotMatch(html, / 24:46:52/);
 assert.match(html, /正文标题/);
 assert.match(html, /评论区/);
+assert.match(html, /--accent-soft: #edf5ff/);
+assert.match(html, /<section class="comments" data-comments>\s*<div class="comments-header">\s*<span class="comments-heading">\s*<span class="comments-title">评论区<\/span>\s*<span class="comments-count">（已存 2 条）<\/span>\s*<\/span>\s*<span class="comment-tools">/);
+assert.match(html, /<button class="action-pill" type="button" data-action="toggle-comment-replies" aria-expanded="false"><span data-label>展开全部<\/span><\/button>/);
+assert.doesNotMatch(html, /data-action="expand-comments"/);
+assert.doesNotMatch(html, /data-action="collapse-comments"/);
+assert.doesNotMatch(html, /<summary>评论区<\/summary>\s*<div class="comment-tools">/);
+assert.doesNotMatch(html, /<details class="comments">/);
+assert.doesNotMatch(html, /\.comments > summary/);
+assert.doesNotMatch(html, /<button class="top-collapse/);
+assert.doesNotMatch(html, /<p class="summary-text" data-summary-row>/);
 assert.match(html, /一级评论/);
 assert.match(html, /二级评论/);
 assert.match(html, /评论者/);
@@ -98,5 +113,9 @@ assert.match(html, /IP 北京/);
 assert.match(html, /comment-image-001\.png/);
 assert.match(html, /<details class="comment-replies">\s*<summary>1 条回复<\/summary>/);
 assert.doesNotMatch(html, /<details class="comment-replies" open>/);
+assert.match(html, /event\.preventDefault\(\)/);
+assert.match(html, /event\.stopPropagation\(\)/);
+assert.doesNotMatch(html, /comments\.open = true/);
+assert.match(html, /nextExpanded \? "收起全部" : "展开全部"/);
 
 console.log("HTML render checks passed.");
