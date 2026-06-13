@@ -8,10 +8,13 @@ import {
   renderContentCard,
   sortTime
 } from "./card-template.mjs";
-import { escapeHtml } from "./html-utils.mjs";
+import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { parseMarkdownDocument, renderSavedFolder } from "./render.mjs";
 
 const INDEX_FILE = "index.html";
+const COLLECTION_METADATA_FILE = "collection.json";
+const DEFAULT_COLLECTION_NAME = "默认收藏夹";
+const PAGE_SIZE = 20;
 
 /**
  * Build a lightweight static navigation page for saved Zhihu content.
@@ -20,53 +23,85 @@ export async function renderOutputIndex(rootPath = "output") {
   const root = path.resolve(rootPath);
   const entries = await fs.readdir(root, { withFileTypes: true });
   const items = [];
+  const collections = [];
 
   for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
-    const folderPath = path.join(root, entry.name);
-    const indexPath = path.join(folderPath, "index.md");
-    const commentsPath = path.join(folderPath, "comments.json");
-
-    if (!await isFile(indexPath) || !await isFile(commentsPath)) {
+    const collectionPath = path.join(root, entry.name);
+    const metadataPath = path.join(collectionPath, COLLECTION_METADATA_FILE);
+    if (!await isFile(metadataPath)) {
       continue;
     }
 
-    const indexMarkdown = await fs.readFile(indexPath, "utf8");
-    const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
-    const parsed = parseMarkdownDocument(indexMarkdown);
-    const summary = extractSummary(parsed.body);
-    const previewPath = await renderSavedFolder(folderPath);
-    const type = commentsJson.target?.type === "article" ? "article" : "answer";
+    const metadata = JSON.parse(await fs.readFile(metadataPath, "utf8"));
+    const collectionName = metadata.name || entry.name;
+    const collection = {
+      name: collectionName,
+      description: metadata.description || "",
+      timeCreated: metadata.time_created || "",
+      count: 0
+    };
+    collections.push(collection);
 
-    items.push({
-      previewHref: toPosixPath(path.relative(root, previewPath)),
-      type,
-      title: parsed.metadata.title || entry.name,
-      url: parsed.metadata.url || commentsJson.url || "",
-      author: parsed.metadata.author || "",
-      authorUrl: parsed.metadata.author_url || "",
-      timeCreated: parsed.metadata.time_created || "",
-      timeModified: parsed.metadata.time_modified || "",
-      timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
-      upvoteCount: parsed.metadata.upvote_count,
-      commentCount: parsed.metadata.comment_count,
-      likeCount: parsed.metadata.like_count,
-      favoriteCount: parsed.metadata.favorite_count,
-      summaryText: summary.text,
-      summaryTruncated: summary.truncated
-    });
+    const contentEntries = await fs.readdir(collectionPath, { withFileTypes: true });
+    for (const contentEntry of contentEntries.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+      const folderPath = path.join(collectionPath, contentEntry.name);
+      const indexPath = path.join(folderPath, "index.md");
+      const commentsPath = path.join(folderPath, "comments.json");
+
+      if (!await isFile(indexPath) || !await isFile(commentsPath)) {
+        continue;
+      }
+
+      const indexMarkdown = await fs.readFile(indexPath, "utf8");
+      const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
+      const parsed = parseMarkdownDocument(indexMarkdown);
+      const summary = extractSummary(parsed.body);
+      const previewPath = await renderSavedFolder(folderPath);
+      const type = commentsJson.target?.type === "article" ? "article" : "answer";
+
+      items.push({
+        previewHref: toPosixPath(path.relative(root, previewPath)),
+        type,
+        collectionName,
+        title: parsed.metadata.title || contentEntry.name,
+        url: parsed.metadata.url || commentsJson.url || "",
+        author: parsed.metadata.author || "",
+        authorUrl: parsed.metadata.author_url || "",
+        timeCreated: parsed.metadata.time_created || "",
+        timeModified: parsed.metadata.time_modified || "",
+        timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
+        upvoteCount: parsed.metadata.upvote_count,
+        commentCount: parsed.metadata.comment_count,
+        likeCount: parsed.metadata.like_count,
+        favoriteCount: parsed.metadata.favorite_count,
+        summaryText: summary.text,
+        summaryTruncated: summary.truncated
+      });
+      collection.count += 1;
+    }
   }
 
+  collections.sort((a, b) => {
+    if (a.name === DEFAULT_COLLECTION_NAME) {
+      return -1;
+    }
+    if (b.name === DEFAULT_COLLECTION_NAME) {
+      return 1;
+    }
+    return a.name.localeCompare(b.name, "zh-Hans-CN");
+  });
   items.sort((a, b) => sortTime(b.timeExported) - sortTime(a.timeExported));
 
   const outputPath = path.join(root, INDEX_FILE);
   await fs.writeFile(outputPath, renderIndexDocument({
     items,
+    collections,
     generatedAt: new Date()
   }), "utf8");
   return outputPath;
 }
 
-function renderIndexDocument({ items, generatedAt }) {
+function renderIndexDocument({ items, collections, generatedAt }) {
   const answerCount = items.filter((item) => item.type === "answer").length;
   const articleCount = items.filter((item) => item.type === "article").length;
 
@@ -101,6 +136,56 @@ function renderIndexDocument({ items, generatedAt }) {
     main {
       width: min(980px, calc(100% - 32px));
       margin: 28px auto 56px;
+    }
+    .collection-nav {
+      position: fixed;
+      left: max(16px, calc((100vw - 980px) / 2 - 220px));
+      top: 50%;
+      transform: translateY(-50%);
+      width: 172px;
+      max-height: min(70vh, 520px);
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(16, 24, 40, .08);
+      z-index: 2;
+    }
+    .collection-nav-title {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 8px;
+    }
+    .collection-nav-list {
+      display: grid;
+      gap: 4px;
+      max-height: calc(min(70vh, 520px) - 44px);
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .collection-nav button {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      padding: 6px 8px;
+      text-align: left;
+    }
+    .collection-nav button:hover,
+    .collection-nav button[aria-pressed="true"] {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .collection-nav-count {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 8px;
     }
     .header,
     .toolbar {
@@ -172,7 +257,67 @@ function renderIndexDocument({ items, generatedAt }) {
       background: var(--accent-soft);
       color: var(--accent);
     }
+    .pagination {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 14px;
+    }
+    .pagination[hidden] {
+      display: none;
+    }
+    .pagination button {
+      min-width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      padding: 0 10px;
+    }
+    .pagination button:hover:not(:disabled),
+    .pagination button[aria-current="page"] {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .pagination button:disabled {
+      color: var(--muted);
+      cursor: not-allowed;
+      opacity: .55;
+    }
+    .pagination-ellipsis {
+      color: var(--muted);
+      padding: 0 2px;
+    }
     ${renderCardCss()}
+    @media (max-width: 1360px) {
+      .collection-nav {
+        position: static;
+        transform: none;
+        width: min(980px, calc(100% - 32px));
+        max-height: none;
+        margin: 28px auto 14px;
+      }
+      .collection-nav-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        max-height: none;
+        overflow-y: visible;
+        padding-right: 0;
+      }
+      .collection-nav button {
+        width: auto;
+      }
+      main {
+        margin-top: 0;
+      }
+    }
     @media (max-width: 720px) {
       .toolbar {
         grid-template-columns: 1fr;
@@ -182,6 +327,7 @@ function renderIndexDocument({ items, generatedAt }) {
   </style>
 </head>
 <body>
+  ${renderCollectionNav({ collections, totalCount: items.length })}
   <main>
     <header class="header">
       <h1>知乎保存导航</h1>
@@ -189,6 +335,7 @@ function renderIndexDocument({ items, generatedAt }) {
         <span>总数：<strong>${items.length}</strong></span>
         <span>回答：<strong>${answerCount}</strong></span>
         <span>文章：<strong>${articleCount}</strong></span>
+        <span>收藏夹：<strong id="current-collection">所有</strong></span>
         <span>当前显示：<strong id="visible-count">${items.length}</strong></span>
         <span>生成时间：<strong>${escapeHtml(formatDisplayTime(generatedAt))}</strong></span>
       </p>
@@ -204,47 +351,159 @@ function renderIndexDocument({ items, generatedAt }) {
     <section class="feed" id="content-list">
       ${items.length ? items.map((item) => renderContentCard(item, { mode: "feed" })).join("") : `<div class="empty">没有找到可渲染的内容文件夹。</div>`}
     </section>
+    <nav class="pagination" id="pagination" aria-label="分页" hidden></nav>
   </main>
   <script>
 ${renderCardScript()}
 
+    const PAGE_SIZE = ${PAGE_SIZE};
     const searchInput = document.getElementById("search");
     const visibleCount = document.getElementById("visible-count");
+    const currentCollection = document.getElementById("current-collection");
+    const pagination = document.getElementById("pagination");
     const cards = Array.from(document.querySelectorAll(".item"));
     const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
+    const collectionButtons = Array.from(document.querySelectorAll("[data-collection-filter]"));
     let activeFilter = "all";
+    let activeCollection = "all";
+    let currentPage = 1;
 
     function applyFilters() {
       const query = searchInput.value.trim().toLowerCase();
-      let visible = 0;
-
-      for (const card of cards) {
+      const matchedCards = cards.filter((card) => {
         const matchesType = activeFilter === "all" || card.dataset.type === activeFilter;
+        const matchesCollection = activeCollection === "all" || card.dataset.collection === activeCollection;
         const matchesQuery = !query || card.textContent.toLowerCase().includes(query);
-        const show = matchesType && matchesQuery;
-        card.hidden = !show;
-        if (show) {
-          visible += 1;
+        return matchesType && matchesCollection && matchesQuery;
+      });
+
+      const totalPages = Math.max(1, Math.ceil(matchedCards.length / PAGE_SIZE));
+      if (currentPage > totalPages) {
+        currentPage = totalPages;
+      }
+
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const visibleCards = new Set(matchedCards.slice(start, start + PAGE_SIZE));
+      for (const card of cards) {
+        card.hidden = !visibleCards.has(card);
+      }
+
+      visibleCount.textContent = String(matchedCards.length);
+      currentCollection.textContent = activeCollection === "all" ? "所有" : activeCollection;
+      renderPagination(totalPages);
+    }
+
+    function resetToFirstPage() {
+      currentPage = 1;
+    }
+
+    function renderPagination(totalPages) {
+      pagination.replaceChildren();
+      if (totalPages <= 1) {
+        pagination.hidden = true;
+        return;
+      }
+
+      pagination.hidden = false;
+      pagination.append(
+        paginationButton("上一页", currentPage - 1, currentPage === 1),
+        ...paginationItems(totalPages).map((item) => item === "ellipsis"
+          ? paginationEllipsis()
+          : paginationButton(String(item), item, false, item === currentPage)),
+        paginationButton("下一页", currentPage + 1, currentPage === totalPages)
+      );
+    }
+
+    function paginationItems(totalPages) {
+      const pages = new Set([1, totalPages]);
+      for (let page = currentPage - 2; page <= currentPage + 2; page += 1) {
+        if (page >= 1 && page <= totalPages) {
+          pages.add(page);
         }
       }
 
-      visibleCount.textContent = String(visible);
+      const sorted = Array.from(pages).sort((a, b) => a - b);
+      const items = [];
+      for (const page of sorted) {
+        if (items.length && page - items[items.length - 1] > 1) {
+          items.push("ellipsis");
+        }
+        items.push(page);
+      }
+      return items;
     }
 
-    searchInput.addEventListener("input", applyFilters);
+    function paginationButton(label, page, disabled, current = false) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.disabled = disabled;
+      if (current) {
+        button.setAttribute("aria-current", "page");
+      }
+      button.addEventListener("click", () => {
+        currentPage = page;
+        applyFilters();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+      return button;
+    }
+
+    function paginationEllipsis() {
+      const span = document.createElement("span");
+      span.className = "pagination-ellipsis";
+      span.textContent = "...";
+      return span;
+    }
+
+    searchInput.addEventListener("input", () => {
+      resetToFirstPage();
+      applyFilters();
+    });
     for (const button of filterButtons) {
       button.addEventListener("click", () => {
         activeFilter = button.dataset.filter;
         for (const item of filterButtons) {
           item.setAttribute("aria-pressed", String(item === button));
         }
+        resetToFirstPage();
         applyFilters();
       });
     }
+
+    for (const button of collectionButtons) {
+      button.addEventListener("click", () => {
+        activeCollection = button.dataset.collectionFilter;
+        for (const item of collectionButtons) {
+          item.setAttribute("aria-pressed", String(item === button));
+        }
+        resetToFirstPage();
+        applyFilters();
+      });
+    }
+
+    applyFilters();
   </script>
 </body>
 </html>
 `;
+}
+
+function renderCollectionNav({ collections, totalCount }) {
+  return `
+  <aside class="collection-nav" aria-label="收藏夹">
+    <p class="collection-nav-title">收藏夹</p>
+    <div class="collection-nav-list">
+      <button type="button" data-collection-filter="all" aria-pressed="true">
+        <span>所有</span><span class="collection-nav-count">${escapeHtml(totalCount)}</span>
+      </button>
+      ${collections.map((collection) => `
+        <button type="button" data-collection-filter="${escapeAttr(collection.name)}" aria-pressed="false" title="${escapeAttr(collection.description || collection.name)}">
+          <span>${escapeHtml(collection.name)}</span><span class="collection-nav-count">${escapeHtml(collection.count)}</span>
+        </button>
+      `).join("")}
+    </div>
+  </aside>`;
 }
 
 function toPosixPath(value) {

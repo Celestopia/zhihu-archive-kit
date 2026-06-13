@@ -9,8 +9,15 @@ import { startRenderServer, stopRenderServer } from "../src/render/serve.mjs";
  */
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-serve-"));
-const answerDir = path.join(root, "question-123-answer-456");
+const collectionDir = path.join(root, "默认收藏夹");
+const answerDir = path.join(collectionDir, "question-123-answer-456");
 await fs.mkdir(path.join(answerDir, "assets"), { recursive: true });
+await fs.writeFile(path.join(collectionDir, "collection.json"), JSON.stringify({
+  schema_version: 1,
+  name: "默认收藏夹",
+  time_created: "2026-06-12T12:00:00.000+08:00",
+  description: ""
+}, null, 2));
 
 await fs.writeFile(path.join(answerDir, "index.md"), `---
 title: "服务测试回答"
@@ -46,7 +53,7 @@ try {
   assert.match(indexResponse.headers.get("content-type"), /text\/html/);
   assert.match(await indexResponse.text(), /服务测试回答/);
 
-  const previewResponse = await fetch(`${handle.url}question-123-answer-456/preview.html`);
+  const previewResponse = await fetch(`${handle.url}${encodeURI("默认收藏夹/question-123-answer-456/preview.html")}`);
   assert.equal(previewResponse.status, 200);
   assert.match(await previewResponse.text(), /服务测试正文/);
 

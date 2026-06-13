@@ -9,13 +9,39 @@ import { renderOutputIndex } from "../src/render/index-page.mjs";
  */
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-index-"));
-const answerDir = path.join(root, "question-123-answer-456");
-const articleDir = path.join(root, "article-789");
+const defaultCollectionDir = path.join(root, "默认收藏夹");
+const techCollectionDir = path.join(root, "技术收藏");
+const emptyCollectionDir = path.join(root, "空收藏夹");
+const answerDir = path.join(defaultCollectionDir, "question-123-answer-456");
+const articleDir = path.join(techCollectionDir, "article-789");
+const rootDirectDir = path.join(root, "question-root-answer-999");
 const skippedDir = path.join(root, "not-content");
 
 await fs.mkdir(path.join(answerDir, "assets"), { recursive: true });
 await fs.mkdir(path.join(articleDir, "assets"), { recursive: true });
+await fs.mkdir(path.join(rootDirectDir, "assets"), { recursive: true });
 await fs.mkdir(skippedDir);
+await fs.mkdir(emptyCollectionDir);
+
+await writeCollectionMetadata(defaultCollectionDir, {
+  schema_version: 1,
+  name: "默认收藏夹",
+  time_created: "2026-06-12T12:00:00.000+08:00",
+  description: ""
+});
+await writeCollectionMetadata(techCollectionDir, {
+  schema_version: 1,
+  name: "技术收藏",
+  time_created: "2026-06-12T13:00:00.000+08:00",
+  description: "技术类内容"
+});
+await writeCollectionMetadata(emptyCollectionDir, {
+  schema_version: 1,
+  name: "空收藏夹",
+  time_created: "2026-06-12T14:00:00.000+08:00",
+  description: ""
+});
+
 await fs.writeFile(path.join(skippedDir, "index.md"), "not enough files");
 
 await fs.writeFile(path.join(answerDir, "index.md"), `---
@@ -111,31 +137,110 @@ await fs.writeFile(path.join(articleDir, "comments.json"), JSON.stringify({
   comments: []
 }, null, 2));
 
+for (let index = 0; index < 21; index += 1) {
+  const id = 2000 + index;
+  const extraDir = path.join(defaultCollectionDir, `question-${id}-answer-${id + 1000}`);
+  await fs.mkdir(path.join(extraDir, "assets"), { recursive: true });
+  await fs.writeFile(path.join(extraDir, "index.md"), `---
+title: "分页回答 ${index + 1}"
+url: "https://www.zhihu.com/question/${id}/answer/${id + 1000}"
+author: "分页作者"
+time_exported: "2026-05-${String(index + 1).padStart(2, "0")}T00:00:00.000Z"
+upvote_count: ${index}
+comment_count: 0
+---
+
+分页正文 ${index + 1}。
+`);
+  await fs.writeFile(path.join(extraDir, "comments.json"), JSON.stringify({
+    schema_version: 1,
+    target: {
+      type: "answer",
+      question_id: String(id),
+      answer_id: String(id + 1000),
+      article_id: ""
+    },
+    url: `https://www.zhihu.com/question/${id}/answer/${id + 1000}`,
+    time_exported: "2026-05-01T00:00:00.000Z",
+    staged_count: 0,
+    comments: []
+  }, null, 2));
+}
+
+await fs.writeFile(path.join(rootDirectDir, "index.md"), `---
+title: "根目录旧内容"
+---
+
+ROOT_DIRECT_MARKER
+`);
+await fs.writeFile(path.join(rootDirectDir, "comments.json"), JSON.stringify({
+  schema_version: 1,
+  target: { type: "answer" },
+  comments: []
+}, null, 2));
+
 const outputPath = await renderOutputIndex(root);
 assert.equal(outputPath, path.join(root, "index.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
 assert.match(html, /知乎保存导航/);
+assert.match(html, /总数：<strong>23<\/strong>/);
+assert.match(html, /回答：<strong>22<\/strong>/);
+assert.match(html, /文章：<strong>1<\/strong>/);
 assert.match(html, /回答标题/);
 assert.match(html, /文章标题/);
+assert.match(html, /分页回答 21/);
 assert.match(html, /回答作者/);
 assert.match(html, /文章作者/);
 assert.match(html, /创建：2026-06-01 08:00:00/);
 assert.match(html, /修改：2026-06-13 00:46:52/);
 assert.match(html, /导出：2026-06-12 00:46:52/);
 assert.doesNotMatch(html, / 24:46:52/);
+assert.match(html, /收藏夹：<strong id="current-collection">所有<\/strong>/);
+assert.match(html, /<aside class="collection-nav" aria-label="收藏夹">/);
+assert.match(html, /left: max\(16px, calc\(\(100vw - 980px\) \/ 2 - 220px\)\);/);
+assert.match(html, /max-height: min\(70vh, 520px\);/);
+assert.match(html, /\.collection-nav-list \{[\s\S]*?max-height: calc\(min\(70vh, 520px\) - 44px\);[\s\S]*?overflow-y: auto;/);
+assert.match(html, /data-collection-filter="all"/);
+assert.match(html, /<span>所有<\/span><span class="collection-nav-count">23<\/span>/);
+assert.match(html, /data-collection-filter="默认收藏夹"/);
+assert.match(html, /data-collection-filter="技术收藏"/);
+assert.match(html, /data-collection-filter="空收藏夹"/);
+assert.match(html, /<span>默认收藏夹<\/span><span class="collection-nav-count">22<\/span>/);
+assert.match(html, /<span>技术收藏<\/span><span class="collection-nav-count">1<\/span>/);
+assert.match(html, /title="技术类内容"/);
+assert.match(html, /data-collection="默认收藏夹"/);
+assert.match(html, /data-collection="技术收藏"/);
+assert.match(html, /activeCollection = "all"/);
+assert.match(html, /matchesCollection = activeCollection === "all" \|\| card\.dataset\.collection === activeCollection/);
+assert.match(html, /currentCollection\.textContent = activeCollection === "all" \? "所有" : activeCollection/);
+assert.match(html, /const PAGE_SIZE = 20;/);
+assert.match(html, /let currentPage = 1;/);
+assert.match(html, /<nav class="pagination" id="pagination" aria-label="分页" hidden><\/nav>/);
+assert.match(html, /\.pagination \{[\s\S]*?justify-content: center;/);
+assert.match(html, /const totalPages = Math\.max\(1, Math\.ceil\(matchedCards\.length \/ PAGE_SIZE\)\);/);
+assert.match(html, /matchedCards\.slice\(start, start \+ PAGE_SIZE\)/);
+assert.match(html, /paginationButton\("上一页", currentPage - 1, currentPage === 1\)/);
+assert.match(html, /paginationButton\("下一页", currentPage \+ 1, currentPage === totalPages\)/);
+assert.match(html, /button\.setAttribute\("aria-current", "page"\)/);
+assert.match(html, /items\.push\("ellipsis"\)/);
+assert.match(html, /function resetToFirstPage\(\) \{\s*currentPage = 1;\s*\}/);
+assert.match(html, /searchInput\.addEventListener\("input", \(\) => \{\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
+assert.match(html, /activeFilter = button\.dataset\.filter;[\s\S]*?resetToFirstPage\(\);[\s\S]*?applyFilters\(\);/);
+assert.match(html, /activeCollection = button\.dataset\.collectionFilter;[\s\S]*?resetToFirstPage\(\);[\s\S]*?applyFilters\(\);/);
+assert.match(html, /applyFilters\(\);\s*<\/script>/);
 assert.match(html, /阅读全文/);
 assert.match(html, /评论区/);
 assert.match(html, /阅读原文/);
 assert.doesNotMatch(html, /单页预览/);
-assert.match(html, /<a class="title" href="question-123-answer-456\/preview\.html" target="_blank" rel="noopener noreferrer">回答标题<\/a>/);
+assert.match(html, /<a class="title" href="默认收藏夹\/question-123-answer-456\/preview\.html" target="_blank" rel="noopener noreferrer">回答标题<\/a>/);
 assert.match(html, /<button class="top-collapse action-pill" type="button" data-action="toggle-body" data-top-collapse aria-expanded="true" hidden>收起全文<\/button>\s*<a class="source-link action-pill" href="https:\/\/www\.zhihu\.com\/question\/123\/answer\/456" target="_blank" rel="noopener noreferrer">阅读原文<\/a>\s*<span class="type">回答<\/span>/);
 assert.match(html, /<div class="meta">\s*<div class="meta-main">\s*<span>作者：<a href="https:\/\/www\.zhihu\.com\/people\/answer-author">回答作者<\/a><\/span>\s*<span>创建：2026-06-01 08:00:00<\/span>\s*<span>修改：2026-06-13 00:46:52<\/span>\s*<\/div>\s*<span class="meta-export">导出：2026-06-12 00:46:52<\/span>\s*<\/div>/);
 assert.match(html, /\.meta-export \{[\s\S]*?margin-left: auto;[\s\S]*?text-align: right;/);
-assert.match(html, /data-preview-href="question-123-answer-456\/preview\.html"/);
+assert.match(html, /data-preview-href="默认收藏夹\/question-123-answer-456\/preview\.html"/);
 assert.doesNotMatch(html, /data-summary-prefix/);
 assert.doesNotMatch(html, /data-summary-truncated/);
-assert.match(html, /article-789\/preview\.html/);
+assert.match(html, /技术收藏\/article-789\/preview\.html/);
 assert.match(html, /这是一段用于生成摘要的回答正文，包含 链接 和 加粗文本/);
 assert.match(html, /<p class="summary-text" data-summary-row>\s*<span data-summary-copy>正文标题 这是一段用于生成摘要的回答正文/);
 assert.match(html, /data-summary-ellipsis/);
@@ -172,6 +277,7 @@ assert.match(html, /nextExpanded \? "收起全部" : "展开全部"/);
 assert.match(html, /npm run render:serve/);
 assert.doesNotMatch(html, /FULL_BODY_ONLY_MARKER/);
 assert.doesNotMatch(html, /COMMENT_ONLY_MARKER/);
+assert.doesNotMatch(html, /ROOT_DIRECT_MARKER/);
 assert.doesNotMatch(html, /not-content/);
 
 const answerPreview = await fs.readFile(path.join(answerDir, "preview.html"), "utf8");
@@ -194,3 +300,8 @@ const articlePreview = await fs.readFile(path.join(articleDir, "preview.html"), 
 assert.match(articlePreview, /<span class="comments-count">（已存 0 条）<\/span>/);
 
 console.log("HTML navigation checks passed.");
+
+async function writeCollectionMetadata(collectionDir, metadata) {
+  await fs.mkdir(collectionDir, { recursive: true });
+  await fs.writeFile(path.join(collectionDir, "collection.json"), `${JSON.stringify(metadata, null, 2)}\n`);
+}

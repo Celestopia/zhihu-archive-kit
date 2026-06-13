@@ -2621,8 +2621,13 @@ const BATCH_STATUS_ID = "zhmd-batch-status";
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   COLLECTION_METADATA_FILE: () => (/* binding */ COLLECTION_METADATA_FILE),
+/* harmony export */   DEFAULT_COLLECTION_NAME: () => (/* binding */ DEFAULT_COLLECTION_NAME),
 /* harmony export */   changeExportRootDirectory: () => (/* binding */ changeExportRootDirectory),
+/* harmony export */   createCollection: () => (/* binding */ createCollection),
+/* harmony export */   listCollections: () => (/* binding */ listCollections),
 /* harmony export */   supportsDirectoryPicker: () => (/* binding */ supportsDirectoryPicker),
+/* harmony export */   writeArtifactToCollection: () => (/* binding */ writeArtifactToCollection),
 /* harmony export */   writeArtifactToDirectory: () => (/* binding */ writeArtifactToDirectory)
 /* harmony export */ });
 /**
@@ -2637,18 +2642,27 @@ const DB_NAME = "zhihu-markdown-saver";
 const DB_VERSION = 1;
 const STORE_NAME = "settings";
 const EXPORT_ROOT_KEY = "export-root-directory";
+const DEFAULT_COLLECTION_NAME = "默认收藏夹";
+const COLLECTION_METADATA_FILE = "collection.json";
 
 async function writeArtifactToDirectory(artifact) {
+  await writeArtifactToCollection(artifact, DEFAULT_COLLECTION_NAME);
+}
+
+async function writeArtifactToCollection(artifact, collectionName) {
   if (!supportsDirectoryPicker()) {
     throw new Error("当前浏览器不支持保存到文件夹，请使用 Chrome/Edge，或通过齿轮菜单下载 ZIP。");
   }
 
   const root = await getExportRootDirectory();
-  if (await directoryExists(root, artifact.folderName)) {
-    throw new Error(`目标文件夹已存在：${artifact.folderName}`);
+  await ensureDefaultCollection(root);
+
+  const collection = await getCollectionDirectory(root, collectionName);
+  if (await directoryExists(collection, artifact.folderName)) {
+    throw new Error(`目标文件夹已存在：${collectionName}/${artifact.folderName}`);
   }
 
-  const folder = await root.getDirectoryHandle(artifact.folderName, { create: true });
+  const folder = await collection.getDirectoryHandle(artifact.folderName, { create: true });
   await writeFile(folder, "index.md", artifact.indexMarkdown);
   await writeFile(folder, "comments.json", artifact.commentsJson);
 
@@ -2656,6 +2670,60 @@ async function writeArtifactToDirectory(artifact) {
   for (const asset of artifact.assets) {
     await writeFile(assetsFolder, asset.fileName, asset.data);
   }
+}
+
+async function listCollections() {
+  if (!supportsDirectoryPicker()) {
+    throw new Error("当前浏览器不支持保存到文件夹，请使用 Chrome/Edge，或通过齿轮菜单下载 ZIP。");
+  }
+
+  const root = await getExportRootDirectory();
+  await ensureDefaultCollection(root);
+
+  const collections = [];
+  for await (const [name, handle] of root.entries()) {
+    if (handle.kind !== "directory") {
+      continue;
+    }
+    if (await isContentDirectory(handle)) {
+      continue;
+    }
+
+    const metadata = await ensureCollectionMetadata(handle, name, "");
+    collections.push(metadata);
+  }
+
+  return collections.sort((a, b) => {
+    if (a.name === DEFAULT_COLLECTION_NAME) {
+      return -1;
+    }
+    if (b.name === DEFAULT_COLLECTION_NAME) {
+      return 1;
+    }
+    return a.name.localeCompare(b.name, "zh-Hans-CN");
+  });
+}
+
+async function createCollection(name, description) {
+  if (!supportsDirectoryPicker()) {
+    throw new Error("当前浏览器不支持保存到文件夹。");
+  }
+
+  const cleanName = validateCollectionName(name);
+  const root = await getExportRootDirectory();
+  await ensureDefaultCollection(root);
+
+  if (await directoryExists(root, cleanName)) {
+    throw new Error(`收藏夹已存在：${cleanName}`);
+  }
+
+  const collection = await root.getDirectoryHandle(cleanName, { create: true });
+  return writeCollectionMetadata(collection, {
+    schema_version: 1,
+    name: cleanName,
+    time_created: formatLocalIso(new Date()),
+    description: String(description || "")
+  });
 }
 
 function supportsDirectoryPicker() {
@@ -2675,6 +2743,7 @@ async function changeExportRootDirectory() {
     throw new Error("未获得目录写入权限。");
   }
   await storeDirectoryHandle(selected);
+  await ensureDefaultCollection(selected);
   return selected;
 }
 
@@ -2685,6 +2754,52 @@ async function getExportRootDirectory() {
   }
 
   return changeExportRootDirectory();
+}
+
+async function ensureDefaultCollection(root) {
+  const collection = await root.getDirectoryHandle(DEFAULT_COLLECTION_NAME, { create: true });
+  return ensureCollectionMetadata(collection, DEFAULT_COLLECTION_NAME, "");
+}
+
+async function getCollectionDirectory(root, collectionName) {
+  const cleanName = validateCollectionName(collectionName);
+  try {
+    const collection = await root.getDirectoryHandle(cleanName, { create: false });
+    if (await isContentDirectory(collection)) {
+      throw new Error(`目标不是收藏夹：${cleanName}`);
+    }
+    await ensureCollectionMetadata(collection, cleanName, "");
+    return collection;
+  } catch (error) {
+    if (error?.name === "NotFoundError") {
+      throw new Error(`收藏夹不存在：${cleanName}`);
+    }
+    throw error;
+  }
+}
+
+async function ensureCollectionMetadata(collection, name, description) {
+  try {
+    const handle = await collection.getFileHandle(COLLECTION_METADATA_FILE, { create: false });
+    const file = await handle.getFile();
+    return JSON.parse(await file.text());
+  } catch (error) {
+    if (error?.name !== "NotFoundError") {
+      throw error;
+    }
+  }
+
+  return writeCollectionMetadata(collection, {
+    schema_version: 1,
+    name,
+    time_created: formatLocalIso(new Date()),
+    description
+  });
+}
+
+async function writeCollectionMetadata(collection, metadata) {
+  await writeFile(collection, COLLECTION_METADATA_FILE, `${JSON.stringify(metadata, null, 2)}\n`);
+  return metadata;
 }
 
 async function ensureReadWritePermission(handle) {
@@ -2698,6 +2813,22 @@ async function ensureReadWritePermission(handle) {
 async function directoryExists(parent, name) {
   try {
     await parent.getDirectoryHandle(name, { create: false });
+    return true;
+  } catch (error) {
+    if (error?.name === "NotFoundError") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function isContentDirectory(handle) {
+  return await fileExists(handle, "index.md") && await fileExists(handle, "comments.json");
+}
+
+async function fileExists(parent, name) {
+  try {
+    await parent.getFileHandle(name, { create: false });
     return true;
   } catch (error) {
     if (error?.name === "NotFoundError") {
@@ -2740,6 +2871,28 @@ function openDatabase() {
   });
 }
 
+function validateCollectionName(name) {
+  const cleanName = String(name || "").trim();
+  if (!cleanName || cleanName === "." || cleanName === ".." || cleanName.includes("/") || cleanName.includes("\\")) {
+    throw new Error("收藏夹名称不能为空，且不能是 .、..，也不能包含 / 或 \\。");
+  }
+  return cleanName;
+}
+
+function formatLocalIso(date) {
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offsetHours = pad(Math.floor(absoluteOffset / 60), 2);
+  const offsetRestMinutes = pad(absoluteOffset % 60, 2);
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1, 2)}-${pad(date.getDate(), 2)}T${pad(date.getHours(), 2)}:${pad(date.getMinutes(), 2)}:${pad(date.getSeconds(), 2)}.${pad(date.getMilliseconds(), 3)}${sign}${offsetHours}:${offsetRestMinutes}`;
+}
+
+function pad(value, length) {
+  return String(value).padStart(length, "0");
+}
+
 function requestToPromise(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -2765,8 +2918,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   saveZipWithButton: () => (/* binding */ saveZipWithButton)
 /* harmony export */ });
 /* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
-/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
-/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./constants.js */ "./src/userscript/constants.js");
+/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
+/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+
 
 
 
@@ -2786,21 +2941,21 @@ async function saveCurrentPageAsZip(button) {
 async function changeDirectoryWithButton(button) {
   const originalText = button.textContent;
   button.disabled = true;
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "选择目录...", true);
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "选择目录...", true);
 
   try {
-    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_1__.changeExportRootDirectory)();
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "目录已更改", true);
+    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.changeExportRootDirectory)();
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "目录已更改", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
     console.error("[Zhihu Markdown Saver] change directory failed:", error);
     button.disabled = false;
     if (error?.name === "AbortError") {
-      (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, originalText, true);
+      (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
       return;
     }
     showUserError(error, "更改保存目录失败");
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "更改失败", false);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "更改失败", false);
     resetButtonLater(button, originalText, 2200);
   }
 }
@@ -2808,66 +2963,180 @@ async function changeDirectoryWithButton(button) {
 async function saveArtifactWithButton(button, buildArtifact) {
   const originalText = button.textContent;
   button.disabled = true;
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存中...", true);
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "载入收藏夹...", true);
+
+  try {
+    const collections = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)();
+    button.disabled = false;
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
+    showCollectionMenu(button, buildArtifact, collections);
+  } catch (error) {
+    console.error("[Zhihu Markdown Saver] collection menu failed:", error);
+    button.disabled = false;
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
+    if (error?.name === "AbortError") {
+      return;
+    }
+    showUserError(error, "打开收藏夹失败");
+  }
+}
+
+function showCollectionMenu(button, buildArtifact, collections) {
+  const control = button.closest(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}`);
+  if (!control) {
+    throw new Error("找不到保存控件。");
+  }
+
+  closeCollectionMenu(control);
+
+  const menu = document.createElement("div");
+  menu.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-menu`;
+  menu.addEventListener("click", (event) => event.stopPropagation());
+
+  const title = document.createElement("div");
+  title.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-title`;
+  title.textContent = "选择收藏夹";
+
+  const select = document.createElement("select");
+  select.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-select`;
+  fillCollectionSelect(select, collections);
+
+  const newButton = document.createElement("button");
+  newButton.type = "button";
+  newButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-secondary`;
+  newButton.textContent = "新建收藏夹";
+  newButton.addEventListener("click", async () => {
+    await createCollectionFromPrompt(select);
+  });
+
+  const saveButton = document.createElement("button");
+  saveButton.type = "button";
+  saveButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-save`;
+  saveButton.textContent = "保存";
+  saveButton.addEventListener("click", async () => {
+    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, select.value, menu);
+  });
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-secondary`;
+  cancelButton.textContent = "取消";
+  cancelButton.addEventListener("click", () => menu.remove());
+
+  const actions = document.createElement("div");
+  actions.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-actions`;
+  actions.append(newButton, cancelButton, saveButton);
+
+  menu.append(title, select, actions);
+  control.querySelector(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__inner`).append(menu);
+}
+
+function fillCollectionSelect(select, collections, selectedName = "") {
+  select.replaceChildren();
+
+  for (const collection of collections) {
+    const option = document.createElement("option");
+    option.value = collection.name;
+    option.textContent = collection.name;
+    if (collection.description) {
+      option.title = collection.description;
+    }
+    select.append(option);
+  }
+
+  if (selectedName) {
+    select.value = selectedName;
+  }
+}
+
+async function createCollectionFromPrompt(select) {
+  const name = window.prompt("请输入收藏夹名称：", "");
+  if (name === null) {
+    return;
+  }
+
+  const description = window.prompt("请输入收藏夹描述（可留空）：", "");
+  try {
+    const created = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.createCollection)(name, description === null ? "" : description);
+    const collections = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)();
+    fillCollectionSelect(select, collections, created.name);
+  } catch (error) {
+    console.error("[Zhihu Markdown Saver] create collection failed:", error);
+    showUserError(error, "新建收藏夹失败");
+  }
+}
+
+async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, collectionName, menu) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存中...", true);
+  saveButton.disabled = true;
+  saveButton.textContent = "保存中...";
 
   try {
     const artifact = await buildArtifact({
       onProgress: (progress) => {
         if (progress.stage === "media") {
-          (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
+          (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
         }
       }
     });
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "写入文件夹", true);
-    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_1__.writeArtifactToDirectory)(artifact);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "写入收藏夹", true);
+    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.writeArtifactToCollection)(artifact, collectionName);
 
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存成功", true);
+    menu.remove();
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存成功", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
     console.error("[Zhihu Markdown Saver] folder save failed:", error);
     button.disabled = false;
+    saveButton.disabled = false;
+    saveButton.textContent = "保存";
     if (error?.name === "AbortError") {
-      (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "已取消", false);
-      resetButtonLater(button, originalText, 2600);
+      (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
       return;
     }
     showUserError(error, "保存失败");
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存失败", false);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存失败", false);
     resetButtonLater(button, originalText, 2600);
   }
+}
+
+function closeCollectionMenu(control) {
+  control.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
 }
 
 async function saveZipWithButton(button, buildZip) {
   const saveFile = window.saveAs || (typeof saveAs === "function" ? saveAs : null);
   if (!saveFile) {
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "缺少 FileSaver", false);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "缺少 FileSaver", false);
     window.alert("下载 ZIP 失败：缺少 FileSaver。");
     return;
   }
 
   const originalText = button.textContent;
   button.disabled = true;
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存中...", true);
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存中...", true);
 
   try {
     const result = await buildZip({
       onProgress: (progress) => {
         if (progress.stage === "media") {
-          (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
+          (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
         } else if (progress.stage === "zip") {
-          (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, `生成 ZIP ${progress.percent || 0}%`, true);
+          (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, `生成 ZIP ${progress.percent || 0}%`, true);
         }
       }
     });
     saveFile(result.blob, result.fileName);
 
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存成功", true);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存成功", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
     console.error("[Zhihu Markdown Saver] ZIP save failed:", error);
     button.disabled = false;
     showUserError(error, "下载 ZIP 失败");
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, "保存失败", false);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存失败", false);
     resetButtonLater(button, originalText, 2200);
   }
 }
@@ -2880,7 +3149,7 @@ function showUserError(error, fallbackMessage) {
 function resetButtonLater(button, text, delayMs) {
   window.setTimeout(() => {
     button.disabled = false;
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_2__.setButtonState)(button, text, true);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, text, true);
   }, delayMs);
 }
 
@@ -2932,7 +3201,7 @@ function ensureSaveControlStyle() {
       top: -48px;
       bottom: -48px;
       width: 240px;
-      min-height: 220px;
+      min-height: 320px;
       z-index: 2147483646;
       transition: opacity .16s ease;
       user-select: none;
@@ -3014,6 +3283,58 @@ function ensureSaveControlStyle() {
       font-size: 13px;
       white-space: nowrap;
     }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-menu {
+      position: absolute;
+      left: 0;
+      top: 44px;
+      width: 188px;
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(23, 25, 31, .96);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-title {
+      margin-bottom: 6px;
+      color: rgba(255, 255, 255, .84);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-select {
+      display: block;
+      width: 100%;
+      height: 32px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 5px;
+      background: #fff;
+      color: #1f2328;
+      font-size: 13px;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-actions button {
+      height: 30px;
+      padding: 0 8px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-secondary {
+      background: #303846;
+    }
+
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-save {
+      grid-column: 1 / -1;
+      background: #056de8;
+    }
   `;
   document.documentElement.append(style);
 }
@@ -3029,7 +3350,7 @@ function createSaveControl(onSave, onZip, onChangeDirectory) {
   button.type = "button";
   button.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__primary`;
   button.textContent = "保存";
-  button.title = "保存当前知乎回答/文章到本地目录";
+  button.title = "选择收藏夹后保存当前知乎回答/文章到本地目录";
   button.addEventListener("click", async (event) => {
     event.stopPropagation();
     await onSave(button);

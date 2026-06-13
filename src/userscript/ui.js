@@ -29,7 +29,7 @@ export function ensureSaveControlStyle() {
       top: -48px;
       bottom: -48px;
       width: 240px;
-      min-height: 220px;
+      min-height: 320px;
       z-index: 2147483646;
       transition: opacity .16s ease;
       user-select: none;
@@ -111,6 +111,58 @@ export function ensureSaveControlStyle() {
       font-size: 13px;
       white-space: nowrap;
     }
+
+    .${CONTROL_CLASS}__collection-menu {
+      position: absolute;
+      left: 0;
+      top: 44px;
+      width: 188px;
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(23, 25, 31, .96);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+    }
+
+    .${CONTROL_CLASS}__collection-title {
+      margin-bottom: 6px;
+      color: rgba(255, 255, 255, .84);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .${CONTROL_CLASS}__collection-select {
+      display: block;
+      width: 100%;
+      height: 32px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 5px;
+      background: #fff;
+      color: #1f2328;
+      font-size: 13px;
+    }
+
+    .${CONTROL_CLASS}__collection-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .${CONTROL_CLASS}__collection-actions button {
+      height: 30px;
+      padding: 0 8px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .${CONTROL_CLASS}__collection-secondary {
+      background: #303846;
+    }
+
+    .${CONTROL_CLASS}__collection-save {
+      grid-column: 1 / -1;
+      background: #056de8;
+    }
   `;
   document.documentElement.append(style);
 }
@@ -126,7 +178,7 @@ export function createSaveControl(onSave, onZip, onChangeDirectory) {
   button.type = "button";
   button.className = `${CONTROL_CLASS}__primary`;
   button.textContent = "保存";
-  button.title = "保存当前知乎回答/文章到本地目录";
+  button.title = "选择收藏夹后保存当前知乎回答/文章到本地目录";
   button.addEventListener("click", async (event) => {
     event.stopPropagation();
     await onSave(button);

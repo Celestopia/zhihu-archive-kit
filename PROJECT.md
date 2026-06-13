@@ -133,13 +133,26 @@ article-<article_id>
 1. `main.js` 监听知乎 SPA 页面变化。
 2. 问题页或回答详情页中，脚本扫描 `.AnswerItem`，为每个有效回答卡片注入一次保存控件。
 3. 专栏文章页中，脚本为文章正文区域注入一次保存控件。
-4. 用户点击某个控件的“保存”后，`single-save.js` 调用对应的 DOM 驱动 artifact 构建函数。
-5. `save-core` 只从绑定的回答卡片或文章区域生成 Markdown、下载媒体并返回保存产物。
-6. `directory-save.js` 检查或请求目录写入权限。
-7. 如果目标文件夹已存在，抛出错误并停止写入。
-8. 如果目标文件夹不存在，创建文件夹、写入 `index.md`、`comments.json` 和 `assets/`。
+4. 用户点击某个控件的“保存”后，`single-save.js` 先打开收藏夹选择菜单。
+5. `directory-save.js` 检查或请求默认保存目录写入权限，并确保真实目录 `默认收藏夹/collection.json` 存在。
+6. 用户选择已有收藏夹，或输入名称和可选描述创建新收藏夹。
+7. 用户点击菜单中的“保存”后，`single-save.js` 调用对应的 DOM 驱动 artifact 构建函数。
+8. `save-core` 只从绑定的回答卡片或文章区域生成 Markdown、下载媒体并返回保存产物。
+9. 如果所选收藏夹中的目标内容文件夹已存在，抛出错误并停止写入。
+10. 如果目标内容文件夹不存在，在所选收藏夹内创建文件夹、写入 `index.md`、`comments.json` 和 `assets/`。
 
-网页端目录写入使用 File System Access API。浏览器不会允许脚本通过字符串路径直接写入系统目录，因此保存根目录必须由用户通过目录选择器授权。目录句柄存放在 IndexedDB 中，后续保存会先检查权限再复用。
+网页端目录写入使用 File System Access API。浏览器不会允许脚本通过字符串路径直接写入系统目录，因此保存根目录必须由用户通过目录选择器授权。目录句柄存放在 IndexedDB 中，后续保存会先检查权限再复用。收藏夹是保存根目录下的一级子目录，每个收藏夹目录都包含：
+
+```json
+{
+  "schema_version": 1,
+  "name": "收藏夹名称",
+  "time_created": "2026-06-13T12:00:00.000+08:00",
+  "description": ""
+}
+```
+
+`默认收藏夹` 是真实目录名，不是根目录别名。根目录直接内容不属于任何收藏夹。
 
 齿轮菜单中的“下载为 ZIP”流程调用绑定 DOM 对应的 ZIP 构建函数，再通过 FileSaver 交给浏览器下载。
 
@@ -249,15 +262,15 @@ npm run render:index
 npm run render:index -- output
 ```
 
-`index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录的直接子文件夹，跳过缺少 `index.md` 或 `comments.json` 的目录。
+`index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过根目录直存内容和无元数据目录。
 
-每个有效内容目录会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter 和正文摘要，按 `time_exported` 倒序生成：
+每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和正文摘要，按 `time_exported` 倒序生成：
 
 ```text
 index.html
 ```
 
-导航页只内置标题、摘要、元数据、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单页预览，右上角“阅读原文”链接在新窗口打开知乎原文。`preview.html` 和导航页卡片共用同一套渲染模板；区别是单篇预览默认显示全文，不显示摘要折叠控件。
+导航页只内置标题、摘要、元数据、收藏夹名、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。左侧悬浮收藏夹菜单来自 `collection.json`，支持“所有”和单个收藏夹筛选；搜索和回答/文章类型筛选继续叠加生效。筛选结果在客户端分页显示，`index-page.mjs` 中的 `PAGE_SIZE = 20` 控制每页数量；切换收藏夹、类型或搜索时回到第一页。卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单页预览，右上角“阅读原文”链接在新窗口打开知乎原文。`preview.html` 和导航页卡片共用同一套渲染模板；区别是单篇预览默认显示全文，不显示摘要折叠控件。
 
 推荐通过本地服务打开：
 
@@ -266,7 +279,7 @@ npm run render:serve
 npm run render:serve -- output --port 17892
 ```
 
-`serve.mjs` 会先刷新导航页，再用 Node 内置 HTTP 服务托管保存根目录。服务只绑定 `127.0.0.1`。直接用 `file://` 打开 `index.html` 只能浏览列表，展开正文或评论时会提示使用本地服务。
+`serve.mjs` 会先刷新导航页，再用 Node 内置 HTTP 服务托管保存根目录。服务只绑定 `127.0.0.1`。分页是导航页里的客户端行为，不新增 HTTP 分页接口。收藏夹内内容的动态加载路径包含收藏夹目录层级，例如 `默认收藏夹/question-xxx-answer-yyy/preview.html`。直接用 `file://` 打开 `index.html` 只能浏览列表，展开正文或评论时会提示使用本地服务。
 
 ## localhost API
 

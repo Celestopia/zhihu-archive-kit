@@ -334,10 +334,11 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
     ? `<h1 class="title">${escapeHtml(title)}</h1>`
     : `<a class="title" href="${escapeAttr(previewHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a>`;
   const previewAttrs = previewHref ? ` data-preview-href="${escapeAttr(previewHref)}"` : "";
+  const collectionAttrs = item.collectionName ? ` data-collection="${escapeAttr(item.collectionName)}"` : "";
   const summaryText = item.summaryText || "暂无摘要。";
 
   return `
-    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}>
+    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}>
       <div class="item-head">
         ${titleHtml}
         <div class="item-badges">
