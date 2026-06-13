@@ -2603,9 +2603,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   BATCH_STATUS_ID: () => (/* binding */ BATCH_STATUS_ID),
 /* harmony export */   CONTROL_BOUND_ATTR: () => (/* binding */ CONTROL_BOUND_ATTR),
 /* harmony export */   CONTROL_CLASS: () => (/* binding */ CONTROL_CLASS),
+/* harmony export */   CONTROL_HOST_CLASS: () => (/* binding */ CONTROL_HOST_CLASS),
 /* harmony export */   CONTROL_STYLE_ID: () => (/* binding */ CONTROL_STYLE_ID)
 /* harmony export */ });
 const CONTROL_CLASS = "zhmd-save-control";
+const CONTROL_HOST_CLASS = "zhmd-save-control-host";
 const CONTROL_STYLE_ID = "zhmd-save-control-style";
 const CONTROL_BOUND_ATTR = "data-zhmd-save-bound";
 const BATCH_STATUS_ID = "zhmd-batch-status";
@@ -3189,7 +3191,9 @@ function ensureSaveControlStyle() {
   style.textContent = `
     .AnswerItem .RichContent,
     .Post-content,
-    .Post-RichTextContainer {
+    .Post-RichTextContainer,
+    .Post-Main,
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS} {
       position: relative;
     }
 
@@ -3221,6 +3225,8 @@ function ensureSaveControlStyle() {
     .AnswerItem:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
     .Post-content:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
     .Post-RichTextContainer:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
+    .Post-Main:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS}:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
     .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}:hover {
       opacity: 1;
       pointer-events: auto;
@@ -3571,6 +3577,7 @@ function injectAnswerControls() {
     }
 
     const host = answerItem.querySelector(".RichContent") || answerItem;
+    host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
     host.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
       (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveArtifactWithButton)(
         button,
@@ -3600,7 +3607,13 @@ function injectArticleControl() {
     return;
   }
 
-  articleRoot.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
+  const articleHost = articleRoot.querySelector(".Post-Row-Content-left");
+  if (!articleHost) {
+    return;
+  }
+
+  articleHost.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
+  articleHost.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
     (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveArtifactWithButton)(
       button,
       (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options))

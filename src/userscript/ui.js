@@ -1,4 +1,4 @@
-import { CONTROL_CLASS, CONTROL_STYLE_ID } from "./constants.js";
+import { CONTROL_CLASS, CONTROL_HOST_CLASS, CONTROL_STYLE_ID } from "./constants.js";
 
 /**
  * UI helpers for content-bound save controls.
@@ -17,7 +17,9 @@ export function ensureSaveControlStyle() {
   style.textContent = `
     .AnswerItem .RichContent,
     .Post-content,
-    .Post-RichTextContainer {
+    .Post-RichTextContainer,
+    .Post-Main,
+    .${CONTROL_HOST_CLASS} {
       position: relative;
     }
 
@@ -49,6 +51,8 @@ export function ensureSaveControlStyle() {
     .AnswerItem:hover .${CONTROL_CLASS},
     .Post-content:hover .${CONTROL_CLASS},
     .Post-RichTextContainer:hover .${CONTROL_CLASS},
+    .Post-Main:hover .${CONTROL_CLASS},
+    .${CONTROL_HOST_CLASS}:hover .${CONTROL_CLASS},
     .${CONTROL_CLASS}:hover {
       opacity: 1;
       pointer-events: auto;

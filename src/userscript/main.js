@@ -1,4 +1,4 @@
-import { CONTROL_BOUND_ATTR } from "./constants.js";
+import { CONTROL_BOUND_ATTR, CONTROL_HOST_CLASS } from "./constants.js";
 import { startBatchClient } from "../batch/client.js";
 import {
   buildAnswerItemArtifact,
@@ -100,6 +100,7 @@ function injectAnswerControls() {
     }
 
     const host = answerItem.querySelector(".RichContent") || answerItem;
+    host.classList.add(CONTROL_HOST_CLASS);
     host.prepend(createSaveControl(
       (button) => saveArtifactWithButton(
         button,
@@ -129,7 +130,13 @@ function injectArticleControl() {
     return;
   }
 
-  articleRoot.prepend(createSaveControl(
+  const articleHost = articleRoot.querySelector(".Post-Row-Content-left");
+  if (!articleHost) {
+    return;
+  }
+
+  articleHost.classList.add(CONTROL_HOST_CLASS);
+  articleHost.prepend(createSaveControl(
     (button) => saveArtifactWithButton(
       button,
       (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options))
