@@ -12,10 +12,11 @@ import { fileURLToPath } from "node:url";
  */
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const userscriptPath = path.join(rootDir, "userscripts", "zhihu-markdown-saver.user.js");
+const userscriptPath = path.join(rootDir, "userscripts", "zhihu-archive-kit.user.js");
 const content = await readFile(userscriptPath, "utf8");
 
 assert.match(content, /\/\/ ==UserScript==/);
+assert.match(content, /@name\s+Zhihu Archive Kit/);
 assert.match(content, /@match\s+https:\/\/www\.zhihu\.com\/question\/\*/);
 assert.match(content, /@match\s+https:\/\/www\.zhihu\.com\/question\/\*\/answer\/\*/);
 assert.match(content, /@match\s+https:\/\/www\.zhihu\.com\/answer\/\*/);

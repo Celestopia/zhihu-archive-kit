@@ -164,7 +164,7 @@ async function runBatchLoop() {
     await runBatchLoop();
   } catch (error) {
     if (error) {
-      console.warn("[Zhihu Markdown Saver] batch client stopped:", error);
+      console.warn("[Zhihu Archive Kit] batch client stopped:", error);
     }
     renderBatchStatus(null);
   } finally {

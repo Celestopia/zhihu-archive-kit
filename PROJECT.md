@@ -1,8 +1,8 @@
 # 项目说明
 
-本文档面向开发者和 AI Agent，说明当前项目的架构、数据流和关键约束。
+本文档面向开发者和 AI Agent，说明 Zhihu Archive Kit 的架构、数据流和关键约束。
 
-本项目由一个 Tampermonkey/油猴脚本和一个本地批量调度 CLI 组成，用于将知乎回答详情页和知乎专栏文章页保存为 Markdown 文件夹或 Markdown ZIP。
+Zhihu Archive Kit 由一个 Tampermonkey/油猴脚本和一组本地 CLI 工具组成，用于将知乎回答、知乎专栏文章及其评论归档为本地内容文件夹或 ZIP，并生成 HTML 预览和导航页。
 
 ## 目录结构
 
@@ -55,7 +55,7 @@ test/
   check-render-serve.mjs
 
 userscripts/
-  zhihu-markdown-saver.user.js
+  zhihu-archive-kit.user.js
 ```
 
 ## 架构分层
@@ -89,7 +89,7 @@ userscripts/
 Webpack 以 `src/userscript/main.js` 为入口，输出单文件油猴脚本：
 
 ```text
-userscripts/zhihu-markdown-saver.user.js
+userscripts/zhihu-archive-kit.user.js
 ```
 
 构建产物不压缩，便于在 Tampermonkey 中查看和调试。

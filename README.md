@@ -1,6 +1,6 @@
-# 知乎 Markdown 保存工具
+# Zhihu Archive Kit
 
-本项目用于把知乎回答和知乎专栏文章保存为本地 Markdown 文件，并把图片、视频等媒体文件放到同一个内容文件夹中。
+Zhihu Archive Kit 用于把知乎回答和知乎专栏文章归档到本地，保存 Markdown 正文、媒体资源、评论数据、收藏夹结构，并提供本地 HTML 预览和导航页。
 
 支持四种使用方式：
 
@@ -72,7 +72,7 @@ favorite_count: 0
 构建后的油猴脚本文件是：
 
 ```text
-userscripts/zhihu-markdown-saver.user.js
+userscripts/zhihu-archive-kit.user.js
 ```
 
 安装步骤：
@@ -80,7 +80,7 @@ userscripts/zhihu-markdown-saver.user.js
 1. 在 Chrome 或 Edge 中安装 Tampermonkey。
 2. 打开 Tampermonkey 管理页面。
 3. 新建脚本。
-4. 将 `userscripts/zhihu-markdown-saver.user.js` 的完整内容粘贴进去。
+4. 将 `userscripts/zhihu-archive-kit.user.js` 的完整内容粘贴进去。
 5. 保存脚本。
 6. 确认该浏览器已经登录知乎。
 
@@ -304,7 +304,7 @@ npm run build
 运行后会生成：
 
 ```text
-userscripts/zhihu-markdown-saver.user.js
+userscripts/zhihu-archive-kit.user.js
 ```
 
 ## 检查

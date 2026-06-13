@@ -30,7 +30,7 @@ export async function changeDirectoryWithButton(button) {
     setButtonState(button, "目录已更改", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] change directory failed:", error);
+    console.error("[Zhihu Archive Kit] change directory failed:", error);
     button.disabled = false;
     if (error?.name === "AbortError") {
       setButtonState(button, originalText, true);
@@ -53,7 +53,7 @@ export async function saveArtifactWithButton(button, buildArtifact) {
     setButtonState(button, originalText, true);
     showCollectionMenu(button, buildArtifact, collections);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] collection menu failed:", error);
+    console.error("[Zhihu Archive Kit] collection menu failed:", error);
     button.disabled = false;
     setButtonState(button, originalText, true);
     if (error?.name === "AbortError") {
@@ -143,7 +143,7 @@ async function createCollectionFromPrompt(select) {
     const collections = await listCollections();
     fillCollectionSelect(select, collections, created.name);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] create collection failed:", error);
+    console.error("[Zhihu Archive Kit] create collection failed:", error);
     showUserError(error, "新建收藏夹失败");
   }
 }
@@ -170,7 +170,7 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
     setButtonState(button, "保存成功", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] folder save failed:", error);
+    console.error("[Zhihu Archive Kit] folder save failed:", error);
     button.disabled = false;
     saveButton.disabled = false;
     saveButton.textContent = "保存";
@@ -215,7 +215,7 @@ export async function saveZipWithButton(button, buildZip) {
     setButtonState(button, "保存成功", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] ZIP save failed:", error);
+    console.error("[Zhihu Archive Kit] ZIP save failed:", error);
     button.disabled = false;
     showUserError(error, "下载 ZIP 失败");
     setButtonState(button, "保存失败", false);

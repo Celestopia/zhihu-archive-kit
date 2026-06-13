@@ -69,7 +69,7 @@ export async function localizeCommentImages(comments) {
       assets.push(asset);
       replacements.set(imageUrl, `./assets/${asset.fileName}`);
     } catch (error) {
-      console.warn(`[Zhihu Markdown Saver] failed to download comment image ${imageUrl}:`, error);
+      console.warn(`[Zhihu Archive Kit] failed to download comment image ${imageUrl}:`, error);
       replacements.set(imageUrl, imageUrl);
     }
   }

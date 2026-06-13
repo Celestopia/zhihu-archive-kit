@@ -2,10 +2,10 @@ const path = require("path");
 const webpack = require("webpack");
 
 const userscriptHeader = `// ==UserScript==
-// @name         Zhihu Markdown Saver
-// @namespace    https://github.com/local/zhihu-markdown-downloader
+// @name         Zhihu Archive Kit
+// @namespace    https://github.com/local/zhihu-archive-kit
 // @version      0.1.0
-// @description  Save Zhihu answers and Zhuanlan articles as Markdown folders or ZIP files.
+// @description  Archive Zhihu answers and articles with Markdown, media, comments, and local HTML views.
 // @author       local
 // @match        https://www.zhihu.com/question/*
 // @match        https://www.zhihu.com/question/*/answer/*
@@ -27,7 +27,7 @@ module.exports = {
   mode: "development",
   entry: path.resolve(__dirname, "src/userscript/main.js"),
   output: {
-    filename: "zhihu-markdown-saver.user.js",
+    filename: "zhihu-archive-kit.user.js",
     path: path.resolve(__dirname, "userscripts"),
     iife: true,
     clean: false

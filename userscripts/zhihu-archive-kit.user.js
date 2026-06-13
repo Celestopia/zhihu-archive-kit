@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Zhihu Markdown Saver
-// @namespace    https://github.com/local/zhihu-markdown-downloader
+// @name         Zhihu Archive Kit
+// @namespace    https://github.com/local/zhihu-archive-kit
 // @version      0.1.0
-// @description  Save Zhihu answers and Zhuanlan articles as Markdown folders or ZIP files.
+// @description  Archive Zhihu answers and articles with Markdown, media, comments, and local HTML views.
 // @author       local
 // @match        https://www.zhihu.com/question/*
 // @match        https://www.zhihu.com/question/*/answer/*
@@ -200,7 +200,7 @@ async function runBatchLoop() {
     await runBatchLoop();
   } catch (error) {
     if (error) {
-      console.warn("[Zhihu Markdown Saver] batch client stopped:", error);
+      console.warn("[Zhihu Archive Kit] batch client stopped:", error);
     }
     renderBatchStatus(null);
   } finally {
@@ -771,7 +771,7 @@ async function localizeCommentImages(comments) {
       assets.push(asset);
       replacements.set(imageUrl, `./assets/${asset.fileName}`);
     } catch (error) {
-      console.warn(`[Zhihu Markdown Saver] failed to download comment image ${imageUrl}:`, error);
+      console.warn(`[Zhihu Archive Kit] failed to download comment image ${imageUrl}:`, error);
       replacements.set(imageUrl, imageUrl);
     }
   }
@@ -1570,7 +1570,7 @@ async function runMediaDownloadQueue(tasks, options) {
           asset: downloaded
         });
       } catch (error) {
-        console.warn(`[Zhihu Markdown Saver] failed to download ${task.src}:`, error);
+        console.warn(`[Zhihu Archive Kit] failed to download ${task.src}:`, error);
         results.set(task.src, {
           localPath: task.src,
           asset: null
@@ -2950,7 +2950,7 @@ async function changeDirectoryWithButton(button) {
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "目录已更改", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] change directory failed:", error);
+    console.error("[Zhihu Archive Kit] change directory failed:", error);
     button.disabled = false;
     if (error?.name === "AbortError") {
       (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
@@ -2973,7 +2973,7 @@ async function saveArtifactWithButton(button, buildArtifact) {
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
     showCollectionMenu(button, buildArtifact, collections);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] collection menu failed:", error);
+    console.error("[Zhihu Archive Kit] collection menu failed:", error);
     button.disabled = false;
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
     if (error?.name === "AbortError") {
@@ -3063,7 +3063,7 @@ async function createCollectionFromPrompt(select) {
     const collections = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)();
     fillCollectionSelect(select, collections, created.name);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] create collection failed:", error);
+    console.error("[Zhihu Archive Kit] create collection failed:", error);
     showUserError(error, "新建收藏夹失败");
   }
 }
@@ -3090,7 +3090,7 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存成功", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] folder save failed:", error);
+    console.error("[Zhihu Archive Kit] folder save failed:", error);
     button.disabled = false;
     saveButton.disabled = false;
     saveButton.textContent = "保存";
@@ -3135,7 +3135,7 @@ async function saveZipWithButton(button, buildZip) {
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存成功", true);
     resetButtonLater(button, originalText, 1600);
   } catch (error) {
-    console.error("[Zhihu Markdown Saver] ZIP save failed:", error);
+    console.error("[Zhihu Archive Kit] ZIP save failed:", error);
     button.disabled = false;
     showUserError(error, "下载 ZIP 失败");
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存失败", false);

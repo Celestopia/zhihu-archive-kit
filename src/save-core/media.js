@@ -93,7 +93,7 @@ async function runMediaDownloadQueue(tasks, options) {
           asset: downloaded
         });
       } catch (error) {
-        console.warn(`[Zhihu Markdown Saver] failed to download ${task.src}:`, error);
+        console.warn(`[Zhihu Archive Kit] failed to download ${task.src}:`, error);
         results.set(task.src, {
           localPath: task.src,
           asset: null
