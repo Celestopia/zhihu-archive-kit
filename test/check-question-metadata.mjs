@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { extractQuestionMetadata } from "../src/save-core/target.js";
+import { extractQuestionMetadata, formatAnswerTitle } from "../src/save-core/target.js";
 
 /**
  * Focused checks for question-level metadata extraction.
@@ -10,6 +10,7 @@ import { extractQuestionMetadata } from "../src/save-core/target.js";
  */
 
 const meta = {
+  name: "你发生过的最尴尬的事是什么？",
   dateCreated: "2019-01-21T01:47:26.000Z",
   dateModified: "2019-02-03T05:53:39.000Z",
   url: "https://www.zhihu.com/question/309772647",
@@ -40,6 +41,7 @@ const questionRoot = {
 };
 
 assert.deepEqual(extractQuestionMetadata(), {
+  question_title: "你发生过的最尴尬的事是什么？",
   question_url: "https://www.zhihu.com/question/309772647",
   question_time_created: "2019-01-21T01:47:26.000Z",
   question_time_modified: "2019-02-03T05:53:39.000Z",
@@ -49,9 +51,12 @@ assert.deepEqual(extractQuestionMetadata(), {
   question_topic: "心理, 人际交往, 尴尬"
 });
 
+assert.equal(formatAnswerTitle("我选择跨考金融专硕真的选错了吗?", "Jarvis"), "我选择跨考金融专硕真的选错了吗? - Jarvis的回答");
+
 delete meta.url;
 
 assert.deepEqual(extractQuestionMetadata(), {
+  question_title: "你发生过的最尴尬的事是什么？",
   question_url: "",
   question_time_created: "2019-01-21T01:47:26.000Z",
   question_time_modified: "2019-02-03T05:53:39.000Z",
@@ -68,6 +73,7 @@ globalThis.document = {
 };
 
 assert.deepEqual(extractQuestionMetadata(), {
+  question_title: "",
   question_url: "",
   question_time_created: "",
   question_time_modified: "",

@@ -68,8 +68,8 @@ meta[property='og:title']
 
 本项目用途：
 
-- 作为回答 Markdown frontmatter 的 `title`。
-- 当回答卡片 `data-zop.title` 存在时，优先使用卡片数据中的标题。
+- 写入回答 Markdown frontmatter 的 `question_title`。
+- 回答 Markdown frontmatter 的 `title` 由 `question_title` 和作者名生成，格式为 `question_title - author的回答`。
 
 代码依赖：
 
@@ -102,7 +102,8 @@ src/save-core/target.js -> extractMetadata()
 
 本项目用途：
 
-- 写入回答 `index.md` frontmatter 的 `question_url`、`question_time_created`、`question_time_modified`、`question_answer_count`、`question_comment_count`、`question_follower_count` 和 `question_topic`。
+- 写入回答 `index.md` frontmatter 的 `question_title`、`question_url`、`question_time_created`、`question_time_modified`、`question_answer_count`、`question_comment_count`、`question_follower_count` 和 `question_topic`。
+- `question_title` 来源于 `.QuestionPage meta[itemprop='name']`。回答预览页和本地导航页中的问题标题应读取该字段。
 - `question_url` 只来源于 `.QuestionPage meta[itemprop='url']`。如果该 meta 缺失，保存为空字符串，不根据 `question_id` 推导。
 - `question_topic` 来源于 `meta[itemprop='keywords']`，保存为逗号分隔字符串。
 - 专栏文章不读取这些字段。

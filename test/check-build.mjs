@@ -56,6 +56,7 @@ assert.match(content, /source_type:/);
 assert.match(content, /time_created:/);
 assert.match(content, /time_modified:/);
 assert.match(content, /time_exported:/);
+assert.match(content, /question_title:/);
 assert.match(content, /question_time_created:/);
 assert.match(content, /question_time_modified:/);
 assert.match(content, /question_answer_count:/);

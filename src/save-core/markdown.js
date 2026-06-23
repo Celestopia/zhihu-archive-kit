@@ -317,6 +317,7 @@ function renderQuestionMetadata(metadata) {
   }
 
   return [
+    `question_title: ${yamlString(metadata.question_title)}`,
     `question_url: ${yamlString(metadata.question_url)}`,
     `question_time_created: ${yamlString(metadata.question_time_created)}`,
     `question_time_modified: ${yamlString(metadata.question_time_modified)}`,

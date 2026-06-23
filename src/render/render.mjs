@@ -21,7 +21,7 @@ export async function renderSavedFolder(folderPath) {
   const parsed = parseMarkdownDocument(indexMarkdown);
   const type = requireSourceType(parsed.metadata.source_type);
   const comments = commentsJson.comments || [];
-  const title = parsed.metadata.title || (type === "article" ? "知乎文章" : "知乎回答");
+  const title = displayTitle(parsed.metadata, type);
 
   const html = renderHtmlDocument({
     title,
@@ -34,6 +34,7 @@ export async function renderSavedFolder(folderPath) {
       timeCreated: parsed.metadata.time_created || "",
       timeModified: parsed.metadata.time_modified || "",
       timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
+      questionTitle: parsed.metadata.question_title || "",
       questionUrl: parsed.metadata.question_url || "",
       questionTimeCreated: parsed.metadata.question_time_created || "",
       questionTimeModified: parsed.metadata.question_time_modified || "",
@@ -53,6 +54,13 @@ export async function renderSavedFolder(folderPath) {
 
   await fs.writeFile(outputPath, html, "utf8");
   return outputPath;
+}
+
+function displayTitle(metadata, type) {
+  if (type === "answer") {
+    return metadata.question_title || metadata.title || "知乎回答";
+  }
+  return metadata.title || "知乎文章";
 }
 
 function requireSourceType(value) {

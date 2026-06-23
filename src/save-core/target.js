@@ -135,23 +135,6 @@ export function findItemRoot(contentRoot, type) {
 export function extractMetadata({ target, itemRoot }) {
   const dataZop = parseJsonAttr(itemRoot.getAttribute?.("data-zop"));
   const ids = extractTargetIds(target, itemRoot);
-  const title = cleanText(
-    target.type === "article"
-      ? pickText([
-        ".Post-Title",
-        "h1.Post-Title",
-        "meta[property='og:title']",
-        "meta[name='title']"
-      ], document, "content")
-      : dataZop?.title
-        || pickText([
-          ".QuestionHeader-title",
-          ".QuestionPage meta[itemprop='name']",
-          "meta[itemprop='name']",
-          "meta[property='og:title']"
-        ], document, "content")
-  ) || document.title || "";
-
   const author = cleanText(
     target.type === "article"
       ? pickText([
@@ -172,6 +155,14 @@ export function extractMetadata({ target, itemRoot }) {
   const time = extractTime(itemRoot);
 
   const questionMetadata = target.type === "answer" ? extractQuestionMetadata() : {};
+  const title = target.type === "article"
+    ? cleanText(pickText([
+      ".Post-Title",
+      "h1.Post-Title",
+      "meta[property='og:title']",
+      "meta[name='title']"
+    ], document, "content")) || document.title || ""
+    : formatAnswerTitle(questionMetadata.question_title, author);
 
   return {
     title,
@@ -199,6 +190,10 @@ export function extractMetadata({ target, itemRoot }) {
   };
 }
 
+export function formatAnswerTitle(questionTitle, author) {
+  return `${cleanText(questionTitle)} - ${cleanText(author)}的回答`;
+}
+
 export function extractQuestionMetadata() {
   const questionRoot = findQuestionRoot();
   if (!questionRoot) {
@@ -206,6 +201,7 @@ export function extractQuestionMetadata() {
   }
 
   return {
+    question_title: extractMetaContent(questionRoot, ["name"]),
     question_url: extractMetaContent(questionRoot, ["url"]),
     question_time_created: extractMetaContent(questionRoot, ["dateCreated"]),
     question_time_modified: extractMetaContent(questionRoot, ["dateModified"]),
@@ -225,6 +221,7 @@ function findQuestionRoot() {
 
 function emptyQuestionMetadata() {
   return {
+    question_title: "",
     question_url: "",
     question_time_created: "",
     question_time_modified: "",

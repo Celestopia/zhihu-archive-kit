@@ -1434,6 +1434,7 @@ function renderQuestionMetadata(metadata) {
   }
 
   return [
+    `question_title: ${yamlString(metadata.question_title)}`,
     `question_url: ${yamlString(metadata.question_url)}`,
     `question_time_created: ${yamlString(metadata.question_time_created)}`,
     `question_time_modified: ${yamlString(metadata.question_time_modified)}`,
@@ -1735,7 +1736,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   findArticleContentRoot: () => (/* binding */ findArticleContentRoot),
 /* harmony export */   findArticleRoot: () => (/* binding */ findArticleRoot),
 /* harmony export */   findContentRoot: () => (/* binding */ findContentRoot),
-/* harmony export */   findItemRoot: () => (/* binding */ findItemRoot)
+/* harmony export */   findItemRoot: () => (/* binding */ findItemRoot),
+/* harmony export */   formatAnswerTitle: () => (/* binding */ formatAnswerTitle)
 /* harmony export */ });
 /* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
 /* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./utils.js */ "./src/save-core/utils.js");
@@ -1876,23 +1878,6 @@ function findItemRoot(contentRoot, type) {
 function extractMetadata({ target, itemRoot }) {
   const dataZop = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseJsonAttr)(itemRoot.getAttribute?.("data-zop"));
   const ids = extractTargetIds(target, itemRoot);
-  const title = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(
-    target.type === "article"
-      ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.pickText)([
-        ".Post-Title",
-        "h1.Post-Title",
-        "meta[property='og:title']",
-        "meta[name='title']"
-      ], document, "content")
-      : dataZop?.title
-        || (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.pickText)([
-          ".QuestionHeader-title",
-          ".QuestionPage meta[itemprop='name']",
-          "meta[itemprop='name']",
-          "meta[property='og:title']"
-        ], document, "content")
-  ) || document.title || "";
-
   const author = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(
     target.type === "article"
       ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.pickText)([
@@ -1913,6 +1898,14 @@ function extractMetadata({ target, itemRoot }) {
   const time = extractTime(itemRoot);
 
   const questionMetadata = target.type === "answer" ? extractQuestionMetadata() : {};
+  const title = target.type === "article"
+    ? (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.pickText)([
+      ".Post-Title",
+      "h1.Post-Title",
+      "meta[property='og:title']",
+      "meta[name='title']"
+    ], document, "content")) || document.title || ""
+    : formatAnswerTitle(questionMetadata.question_title, author);
 
   return {
     title,
@@ -1940,6 +1933,10 @@ function extractMetadata({ target, itemRoot }) {
   };
 }
 
+function formatAnswerTitle(questionTitle, author) {
+  return `${(0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(questionTitle)} - ${(0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(author)}的回答`;
+}
+
 function extractQuestionMetadata() {
   const questionRoot = findQuestionRoot();
   if (!questionRoot) {
@@ -1947,6 +1944,7 @@ function extractQuestionMetadata() {
   }
 
   return {
+    question_title: extractMetaContent(questionRoot, ["name"]),
     question_url: extractMetaContent(questionRoot, ["url"]),
     question_time_created: extractMetaContent(questionRoot, ["dateCreated"]),
     question_time_modified: extractMetaContent(questionRoot, ["dateModified"]),
@@ -1966,6 +1964,7 @@ function findQuestionRoot() {
 
 function emptyQuestionMetadata() {
   return {
+    question_title: "",
     question_url: "",
     question_time_created: "",
     question_time_modified: "",

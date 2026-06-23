@@ -15,13 +15,14 @@ await fs.writeFile(path.join(assetsDir, "comment-image-001.png"), Buffer.from([1
 
 await fs.writeFile(path.join(root, "index.md"), `---
 source_type: "answer"
-title: "测试回答"
+title: "不应作为问题标题展示"
 url: "https://www.zhihu.com/question/123/answer/456"
 author: "作者 A"
 author_url: "https://www.zhihu.com/people/a"
 time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-02T08:30:40.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
+question_title: "测试问题标题"
 question_time_created: "2019-01-21T01:47:26.000Z"
 question_url: "https://www.zhihu.com/question/123"
 question_time_modified: "2019-02-03T05:53:39.000Z"
@@ -83,9 +84,10 @@ const outputPath = await renderSavedFolder(root);
 assert.equal(outputPath, path.join(root, "preview.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
-assert.match(html, /测试回答/);
+assert.match(html, /测试问题标题/);
 assert.match(html, /<section class="feed feed--preview">/);
-assert.match(html, /<h1 class="title">测试回答<\/h1>/);
+assert.match(html, /<h1 class="title">测试问题标题<\/h1>/);
+assert.doesNotMatch(html, /<h1 class="title">不应作为问题标题展示<\/h1>/);
 assert.match(html, /<div class="expand-panel expand-panel--body" data-panel="body" data-loaded="1">/);
 assert.match(html, /data-card-body/);
 assert.doesNotMatch(html, /<ul class="meta-list">/);

@@ -46,13 +46,14 @@ await fs.writeFile(path.join(skippedDir, "index.md"), "not enough files");
 
 await fs.writeFile(path.join(answerDir, "index.md"), `---
 source_type: "answer"
-title: "回答标题"
+title: "不应作为导航回答标题展示"
 url: "https://www.zhihu.com/question/123/answer/456"
 author: "回答作者"
 author_url: "https://www.zhihu.com/people/answer-author"
 time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-12T16:46:52.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
+question_title: "回答所属问题标题"
 question_time_created: "2019-01-21T01:47:26.000Z"
 question_url: "https://www.zhihu.com/question/123"
 question_time_modified: "2019-02-03T05:53:39.000Z"
@@ -179,7 +180,8 @@ assert.match(html, /知乎保存导航/);
 assert.match(html, /总数：<strong>23<\/strong>/);
 assert.match(html, /回答：<strong>22<\/strong>/);
 assert.match(html, /文章：<strong>1<\/strong>/);
-assert.match(html, /回答标题/);
+assert.match(html, /回答所属问题标题/);
+assert.doesNotMatch(html, /不应作为导航回答标题展示/);
 assert.match(html, /文章标题/);
 assert.match(html, /分页回答 21/);
 assert.doesNotMatch(html, /问题标签导航页不应展示/);
@@ -230,7 +232,7 @@ assert.match(html, /阅读全文/);
 assert.match(html, /评论区/);
 assert.match(html, /阅读原文/);
 assert.doesNotMatch(html, /单页预览/);
-assert.match(html, /<a class="title" href="默认收藏夹\/question-123-answer-456\/preview\.html" target="_blank" rel="noopener noreferrer">回答标题<\/a>/);
+assert.match(html, /<a class="title" href="默认收藏夹\/question-123-answer-456\/preview\.html" target="_blank" rel="noopener noreferrer">回答所属问题标题<\/a>/);
 assert.match(html, /<button class="top-collapse action-pill" type="button" data-action="toggle-body" data-top-collapse aria-expanded="true" hidden>收起全文<\/button>\s*<a class="source-link action-pill" href="https:\/\/www\.zhihu\.com\/question\/123\/answer\/456" target="_blank" rel="noopener noreferrer">阅读原文<\/a>\s*<span class="type">回答<\/span>/);
 assert.match(html, /<div class="meta">\s*<div class="meta-main">\s*<span>作者：<a href="https:\/\/www\.zhihu\.com\/people\/answer-author">回答作者<\/a><\/span>\s*<span>创建：2026-06-01 08:00:00<\/span>\s*<span>修改：2026-06-13 00:46:52<\/span>\s*<\/div>\s*<span class="meta-export">导出：2026-06-12 00:46:52<\/span>\s*<\/div>/);
 assert.match(html, /\.meta-export \{[\s\S]*?margin-left: auto;[\s\S]*?text-align: right;/);
@@ -284,7 +286,7 @@ assert.match(answerPreview, /FULL_BODY_ONLY_MARKER/);
 assert.match(answerPreview, /COMMENT_ONLY_MARKER/);
 assert.match(answerPreview, /\.\/assets\/image-001\.jpg/);
 assert.match(answerPreview, /<section class="feed feed--preview">/);
-assert.match(answerPreview, /<h1 class="title">回答标题<\/h1>/);
+assert.match(answerPreview, /<h1 class="title">回答所属问题标题<\/h1>/);
 assert.match(answerPreview, /<section class="question-info" aria-label="问题信息">/);
 assert.match(answerPreview, /阅读原问题/);
 assert.match(answerPreview, /href="https:\/\/www\.zhihu\.com\/question\/123"/);

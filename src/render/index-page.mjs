@@ -65,7 +65,7 @@ export async function renderOutputIndex(rootPath = "output") {
         previewHref: toPosixPath(path.relative(root, previewPath)),
         type,
         collectionName,
-        title: parsed.metadata.title || contentEntry.name,
+        title: displayTitle(parsed.metadata, type, contentEntry.name),
         url: parsed.metadata.url || commentsJson.url || "",
         author: parsed.metadata.author || "",
         authorUrl: parsed.metadata.author_url || "",
@@ -101,6 +101,13 @@ export async function renderOutputIndex(rootPath = "output") {
     generatedAt: new Date()
   }), "utf8");
   return outputPath;
+}
+
+function displayTitle(metadata, type, fallback) {
+  if (type === "answer") {
+    return metadata.question_title || metadata.title || fallback;
+  }
+  return metadata.title || fallback;
 }
 
 function requireSourceType(value) {

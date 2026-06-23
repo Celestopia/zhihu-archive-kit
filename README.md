@@ -61,6 +61,7 @@ author_url: "..."
 time_created: "..."
 time_modified: "..."
 time_exported: "..."
+question_title: "..."
 question_url: "..."
 question_time_created: "..."
 question_time_modified: "..."
@@ -76,9 +77,9 @@ content_excerpt: "..."
 ---
 ```
 
-`source_type` 为 `answer` 或 `article`。`content_excerpt` 是从正文生成的纯文本摘要，供本地导航页直接展示。
+`source_type` 为 `answer` 或 `article`。回答的 `title` 使用 `question_title - author的回答` 格式；文章的 `title` 是文章标题。`content_excerpt` 是从正文生成的纯文本摘要，供本地导航页直接展示。
 
-回答文件会额外保存所属问题的元信息，字段名以 `question_` 开头。专栏文章不会输出这些字段。`question_url` 只从问题 DOM 的 `meta[itemprop='url']` 读取；如果知乎页面中缺少该 meta，不会根据问题 ID 推导 URL，而是保存为空字符串。`question_topic` 是逗号分隔的标签字符串；如果知乎页面中缺少某个问题字段，该字段会保存为空字符串。
+回答文件会额外保存所属问题的元信息，字段名以 `question_` 开头。专栏文章不会输出这些字段。回答预览页和本地导航页中的问题标题读取 `question_title`。`question_url` 只从问题 DOM 的 `meta[itemprop='url']` 读取；如果知乎页面中缺少该 meta，不会根据问题 ID 推导 URL，而是保存为空字符串。`question_topic` 是逗号分隔的标签字符串；如果知乎页面中缺少某个问题字段，该字段会保存为空字符串。
 
 ## 安装油猴脚本
 
