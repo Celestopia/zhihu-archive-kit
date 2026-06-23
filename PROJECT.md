@@ -74,7 +74,7 @@ userscripts/
 }
 ```
 
-`buildCurrentPageArtifact()` 使用当前 URL 构建产物，供批量模式使用。`buildAnswerItemArtifact()` 和 `buildArticleRootArtifact()` 使用明确传入的 DOM 节点构建产物，供网页端手动保存使用。对应的 ZIP 函数基于同一产物生成 ZIP Blob。
+`buildCurrentPageArtifact()` 使用当前 URL 构建产物，供批量模式使用。`buildAnswerItemArtifact()` 和 `buildArticleRootArtifact()` 使用明确传入的 DOM 节点构建产物，供网页端手动保存使用。回答元数据还会合并所属问题的 `question_*` 字段；文章不包含这些字段。对应的 ZIP 函数基于同一产物生成 ZIP Blob。
 
 `src/userscript/` 是油猴脚本入口和单页保存界面。它把保存控件注入到回答卡片或文章正文区域；主按钮默认调用浏览器 File System Access API，把产物写入用户授权目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。评论暂存按钮也在这一层注入，暂存数据只保存在当前页面内存中。
 
@@ -243,7 +243,7 @@ ZIP 解压只接受单个顶层目录。解压模块会拒绝绝对路径、`..`
 npm run render -- output/question-123-answer-456
 ```
 
-`render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。
+`render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。回答详情预览页会展示 `question_*` 问题元信息；导航页列表保持轻量，不展示这些问题字段。
 
 输出固定为：
 
@@ -313,6 +313,13 @@ author_url: "..."
 time_created: "..."
 time_modified: "..."
 time_exported: "..."
+question_url: "..."
+question_time_created: "..."
+question_time_modified: "..."
+question_answer_count: 0
+question_comment_count: 0
+question_follower_count: 0
+question_topic: "..."
 upvote_count: 0
 comment_count: 0
 like_count: 0
@@ -320,7 +327,7 @@ favorite_count: 0
 ---
 ```
 
-`target.js` 优先从 `meta[itemprop]` 标签读取元数据。回答页通常使用 `dateCreated`、`dateModified`、`upvoteCount`、`commentCount`；文章页通常使用 `datePublished`、`dateModified`、`commentCount`。
+`target.js` 优先从 `meta[itemprop]` 标签读取元数据。回答页通常使用 `dateCreated`、`dateModified`、`upvoteCount`、`commentCount`；文章页通常使用 `datePublished`、`dateModified`、`commentCount`。回答所属问题的元信息从 `.QuestionPage` 范围内读取 `url`、`dateCreated`、`dateModified`、`answerCount`、`commentCount`、`zhihu:followerCount` 和 `keywords`，并写入 `question_*` frontmatter 字段；`question_url` 只来自 `meta[itemprop='url']`，缺失时保存为空字符串；`question_topic` 是逗号分隔字符串。
 
 喜欢数和收藏数通常没有对应的 `meta[itemprop]`，项目会在当前回答/文章容器内查找包含“喜欢”或“收藏”的底部操作按钮，并从按钮文本、`aria-label` 或 `title` 中解析数量。
 

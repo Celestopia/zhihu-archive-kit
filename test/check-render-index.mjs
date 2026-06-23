@@ -52,6 +52,13 @@ author_url: "https://www.zhihu.com/people/answer-author"
 time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-12T16:46:52.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
+question_time_created: "2019-01-21T01:47:26.000Z"
+question_url: "https://www.zhihu.com/question/123"
+question_time_modified: "2019-02-03T05:53:39.000Z"
+question_answer_count: 10467
+question_comment_count: 22
+question_follower_count: 35855
+question_topic: "问题标签导航页不应展示"
 upvote_count: 10
 comment_count: 2
 like_count: 3
@@ -190,6 +197,10 @@ assert.match(html, /文章：<strong>1<\/strong>/);
 assert.match(html, /回答标题/);
 assert.match(html, /文章标题/);
 assert.match(html, /分页回答 21/);
+assert.doesNotMatch(html, /问题标签导航页不应展示/);
+assert.doesNotMatch(html, /阅读原问题/);
+assert.doesNotMatch(html, /10467/);
+assert.doesNotMatch(html, /35855/);
 assert.match(html, /回答作者/);
 assert.match(html, /文章作者/);
 assert.match(html, /创建：2026-06-01 08:00:00/);
@@ -216,7 +227,8 @@ assert.match(html, /matchesCollection = activeCollection === "all" \|\| card\.da
 assert.match(html, /currentCollection\.textContent = activeCollection === "all" \? "所有" : activeCollection/);
 assert.match(html, /const PAGE_SIZE = 20;/);
 assert.match(html, /let currentPage = 1;/);
-assert.match(html, /<nav class="pagination" id="pagination" aria-label="分页" hidden><\/nav>/);
+assert.match(html, /<nav class="pagination" id="pagination" aria-label="分页"><\/nav>/);
+assert.doesNotMatch(html, /totalPages <= 1/);
 assert.match(html, /\.pagination \{[\s\S]*?justify-content: center;/);
 assert.match(html, /const totalPages = Math\.max\(1, Math\.ceil\(matchedCards\.length \/ PAGE_SIZE\)\);/);
 assert.match(html, /matchedCards\.slice\(start, start \+ PAGE_SIZE\)/);
@@ -261,6 +273,8 @@ assert.match(html, /\.comments-count \{[\s\S]*?font-weight: 400;/);
 assert.match(html, /fetch\(previewHref\)/);
 assert.match(html, /DOMParser/);
 assert.match(html, /querySelector\("\[data-card-body\]"\)/);
+assert.match(html, /querySelector\("\.question-info"\)/);
+assert.match(html, /questionInfo \? rewriteRelativeUrls\(questionInfo\.outerHTML, basePath\) : ""/);
 assert.match(html, /querySelector\("\[data-comments\]"\)/);
 assert.match(html, /rewriteRelativeUrls/);
 assert.doesNotMatch(html, /buildBodyExpansion/);
@@ -286,6 +300,10 @@ assert.match(answerPreview, /COMMENT_ONLY_MARKER/);
 assert.match(answerPreview, /\.\/assets\/image-001\.jpg/);
 assert.match(answerPreview, /<section class="feed feed--preview">/);
 assert.match(answerPreview, /<h1 class="title">回答标题<\/h1>/);
+assert.match(answerPreview, /<section class="question-info" aria-label="问题信息">/);
+assert.match(answerPreview, /阅读原问题/);
+assert.match(answerPreview, /href="https:\/\/www\.zhihu\.com\/question\/123"/);
+assert.match(answerPreview, /问题标签导航页不应展示/);
 assert.match(answerPreview, /<div class="expand-panel expand-panel--body" data-panel="body" data-loaded="1">/);
 assert.match(answerPreview, /data-card-body/);
 assert.match(answerPreview, /<section class="comments" data-comments>/);

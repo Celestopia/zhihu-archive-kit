@@ -351,7 +351,7 @@ function renderIndexDocument({ items, collections, generatedAt }) {
     <section class="feed" id="content-list">
       ${items.length ? items.map((item) => renderContentCard(item, { mode: "feed" })).join("") : `<div class="empty">没有找到可渲染的内容文件夹。</div>`}
     </section>
-    <nav class="pagination" id="pagination" aria-label="分页" hidden></nav>
+    <nav class="pagination" id="pagination" aria-label="分页"></nav>
   </main>
   <script>
 ${renderCardScript()}
@@ -399,10 +399,6 @@ ${renderCardScript()}
 
     function renderPagination(totalPages) {
       pagination.replaceChildren();
-      if (totalPages <= 1) {
-        pagination.hidden = true;
-        return;
-      }
 
       pagination.hidden = false;
       pagination.append(

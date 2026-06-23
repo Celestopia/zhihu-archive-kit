@@ -31,12 +31,16 @@
 .Post-content
 .Post-RichTextContainer
 .Post-Main
+.QuestionPage
 meta[itemprop='url']
 meta[itemprop='dateCreated']
 meta[itemprop='datePublished']
 meta[itemprop='dateModified']
+meta[itemprop='answerCount']
 meta[itemprop='upvoteCount']
 meta[itemprop='commentCount']
+meta[itemprop='zhihu:followerCount']
+meta[itemprop='keywords']
 [itemprop='author']
 data-zop
 ```
@@ -71,6 +75,42 @@ meta[property='og:title']
 
 ```text
 src/save-core/target.js -> extractMetadata()
+```
+
+### 问题元信息
+
+回答保存时，本项目还会从问题根节点读取所属问题的元信息。问题根节点通常是：
+
+```text
+.QuestionPage
+```
+
+真实页面中，问题级元信息通常直接位于 `.QuestionPage` 下：
+
+```html
+<div class="QuestionPage" itemscope itemprop="mainEntity" itemtype="http://schema.org/Question">
+  <meta itemprop="name" content="你发生过的最尴尬的事是什么？">
+  <meta itemprop="url" content="https://www.zhihu.com/question/309772647">
+  <meta itemprop="keywords" content="心理,人际交往,尴尬,男女相处,真实经历">
+  <meta itemprop="answerCount" content="10467">
+  <meta itemprop="commentCount" content="22">
+  <meta itemprop="dateCreated" content="2019-01-21T01:47:26.000Z">
+  <meta itemprop="dateModified" content="2019-02-03T05:53:39.000Z">
+  <meta itemprop="zhihu:followerCount" content="35855">
+</div>
+```
+
+本项目用途：
+
+- 写入回答 `index.md` frontmatter 的 `question_url`、`question_time_created`、`question_time_modified`、`question_answer_count`、`question_comment_count`、`question_follower_count` 和 `question_topic`。
+- `question_url` 只来源于 `.QuestionPage meta[itemprop='url']`。如果该 meta 缺失，保存为空字符串，不根据 `question_id` 推导。
+- `question_topic` 来源于 `meta[itemprop='keywords']`，保存为逗号分隔字符串。
+- 专栏文章不读取这些字段。
+
+代码依赖：
+
+```text
+src/save-core/target.js -> extractQuestionMetadata()
 ```
 
 ### 回答卡片根节点
@@ -788,6 +828,15 @@ document.querySelector("meta[itemprop='dateModified']");
 document.querySelector("meta[itemprop='upvoteCount']");
 document.querySelector("meta[itemprop='commentCount']");
 document.querySelector("[itemprop='author']");
+```
+
+如果回答所属问题元信息缺失，检查：
+
+```js
+document.querySelector(".QuestionPage");
+document.querySelector(".QuestionPage meta[itemprop='answerCount']");
+document.querySelector(".QuestionPage meta[itemprop='zhihu:followerCount']");
+document.querySelector(".QuestionPage meta[itemprop='keywords']");
 ```
 
 如果实际知乎 DOM 与本文档不同，应优先补充一段最小 DOM 示例，包含：

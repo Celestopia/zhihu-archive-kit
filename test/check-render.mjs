@@ -21,6 +21,13 @@ author_url: "https://www.zhihu.com/people/a"
 time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-02T08:30:40.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
+question_time_created: "2019-01-21T01:47:26.000Z"
+question_url: "https://www.zhihu.com/question/123"
+question_time_modified: "2019-02-03T05:53:39.000Z"
+question_answer_count: 10467
+question_comment_count: 22
+question_follower_count: 35855
+question_topic: "心理, 人际交往, 尴尬"
 upvote_count: 10
 comment_count: 2
 like_count: 3
@@ -90,6 +97,22 @@ assert.doesNotMatch(html, /meta-grid/);
 assert.match(html, /2026-06-01 08:00:00/);
 assert.match(html, /2026-06-02 16:30:40/);
 assert.match(html, /2026-06-12 00:46:52/);
+assert.match(html, /问题信息/);
+assert.match(html, /阅读原问题/);
+assert.match(html, /href="https:\/\/www\.zhihu\.com\/question\/123"/);
+assert.match(html, /question-info-row question-info-row--time/);
+assert.match(html, /question-info-row question-info-row--stats/);
+assert.match(html, /\.question-info-list dt \{[\s\S]*?font-weight: 400;/);
+assert.match(html, /问题创建/);
+assert.match(html, /2019-01-21 09:47:26/);
+assert.match(html, /问题修改/);
+assert.match(html, /2019-02-03 13:53:39/);
+assert.match(html, /回答数/);
+assert.match(html, /10467/);
+assert.match(html, /关注数/);
+assert.match(html, /35855/);
+assert.match(html, /标签/);
+assert.match(html, /心理, 人际交往, 尴尬/);
 assert.doesNotMatch(html, / 24:46:52/);
 assert.match(html, /正文标题/);
 assert.match(html, /评论区/);
@@ -117,5 +140,43 @@ assert.match(html, /event\.preventDefault\(\)/);
 assert.match(html, /event\.stopPropagation\(\)/);
 assert.doesNotMatch(html, /comments\.open = true/);
 assert.match(html, /nextExpanded \? "收起全部" : "展开全部"/);
+
+const legacyRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-legacy-"));
+await fs.mkdir(path.join(legacyRoot, "assets"));
+await fs.writeFile(path.join(legacyRoot, "index.md"), `---
+title: "旧回答"
+url: "https://www.zhihu.com/question/123/answer/789"
+author: "作者 B"
+time_exported: "2026-06-11T16:46:52.000Z"
+upvote_count: 1
+comment_count: 0
+---
+
+旧回答正文。
+`);
+await fs.writeFile(path.join(legacyRoot, "comments.json"), JSON.stringify({
+  schema_version: 1,
+  target: {
+    type: "answer",
+    question_id: "123",
+    answer_id: "789",
+    article_id: ""
+  },
+  url: "https://www.zhihu.com/question/123/answer/789",
+  time_exported: "2026-06-11T16:46:52.000Z",
+  staged_count: 0,
+  comments: []
+}, null, 2));
+
+const legacyOutputPath = await renderSavedFolder(legacyRoot);
+const legacyHtml = await fs.readFile(legacyOutputPath, "utf8");
+assert.match(legacyHtml, /问题信息/);
+assert.match(legacyHtml, /问题创建/);
+assert.match(legacyHtml, /问题修改/);
+assert.match(legacyHtml, /回答数/);
+assert.match(legacyHtml, /评论数/);
+assert.match(legacyHtml, /关注数/);
+assert.match(legacyHtml, /标签/);
+assert.doesNotMatch(legacyHtml, /阅读原问题/);
 
 console.log("HTML render checks passed.");

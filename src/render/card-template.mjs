@@ -111,6 +111,57 @@ export function renderCardCss() {
       color: #344054;
       overflow-wrap: anywhere;
     }
+    .question-info {
+      margin: 12px 0 14px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .question-info-head {
+      align-items: center;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .question-info-title {
+      margin: 0;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .question-info-list {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .question-info-row {
+      display: grid;
+      gap: 8px 24px;
+      margin-top: 6px;
+    }
+    .question-info-row:first-child {
+      margin-top: 0;
+    }
+    .question-info-row--time {
+      grid-template-columns: repeat(2, minmax(0, max-content));
+    }
+    .question-info-row--stats {
+      grid-template-columns: repeat(4, minmax(0, max-content));
+    }
+    .question-info-list dt {
+      display: inline;
+      color: #475467;
+      font-weight: 400;
+    }
+    .question-info-list dd {
+      display: inline;
+      margin: 0;
+    }
+    .question-info-item {
+      display: inline-flex;
+      gap: 4px;
+    }
     .summary-text[hidden],
     .summary-text [hidden],
     .read-more[hidden] {
@@ -355,6 +406,7 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
         </div>
         ${item.timeExported ? `<span class="meta-export">导出：${escapeHtml(formatDisplayTime(item.timeExported))}</span>` : ""}
       </div>
+      ${isPreview ? renderQuestionInfo(item) : ""}
       ${isPreview ? "" : renderSummaryRow(summaryText, item.summaryTruncated)}
       ${isPreview
         ? `<div class="expand-panel expand-panel--body" data-panel="body" data-loaded="1"><div data-card-body>${item.bodyHtml || ""}</div></div>`
@@ -391,6 +443,37 @@ export function renderCommentsSection({ storedCommentCount = 0, commentsHtml = "
       ${commentsHtml}
     </section>
   `;
+}
+
+function renderQuestionInfo(item) {
+  if (item.type !== "answer") {
+    return "";
+  }
+
+  const rows = [
+    questionInfoItem("问题创建", item.questionTimeCreated ? formatDisplayTime(item.questionTimeCreated) : ""),
+    questionInfoItem("问题修改", item.questionTimeModified ? formatDisplayTime(item.questionTimeModified) : ""),
+    questionInfoItem("回答数", item.questionAnswerCount),
+    questionInfoItem("评论数", item.questionCommentCount),
+    questionInfoItem("关注数", item.questionFollowerCount),
+    questionInfoItem("标签", item.questionTopic)
+  ];
+
+  return `
+      <section class="question-info" aria-label="问题信息">
+        <div class="question-info-head">
+          <p class="question-info-title">问题信息</p>
+          ${item.questionUrl ? `<a class="source-link action-pill" href="${escapeAttr(item.questionUrl)}" target="_blank" rel="noopener noreferrer">阅读原问题</a>` : ""}
+        </div>
+        <dl class="question-info-list">
+          <div class="question-info-row question-info-row--time">${rows.slice(0, 2).join("")}</div>
+          <div class="question-info-row question-info-row--stats">${rows.slice(2).join("")}</div>
+        </dl>
+      </section>`;
+}
+
+function questionInfoItem(label, value) {
+  return `<div class="question-info-item"><dt>${escapeHtml(label)}：</dt><dd>${escapeHtml(value ?? "")}</dd></div>`;
 }
 
 function renderSummaryRow(summaryText, summaryTruncated) {
@@ -528,9 +611,13 @@ export function renderCardScript() {
       const doc = new DOMParser().parseFromString(html, "text/html");
       const basePath = previewHref.replace(/\\/[^/]*$/, "/");
       const body = doc.querySelector("[data-card-body]");
+      const questionInfo = doc.querySelector(".question-info");
       const comments = doc.querySelector("[data-comments]");
       const parsed = {
-        bodyHtml: body ? rewriteRelativeUrls(body.innerHTML, basePath) : "<p>没有找到正文内容。</p>",
+        bodyHtml: [
+          questionInfo ? rewriteRelativeUrls(questionInfo.outerHTML, basePath) : "",
+          body ? rewriteRelativeUrls(body.innerHTML, basePath) : "<p>没有找到正文内容。</p>"
+        ].filter(Boolean).join(""),
         commentsHtml: comments ? rewriteRelativeUrls(comments.outerHTML, basePath) : "<p>没有找到评论区。</p>"
       };
       previewCache.set(previewHref, parsed);

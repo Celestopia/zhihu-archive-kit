@@ -171,6 +171,8 @@ export function extractMetadata({ target, itemRoot }) {
   const authorUrl = extractAuthorUrl(itemRoot);
   const time = extractTime(itemRoot);
 
+  const questionMetadata = target.type === "answer" ? extractQuestionMetadata() : {};
+
   return {
     title,
     url: target.url || location.href.split("#")[0].split("?")[0],
@@ -192,8 +194,59 @@ export function extractMetadata({ target, itemRoot }) {
       "[aria-label*='评论']"
     ]),
     like_count: extractActionCount(itemRoot, ["喜欢"]),
-    favorite_count: extractActionCount(itemRoot, ["收藏"])
+    favorite_count: extractActionCount(itemRoot, ["收藏"]),
+    ...questionMetadata
   };
+}
+
+export function extractQuestionMetadata() {
+  const questionRoot = findQuestionRoot();
+  if (!questionRoot) {
+    return emptyQuestionMetadata();
+  }
+
+  return {
+    question_url: extractMetaContent(questionRoot, ["url"]),
+    question_time_created: extractMetaContent(questionRoot, ["dateCreated"]),
+    question_time_modified: extractMetaContent(questionRoot, ["dateModified"]),
+    question_answer_count: extractMetaCount(questionRoot, "answerCount") ?? "",
+    question_comment_count: extractMetaCount(questionRoot, "commentCount") ?? "",
+    question_follower_count: extractMetaCount(questionRoot, "zhihu:followerCount") ?? "",
+    question_topic: extractQuestionTopic(questionRoot)
+  };
+}
+
+function findQuestionRoot() {
+  return document.querySelector(".QuestionPage[itemtype='http://schema.org/Question']")
+    || document.querySelector(".QuestionPage[itemprop='mainEntity']")
+    || document.querySelector(".QuestionPage")
+    || null;
+}
+
+function emptyQuestionMetadata() {
+  return {
+    question_url: "",
+    question_time_created: "",
+    question_time_modified: "",
+    question_answer_count: "",
+    question_comment_count: "",
+    question_follower_count: "",
+    question_topic: ""
+  };
+}
+
+function extractQuestionTopic(questionRoot) {
+  const keywords = extractMetaContent(questionRoot, ["keywords"]);
+  if (keywords) {
+    return keywords.split(",").map((item) => cleanText(item)).filter(Boolean).join(", ");
+  }
+
+  const data = parseJsonAttr(questionRoot.querySelector?.("[data-zop-question]")?.getAttribute("data-zop-question"));
+  if (!Array.isArray(data?.topics)) {
+    return "";
+  }
+
+  return data.topics.map((topic) => cleanText(topic?.name || "")).filter(Boolean).join(", ");
 }
 
 export function extractTargetIds(target, itemRoot) {

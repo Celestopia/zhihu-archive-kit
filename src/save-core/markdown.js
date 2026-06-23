@@ -297,6 +297,7 @@ export function renderDocument(metadata, body) {
     `time_created: ${yamlString(metadata.time_created)}`,
     `time_modified: ${yamlString(metadata.time_modified)}`,
     `time_exported: ${yamlString(metadata.time_exported)}`,
+    ...renderQuestionMetadata(metadata),
     `upvote_count: ${yamlNumber(metadata.upvote_count)}`,
     `comment_count: ${yamlNumber(metadata.comment_count)}`,
     `like_count: ${yamlNumber(metadata.like_count)}`,
@@ -308,12 +309,32 @@ export function renderDocument(metadata, body) {
   return `${frontmatter}\n${body.trim()}\n`;
 }
 
+function renderQuestionMetadata(metadata) {
+  if (!metadata.answer_id && !metadata.question_id) {
+    return [];
+  }
+
+  return [
+    `question_url: ${yamlString(metadata.question_url)}`,
+    `question_time_created: ${yamlString(metadata.question_time_created)}`,
+    `question_time_modified: ${yamlString(metadata.question_time_modified)}`,
+    `question_answer_count: ${yamlNumberOrEmptyString(metadata.question_answer_count)}`,
+    `question_comment_count: ${yamlNumberOrEmptyString(metadata.question_comment_count)}`,
+    `question_follower_count: ${yamlNumberOrEmptyString(metadata.question_follower_count)}`,
+    `question_topic: ${yamlString(metadata.question_topic)}`
+  ];
+}
+
 export function yamlString(value) {
   return JSON.stringify(String(value ?? ""));
 }
 
 export function yamlNumber(value) {
   return Number.isFinite(value) ? String(value) : "";
+}
+
+function yamlNumberOrEmptyString(value) {
+  return value === "" ? yamlString("") : yamlNumber(value);
 }
 
 export function applyMediaReplacements(markdown, replacements) {

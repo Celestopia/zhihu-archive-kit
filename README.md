@@ -60,12 +60,21 @@ author_url: "..."
 time_created: "..."
 time_modified: "..."
 time_exported: "..."
+question_url: "..."
+question_time_created: "..."
+question_time_modified: "..."
+question_answer_count: 0
+question_comment_count: 0
+question_follower_count: 0
+question_topic: "..."
 upvote_count: 0
 comment_count: 0
 like_count: 0
 favorite_count: 0
 ---
 ```
+
+回答文件会额外保存所属问题的元信息，字段名以 `question_` 开头。专栏文章不会输出这些字段。`question_url` 只从问题 DOM 的 `meta[itemprop='url']` 读取；如果知乎页面中缺少该 meta，不会根据问题 ID 推导 URL，而是保存为空字符串。`question_topic` 是逗号分隔的标签字符串；如果知乎页面中缺少某个问题字段，该字段会保存为空字符串。
 
 ## 安装油猴脚本
 
@@ -247,7 +256,7 @@ assets/
 preview.html
 ```
 
-`preview.html` 与 `assets/` 位于同一文件夹内，可以直接用浏览器打开。页面上方显示回答或文章正文，下方是可展开的评论区。每次运行会覆盖同名 `preview.html`，不会修改 `index.md`、`comments.json` 或 `assets/`。
+`preview.html` 与 `assets/` 位于同一文件夹内，可以直接用浏览器打开。页面上方显示回答或文章正文，下方是可展开的评论区。回答预览页还会显示所属问题的创建时间、修改时间、回答数、评论数、关注数和标签。每次运行会覆盖同名 `preview.html`，不会修改 `index.md`、`comments.json` 或 `assets/`。
 
 ## 生成导航页
 
@@ -264,6 +273,8 @@ npm run render:index -- output
 ```
 
 命令会扫描根目录下的一级收藏夹目录。收藏夹目录需要包含 `collection.json`；每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，就会被视为一个有效内容目录。根目录下直接保存的旧内容目录不会进入导航页。
+
+导航页列表只展示回答或文章自身的标题、作者、摘要和统计信息。回答所属问题的创建时间、修改时间、回答数、评论数、关注数和标签只在点击进入单篇 `preview.html` 后显示。
 
 ```text
 index.html
