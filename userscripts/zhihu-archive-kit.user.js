@@ -632,6 +632,8 @@ async function buildArtifactFromExtracted({ target, result, options, timeExporte
   options.onProgress?.({ stage: "markdown" });
   const metadata = {
     ...result.metadata,
+    source_type: target.type,
+    content_excerpt: (0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.createContentExcerpt)(result.markdown),
     time_exported: timeExported
   };
   const indexMarkdown = (0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.applyMediaReplacements)((0,_markdown_js__WEBPACK_IMPORTED_MODULE_2__.renderDocument)(metadata, result.markdown), media.replacements);
@@ -740,13 +742,12 @@ function parseCommentElement(commentElement, container) {
   };
 }
 
-function buildCommentsPayload({ target, metadata, timeExported, comments }) {
+function buildCommentsPayload({ metadata, timeExported, comments }) {
   const flatComments = Array.isArray(comments) ? comments : [];
 
   return {
     schema_version: COMMENTS_SCHEMA_VERSION,
-    target: commentsTarget(target, metadata),
-    url: metadata.url || target.url || location.href.split("#")[0].split("?")[0],
+    url: metadata.url || "",
     time_exported: timeExported,
     staged_count: flatComments.length,
     comments: buildCommentTree(flatComments)
@@ -807,24 +808,6 @@ function buildCommentTree(comments) {
   }
 
   return roots;
-}
-
-function commentsTarget(target, metadata) {
-  if (target.type === "article") {
-    return {
-      type: "article",
-      question_id: "",
-      answer_id: "",
-      article_id: target.id
-    };
-  }
-
-  return {
-    type: "answer",
-    question_id: metadata.question_id || target.questionId || "",
-    answer_id: target.id,
-    article_id: ""
-  };
 }
 
 function publicComment(comment) {
@@ -1110,6 +1093,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   applyMediaReplacements: () => (/* binding */ applyMediaReplacements),
 /* harmony export */   compactTableCell: () => (/* binding */ compactTableCell),
+/* harmony export */   createContentExcerpt: () => (/* binding */ createContentExcerpt),
 /* harmony export */   extractPage: () => (/* binding */ extractPage),
 /* harmony export */   isZhidaEntityLink: () => (/* binding */ isZhidaEntityLink),
 /* harmony export */   parseBlocks: () => (/* binding */ parseBlocks),
@@ -1423,6 +1407,7 @@ function compactTableCell(value) {
 function renderDocument(metadata, body) {
   const frontmatter = [
     "---",
+    `source_type: ${yamlString(metadata.source_type)}`,
     `title: ${yamlString(metadata.title)}`,
     `url: ${yamlString(metadata.url)}`,
     `author: ${yamlString(metadata.author)}`,
@@ -1435,6 +1420,7 @@ function renderDocument(metadata, body) {
     `comment_count: ${yamlNumber(metadata.comment_count)}`,
     `like_count: ${yamlNumber(metadata.like_count)}`,
     `favorite_count: ${yamlNumber(metadata.favorite_count)}`,
+    `content_excerpt: ${yamlString(metadata.content_excerpt)}`,
     "---",
     ""
   ].join("\n");
@@ -1464,6 +1450,19 @@ function yamlString(value) {
 
 function yamlNumber(value) {
   return Number.isFinite(value) ? String(value) : "";
+}
+
+function createContentExcerpt(markdown, limit = 160) {
+  const text = markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+    .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[#>*_`~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text.length > limit ? text.slice(0, limit) : text;
 }
 
 function yamlNumberOrEmptyString(value) {

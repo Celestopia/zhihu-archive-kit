@@ -55,9 +55,11 @@ export async function renderOutputIndex(rootPath = "output") {
       const indexMarkdown = await fs.readFile(indexPath, "utf8");
       const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
       const parsed = parseMarkdownDocument(indexMarkdown);
-      const summary = extractSummary(parsed.body);
+      const summary = parsed.metadata.content_excerpt
+        ? { text: parsed.metadata.content_excerpt, truncated: parsed.metadata.content_excerpt.length >= 160 }
+        : extractSummary(parsed.body);
       const previewPath = await renderSavedFolder(folderPath);
-      const type = commentsJson.target?.type === "article" ? "article" : "answer";
+      const type = requireSourceType(parsed.metadata.source_type);
 
       items.push({
         previewHref: toPosixPath(path.relative(root, previewPath)),
@@ -99,6 +101,13 @@ export async function renderOutputIndex(rootPath = "output") {
     generatedAt: new Date()
   }), "utf8");
   return outputPath;
+}
+
+function requireSourceType(value) {
+  if (value === "answer" || value === "article") {
+    return value;
+  }
+  throw new Error("index.md frontmatter must include source_type as answer or article.");
 }
 
 function renderIndexDocument({ items, collections, generatedAt }) {

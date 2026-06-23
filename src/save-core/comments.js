@@ -38,13 +38,12 @@ export function parseCommentElement(commentElement, container) {
   };
 }
 
-export function buildCommentsPayload({ target, metadata, timeExported, comments }) {
+export function buildCommentsPayload({ metadata, timeExported, comments }) {
   const flatComments = Array.isArray(comments) ? comments : [];
 
   return {
     schema_version: COMMENTS_SCHEMA_VERSION,
-    target: commentsTarget(target, metadata),
-    url: metadata.url || target.url || location.href.split("#")[0].split("?")[0],
+    url: metadata.url || "",
     time_exported: timeExported,
     staged_count: flatComments.length,
     comments: buildCommentTree(flatComments)
@@ -105,24 +104,6 @@ export function buildCommentTree(comments) {
   }
 
   return roots;
-}
-
-function commentsTarget(target, metadata) {
-  if (target.type === "article") {
-    return {
-      type: "article",
-      question_id: "",
-      answer_id: "",
-      article_id: target.id
-    };
-  }
-
-  return {
-    type: "answer",
-    question_id: metadata.question_id || target.questionId || "",
-    answer_id: target.id,
-    article_id: ""
-  };
 }
 
 function publicComment(comment) {

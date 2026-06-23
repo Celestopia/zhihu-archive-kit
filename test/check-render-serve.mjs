@@ -20,6 +20,7 @@ await fs.writeFile(path.join(collectionDir, "collection.json"), JSON.stringify({
 }, null, 2));
 
 await fs.writeFile(path.join(answerDir, "index.md"), `---
+source_type: "answer"
 title: "服务测试回答"
 url: "https://www.zhihu.com/question/123/answer/456"
 author: "作者"
@@ -31,12 +32,6 @@ time_exported: "2026-06-11T00:00:00.000Z"
 
 await fs.writeFile(path.join(answerDir, "comments.json"), JSON.stringify({
   schema_version: 1,
-  target: {
-    type: "answer",
-    question_id: "123",
-    answer_id: "456",
-    article_id: ""
-  },
   url: "https://www.zhihu.com/question/123/answer/456",
   time_exported: "2026-06-11T00:00:00.000Z",
   staged_count: 0,

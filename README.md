@@ -53,6 +53,7 @@ article-<article_id>/
 
 ```yaml
 ---
+source_type: "answer"
 title: "..."
 url: "..."
 author: "..."
@@ -71,8 +72,11 @@ upvote_count: 0
 comment_count: 0
 like_count: 0
 favorite_count: 0
+content_excerpt: "..."
 ---
 ```
+
+`source_type` 为 `answer` 或 `article`。`content_excerpt` 是从正文生成的纯文本摘要，供本地导航页直接展示。
 
 回答文件会额外保存所属问题的元信息，字段名以 `question_` 开头。专栏文章不会输出这些字段。`question_url` 只从问题 DOM 的 `meta[itemprop='url']` 读取；如果知乎页面中缺少该 meta，不会根据问题 ID 推导 URL，而是保存为空字符串。`question_topic` 是逗号分隔的标签字符串；如果知乎页面中缺少某个问题字段，该字段会保存为空字符串。
 
@@ -139,7 +143,7 @@ userscripts/zhihu-archive-kit.user.js
 4. 继续加载更多评论后，可以重复点击暂存；脚本会按评论 ID 去重。
 5. 最后点击回答或文章左侧的“保存”或齿轮菜单里的“下载为 ZIP”。
 
-保存结果中的 `comments.json` 会包含评论 ID、作者、作者主页、正文、发布时间、喜欢数、IP 属地、评论图片路径和二级回复结构。评论图片会下载到 `assets/`，文件名形如 `comment-image-001.png`；如果下载失败，`image_url` 会保留远程 URL。评论暂存只保存在当前页面内存中，刷新页面后需要重新暂存。
+保存结果中的 `comments.json` 会包含评论 ID、作者、作者主页、正文、发布时间、喜欢数、IP 属地、评论图片路径和二级回复结构。它不重复保存回答或文章的 ID；内容身份以 `index.md` 的 frontmatter 为准。评论图片会下载到 `assets/`，文件名形如 `comment-image-001.png`；如果下载失败，`image_url` 会保留远程 URL。评论暂存只保存在当前页面内存中，刷新页面后需要重新暂存。
 
 ## 批量保存
 

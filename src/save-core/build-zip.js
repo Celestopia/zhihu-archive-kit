@@ -1,6 +1,6 @@
 import { expandCollapsedContent } from "./dom.js";
 import { buildCommentsPayload, localizeCommentImages, stringifyCommentsPayload } from "./comments.js";
-import { applyMediaReplacements, extractPage, renderDocument } from "./markdown.js";
+import { applyMediaReplacements, createContentExcerpt, extractPage, renderDocument } from "./markdown.js";
 import { downloadMediaAssets } from "./media.js";
 import {
   detectTarget,
@@ -133,6 +133,8 @@ async function buildArtifactFromExtracted({ target, result, options, timeExporte
   options.onProgress?.({ stage: "markdown" });
   const metadata = {
     ...result.metadata,
+    source_type: target.type,
+    content_excerpt: createContentExcerpt(result.markdown),
     time_exported: timeExported
   };
   const indexMarkdown = applyMediaReplacements(renderDocument(metadata, result.markdown), media.replacements);

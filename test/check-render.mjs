@@ -14,6 +14,7 @@ await fs.mkdir(assetsDir);
 await fs.writeFile(path.join(assetsDir, "comment-image-001.png"), Buffer.from([1, 2, 3]));
 
 await fs.writeFile(path.join(root, "index.md"), `---
+source_type: "answer"
 title: "测试回答"
 url: "https://www.zhihu.com/question/123/answer/456"
 author: "作者 A"
@@ -32,6 +33,7 @@ upvote_count: 10
 comment_count: 2
 like_count: 3
 favorite_count: 4
+content_excerpt: "测试回答摘要"
 ---
 
 ## 正文标题
@@ -43,12 +45,6 @@ favorite_count: 4
 
 await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
   schema_version: 1,
-  target: {
-    type: "answer",
-    question_id: "123",
-    answer_id: "456",
-    article_id: ""
-  },
   url: "https://www.zhihu.com/question/123/answer/456",
   time_exported: "2026-06-11T00:00:00.000Z",
   staged_count: 2,
@@ -144,6 +140,7 @@ assert.match(html, /nextExpanded \? "收起全部" : "展开全部"/);
 const legacyRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-legacy-"));
 await fs.mkdir(path.join(legacyRoot, "assets"));
 await fs.writeFile(path.join(legacyRoot, "index.md"), `---
+source_type: "answer"
 title: "旧回答"
 url: "https://www.zhihu.com/question/123/answer/789"
 author: "作者 B"
@@ -156,12 +153,6 @@ comment_count: 0
 `);
 await fs.writeFile(path.join(legacyRoot, "comments.json"), JSON.stringify({
   schema_version: 1,
-  target: {
-    type: "answer",
-    question_id: "123",
-    answer_id: "789",
-    article_id: ""
-  },
   url: "https://www.zhihu.com/question/123/answer/789",
   time_exported: "2026-06-11T16:46:52.000Z",
   staged_count: 0,

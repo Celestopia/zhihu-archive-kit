@@ -290,6 +290,7 @@ export function compactTableCell(value) {
 export function renderDocument(metadata, body) {
   const frontmatter = [
     "---",
+    `source_type: ${yamlString(metadata.source_type)}`,
     `title: ${yamlString(metadata.title)}`,
     `url: ${yamlString(metadata.url)}`,
     `author: ${yamlString(metadata.author)}`,
@@ -302,6 +303,7 @@ export function renderDocument(metadata, body) {
     `comment_count: ${yamlNumber(metadata.comment_count)}`,
     `like_count: ${yamlNumber(metadata.like_count)}`,
     `favorite_count: ${yamlNumber(metadata.favorite_count)}`,
+    `content_excerpt: ${yamlString(metadata.content_excerpt)}`,
     "---",
     ""
   ].join("\n");
@@ -331,6 +333,19 @@ export function yamlString(value) {
 
 export function yamlNumber(value) {
   return Number.isFinite(value) ? String(value) : "";
+}
+
+export function createContentExcerpt(markdown, limit = 160) {
+  const text = markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+    .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[#>*_`~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text.length > limit ? text.slice(0, limit) : text;
 }
 
 function yamlNumberOrEmptyString(value) {

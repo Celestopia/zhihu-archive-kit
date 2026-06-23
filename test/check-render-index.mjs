@@ -45,6 +45,7 @@ await writeCollectionMetadata(emptyCollectionDir, {
 await fs.writeFile(path.join(skippedDir, "index.md"), "not enough files");
 
 await fs.writeFile(path.join(answerDir, "index.md"), `---
+source_type: "answer"
 title: "回答标题"
 url: "https://www.zhihu.com/question/123/answer/456"
 author: "回答作者"
@@ -63,6 +64,7 @@ upvote_count: 10
 comment_count: 2
 like_count: 3
 favorite_count: 4
+content_excerpt: "来自 frontmatter 的固定摘要"
 ---
 
 ## 正文标题
@@ -78,12 +80,6 @@ FULL_BODY_ONLY_MARKER 只应出现在单篇预览页里。
 
 await fs.writeFile(path.join(answerDir, "comments.json"), JSON.stringify({
   schema_version: 1,
-  target: {
-    type: "answer",
-    question_id: "123",
-    answer_id: "456",
-    article_id: ""
-  },
   url: "https://www.zhihu.com/question/123/answer/456",
   time_exported: "2026-06-11T16:46:52.000Z",
   staged_count: 2,
@@ -119,6 +115,7 @@ await fs.writeFile(path.join(answerDir, "comments.json"), JSON.stringify({
 }, null, 2));
 
 await fs.writeFile(path.join(articleDir, "index.md"), `---
+source_type: "article"
 title: "文章标题"
 url: "https://zhuanlan.zhihu.com/p/789"
 author: "文章作者"
@@ -132,12 +129,6 @@ comment_count: 1
 
 await fs.writeFile(path.join(articleDir, "comments.json"), JSON.stringify({
   schema_version: 1,
-  target: {
-    type: "article",
-    question_id: "",
-    answer_id: "",
-    article_id: "789"
-  },
   url: "https://zhuanlan.zhihu.com/p/789",
   time_exported: "2026-06-10T00:00:00.000Z",
   staged_count: 0,
@@ -149,6 +140,7 @@ for (let index = 0; index < 21; index += 1) {
   const extraDir = path.join(defaultCollectionDir, `question-${id}-answer-${id + 1000}`);
   await fs.mkdir(path.join(extraDir, "assets"), { recursive: true });
   await fs.writeFile(path.join(extraDir, "index.md"), `---
+source_type: "answer"
 title: "分页回答 ${index + 1}"
 url: "https://www.zhihu.com/question/${id}/answer/${id + 1000}"
 author: "分页作者"
@@ -161,12 +153,6 @@ comment_count: 0
 `);
   await fs.writeFile(path.join(extraDir, "comments.json"), JSON.stringify({
     schema_version: 1,
-    target: {
-      type: "answer",
-      question_id: String(id),
-      answer_id: String(id + 1000),
-      article_id: ""
-    },
     url: `https://www.zhihu.com/question/${id}/answer/${id + 1000}`,
     time_exported: "2026-05-01T00:00:00.000Z",
     staged_count: 0,
@@ -182,7 +168,6 @@ ROOT_DIRECT_MARKER
 `);
 await fs.writeFile(path.join(rootDirectDir, "comments.json"), JSON.stringify({
   schema_version: 1,
-  target: { type: "answer" },
   comments: []
 }, null, 2));
 
@@ -253,9 +238,9 @@ assert.match(html, /data-preview-href="默认收藏夹\/question-123-answer-456\
 assert.doesNotMatch(html, /data-summary-prefix/);
 assert.doesNotMatch(html, /data-summary-truncated/);
 assert.match(html, /技术收藏\/article-789\/preview\.html/);
-assert.match(html, /这是一段用于生成摘要的回答正文，包含 链接 和 加粗文本/);
-assert.match(html, /<p class="summary-text" data-summary-row>\s*<span data-summary-copy>正文标题 这是一段用于生成摘要的回答正文/);
-assert.match(html, /data-summary-ellipsis/);
+assert.match(html, /来自 frontmatter 的固定摘要/);
+assert.doesNotMatch(html, /这是一段用于生成摘要的回答正文，包含 链接 和 加粗文本/);
+assert.match(html, /<p class="summary-text" data-summary-row>\s*<span data-summary-copy>来自 frontmatter 的固定摘要/);
 assert.match(html, /<button class="read-more" type="button" data-action="toggle-body"/);
 assert.match(html, /<div class="expand-panel expand-panel--body" data-panel="body" hidden><\/div>\s*<div class="feed-actions">/);
 assert.match(html, /\.action-pill \{[\s\S]*?font-weight: 400;/);

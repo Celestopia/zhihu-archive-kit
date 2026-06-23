@@ -19,7 +19,7 @@ export async function renderSavedFolder(folderPath) {
   const indexMarkdown = await fs.readFile(indexPath, "utf8");
   const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
   const parsed = parseMarkdownDocument(indexMarkdown);
-  const type = commentsJson.target?.type === "article" ? "article" : "answer";
+  const type = requireSourceType(parsed.metadata.source_type);
   const comments = commentsJson.comments || [];
   const title = parsed.metadata.title || (type === "article" ? "知乎文章" : "知乎回答");
 
@@ -53,6 +53,13 @@ export async function renderSavedFolder(folderPath) {
 
   await fs.writeFile(outputPath, html, "utf8");
   return outputPath;
+}
+
+function requireSourceType(value) {
+  if (value === "answer" || value === "article") {
+    return value;
+  }
+  throw new Error("index.md frontmatter must include source_type as answer or article.");
 }
 
 export function parseMarkdownDocument(markdown) {

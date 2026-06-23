@@ -172,12 +172,6 @@ article-<article_id>
 ```json
 {
   "schema_version": 1,
-  "target": {
-    "type": "answer",
-    "question_id": "123",
-    "answer_id": "456",
-    "article_id": ""
-  },
   "url": "...",
   "time_exported": "...",
   "staged_count": 0,
@@ -185,7 +179,7 @@ article-<article_id>
 }
 ```
 
-单条评论包含 `id`、`author`、`author_url`、`content`、`time_created`、`like_count`、`ip_location`、`image_url`、`reply_to_author`、`reply_to_author_url` 和 `children`。二级评论只出现在父评论的 `children` 中。评论图片下载成功时，`image_url` 指向 `./assets/comment-image-001.ext`；下载失败时保留远程 URL。
+`comments.json` 只保存评论区自身数据，不保存回答或文章的 `target` 身份字段。回答/文章类型、ID 和所属问题信息以 `index.md` frontmatter 为准。单条评论包含 `id`、`author`、`author_url`、`content`、`time_created`、`like_count`、`ip_location`、`image_url`、`reply_to_author`、`reply_to_author_url` 和 `children`。二级评论只出现在父评论的 `children` 中。评论图片下载成功时，`image_url` 指向 `./assets/comment-image-001.ext`；下载失败时保留远程 URL。
 
 ## 批量保存流程
 
@@ -264,13 +258,13 @@ npm run render:index -- output
 
 `index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过根目录直存内容和无元数据目录。
 
-每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和正文摘要，按 `time_exported` 倒序生成：
+每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和摘要，按 `time_exported` 倒序生成：
 
 ```text
 index.html
 ```
 
-导航页只内置标题、摘要、元数据、收藏夹名、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。左侧悬浮收藏夹菜单来自 `collection.json`，支持“所有”和单个收藏夹筛选；搜索和回答/文章类型筛选继续叠加生效。筛选结果在客户端分页显示，`index-page.mjs` 中的 `PAGE_SIZE = 20` 控制每页数量；切换收藏夹、类型或搜索时回到第一页。卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单页预览，右上角“阅读原文”链接在新窗口打开知乎原文。`preview.html` 和导航页卡片共用同一套渲染模板；区别是单篇预览默认显示全文，不显示摘要折叠控件。
+导航页只内置标题、摘要、元数据、收藏夹名、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。新保存内容优先读取 frontmatter 中的 `content_excerpt`；旧内容没有该字段时再从 Markdown 正文生成摘要。左侧悬浮收藏夹菜单来自 `collection.json`，支持“所有”和单个收藏夹筛选；搜索和回答/文章类型筛选继续叠加生效。筛选结果在客户端分页显示，`index-page.mjs` 中的 `PAGE_SIZE = 20` 控制每页数量；切换收藏夹、类型或搜索时回到第一页。卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单页预览，右上角“阅读原文”链接在新窗口打开知乎原文。`preview.html` 和导航页卡片共用同一套渲染模板；区别是单篇预览默认显示全文，不显示摘要折叠控件。
 
 推荐通过本地服务打开：
 
@@ -306,6 +300,7 @@ Markdown frontmatter 字段为：
 
 ```yaml
 ---
+source_type: "answer"
 title: "..."
 url: "..."
 author: "..."
@@ -324,8 +319,11 @@ upvote_count: 0
 comment_count: 0
 like_count: 0
 favorite_count: 0
+content_excerpt: "..."
 ---
 ```
+
+`source_type` 由保存目标写入，值为 `answer` 或 `article`。`content_excerpt` 由保存核心从 Markdown 正文生成，是本地导航页使用的纯文本摘要。
 
 `target.js` 优先从 `meta[itemprop]` 标签读取元数据。回答页通常使用 `dateCreated`、`dateModified`、`upvoteCount`、`commentCount`；文章页通常使用 `datePublished`、`dateModified`、`commentCount`。回答所属问题的元信息从 `.QuestionPage` 范围内读取 `url`、`dateCreated`、`dateModified`、`answerCount`、`commentCount`、`zhihu:followerCount` 和 `keywords`，并写入 `question_*` frontmatter 字段；`question_url` 只来自 `meta[itemprop='url']`，缺失时保存为空字符串；`question_topic` 是逗号分隔字符串。
 
