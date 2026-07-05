@@ -550,6 +550,7 @@ export function renderCardScript() {
         panel.hidden = true;
         if (panelName === "body") {
           restoreSummary(card);
+          collapseComments(card);
         } else {
           setButtonState(button, "评论区", false);
         }
@@ -615,6 +616,17 @@ export function renderCardScript() {
       }
       if (topCollapseButton) {
         topCollapseButton.hidden = true;
+      }
+    }
+
+    function collapseComments(card) {
+      const commentsPanel = card.querySelector('[data-panel="comments"]');
+      const commentsButton = card.querySelector('[data-action="toggle-comments"]');
+      if (commentsPanel) {
+        commentsPanel.hidden = true;
+      }
+      if (commentsButton) {
+        setButtonState(commentsButton, "评论区", false);
       }
     }
 
