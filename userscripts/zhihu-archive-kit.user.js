@@ -967,53 +967,43 @@ function normalizeCommentTime(value) {
     return "";
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
-    return text;
+    return text.slice(0, 10);
   }
   if (/^\d{2}-\d{2}$/.test(text)) {
     const date = new Date();
     const [month, day] = text.split("-").map((part) => Number(part));
     date.setMonth(month - 1, day);
     date.setHours(0, 0, 0, 0);
-    return formatLocalDate(date, false);
+    return formatLocalDate(date);
   }
   if (text.includes("分钟前")) {
     const date = new Date();
     date.setMinutes(date.getMinutes() - Number.parseInt(text, 10));
     date.setSeconds(0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   if (text.includes("小时前")) {
     const date = new Date();
     date.setHours(date.getHours() - Number.parseInt(text, 10));
-    date.setMinutes(0, 0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   if (text.includes("昨天")) {
     const date = new Date();
     date.setDate(date.getDate() - 1);
-    date.setSeconds(0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   if (text === "刚刚") {
     const date = new Date();
-    date.setSeconds(0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   return text;
 }
 
-function formatLocalDate(date, includeTime) {
+function formatLocalDate(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-  if (!includeTime) {
-    return `${year}-${month}-${day}`;
-  }
-
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return `${year}-${month}-${day}`;
 }
 
 
@@ -1129,15 +1119,19 @@ __webpack_require__.r(__webpack_exports__);
 function extractPage({ root, metadata }) {
   const media = [];
   const blocks = parseBlocks(root, media);
+  const pageMetadata = {
+    ...metadata,
+    ...extractRenderedQuestionDescription(metadata, media)
+  };
 
   return {
-    metadata,
+    metadata: pageMetadata,
     markdown: blocks.filter(Boolean).join("\n\n").replace(/\n{3,}/g, "\n\n").trim(),
     media
   };
 }
 
-function parseBlocks(container, media) {
+function parseBlocks(container, media, options = {}) {
   const blocks = [];
 
   for (const node of Array.from(container.childNodes)) {
@@ -1145,7 +1139,7 @@ function parseBlocks(container, media) {
       continue;
     }
 
-    const rendered = renderBlock(node, media);
+    const rendered = renderBlock(node, media, options);
     if (Array.isArray(rendered)) {
       blocks.push(...rendered.filter(Boolean));
     } else if (rendered) {
@@ -1156,48 +1150,48 @@ function parseBlocks(container, media) {
   return blocks;
 }
 
-function renderBlock(node, media) {
+function renderBlock(node, media, options = {}) {
   const tag = node.tagName.toLowerCase();
 
   // Heading levels map directly to Markdown heading depth.
   if (tag === "h1") {
-    return `# ${renderRich(node, media).trim()}`;
+    return `# ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h2") {
-    return `## ${renderRich(node, media).trim()}`;
+    return `## ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h3") {
-    return `### ${renderRich(node, media).trim()}`;
+    return `### ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h4") {
-    return `#### ${renderRich(node, media).trim()}`;
+    return `#### ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h5") {
-    return `##### ${renderRich(node, media).trim()}`;
+    return `##### ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h6") {
-    return `###### ${renderRich(node, media).trim()}`;
+    return `###### ${renderRich(node, media, options).trim()}`;
   }
 
   if (tag === "p") {
-    return renderRich(node, media).trim();
+    return renderRich(node, media, options).trim();
   }
   if (tag === "blockquote") {
-    const quoteBlocks = parseBlocks(node, media);
-    const text = quoteBlocks.length > 0 ? quoteBlocks.join("\n\n") : renderRich(node, media).trim();
+    const quoteBlocks = parseBlocks(node, media, options);
+    const text = quoteBlocks.length > 0 ? quoteBlocks.join("\n\n") : renderRich(node, media, options).trim();
     return text.split("\n").map((line) => `> ${line}`.trimEnd()).join("\n");
   }
   if (tag === "figure") {
-    return renderFigure(node, media);
+    return renderFigure(node, media, options);
   }
   if (tag === "ul" || tag === "ol") {
-    return renderList(node, tag === "ol", media);
+    return renderList(node, tag === "ol", media, options);
   }
   if (tag === "hr") {
     return "---";
   }
   if (tag === "table") {
-    return renderTable(node, media);
+    return renderTable(node, media, options);
   }
   if (tag === "pre") {
     return renderCodeBlock(node);
@@ -1222,7 +1216,7 @@ function renderBlock(node, media) {
       return renderVideo(video, media);
     }
 
-    const nested = parseBlocks(node, media);
+    const nested = parseBlocks(node, media, options);
     if (nested.length > 0) {
       return nested;
     }
@@ -1233,10 +1227,10 @@ function renderBlock(node, media) {
     return renderVideo(video, media);
   }
 
-  return renderRich(node, media).trim();
+  return renderRich(node, media, options).trim();
 }
 
-function renderRich(node, media) {
+function renderRich(node, media, options = {}) {
   let output = "";
 
   for (const child of Array.from(node.childNodes)) {
@@ -1252,9 +1246,9 @@ function renderRich(node, media) {
     const tag = el.tagName.toLowerCase();
 
     if (tag === "b" || tag === "strong") {
-      output += `**${renderRich(el, media)}**`;
+      output += `**${renderRich(el, media, options)}**`;
     } else if (tag === "i" || tag === "em") {
-      output += `*${renderRich(el, media)}*`;
+      output += `*${renderRich(el, media, options)}*`;
     } else if (tag === "br") {
       output += "\n";
     } else if (tag === "code") {
@@ -1264,9 +1258,9 @@ function renderRich(node, media) {
     } else if (tag === "span" && el.classList.contains("ztext-math")) {
       output += renderMath(el);
     } else if (tag === "img") {
-      output += renderImage(el, media);
+      output += renderImage(el, media, options);
     } else {
-      output += renderRich(el, media);
+      output += renderRich(el, media, options);
     }
   }
 
@@ -1303,12 +1297,12 @@ function renderMath(el) {
   return `$${tex}$`;
 }
 
-function renderFigure(figure, media) {
+function renderFigure(figure, media, options = {}) {
   const img = figure.querySelector("img");
-  return img ? renderImage(img, media) : "";
+  return img ? renderImage(img, media, options) : "";
 }
 
-function renderImage(img, media) {
+function renderImage(img, media, options = {}) {
   let src = (0,_media_js__WEBPACK_IMPORTED_MODULE_0__.selectImageUrl)(img);
   if (!src) {
     return "";
@@ -1319,7 +1313,7 @@ function renderImage(img, media) {
     src = (0,_media_js__WEBPACK_IMPORTED_MODULE_0__.guessGifUrl)(src);
   }
 
-  const placeholder = (0,_media_js__WEBPACK_IMPORTED_MODULE_0__.registerMedia)(media, src, isGif ? "gif" : "image");
+  const placeholder = (0,_media_js__WEBPACK_IMPORTED_MODULE_0__.registerMedia)(media, src, options.imageKind || (isGif ? "gif" : "image"));
   const alt = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.escapeLinkText)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(img.getAttribute("alt") || ""));
   return `![${alt}](${placeholder})`;
 }
@@ -1348,36 +1342,36 @@ function renderCodeBlock(node) {
   return `${fence}${language}\n${content}\n${fence}`;
 }
 
-function renderList(list, ordered, media) {
+function renderList(list, ordered, media, options = {}) {
   const items = Array.from(list.children).filter((child) => child.tagName.toLowerCase() === "li");
   return items.map((item, index) => {
     const marker = ordered ? `${index + 1}.` : "-";
-    const text = renderListItem(item, media);
+    const text = renderListItem(item, media, options);
     return `${marker} ${text}`;
   }).join("\n");
 }
 
-function renderListItem(item, media) {
+function renderListItem(item, media, options = {}) {
   const blockChildren = Array.from(item.children).filter((child) => {
     const tag = child.tagName.toLowerCase();
     return ["p", "blockquote", "pre", "div", "figure", "table"].includes(tag);
   });
 
   if (blockChildren.length === 0) {
-    return renderRich(item, media).trim().replace(/\n+/g, "\n  ");
+      return renderRich(item, media, options).trim().replace(/\n+/g, "\n  ");
   }
 
   return blockChildren.map((child) => {
     if (child.tagName.toLowerCase() === "p") {
-      return renderRich(child, media).trim();
+      return renderRich(child, media, options).trim();
     }
-    return renderBlock(child, media);
+    return renderBlock(child, media, options);
   }).filter(Boolean).join("\n  ");
 }
 
-function renderTable(table, media) {
+function renderTable(table, media, options = {}) {
   const rows = Array.from(table.rows).map((row) => {
-    return Array.from(row.cells).map((cell) => compactTableCell(renderRich(cell, media)));
+    return Array.from(row.cells).map((cell) => compactTableCell(renderRich(cell, media, options)));
   });
 
   if (rows.length === 0) {
@@ -1435,6 +1429,7 @@ function renderQuestionMetadata(metadata) {
 
   return [
     `question_title: ${yamlString(metadata.question_title)}`,
+    `question_description: ${yamlString(metadata.question_description)}`,
     `question_url: ${yamlString(metadata.question_url)}`,
     `question_time_created: ${yamlString(metadata.question_time_created)}`,
     `question_time_modified: ${yamlString(metadata.question_time_modified)}`,
@@ -1443,6 +1438,35 @@ function renderQuestionMetadata(metadata) {
     `question_follower_count: ${yamlNumberOrEmptyString(metadata.question_follower_count)}`,
     `question_topic: ${yamlString(metadata.question_topic)}`
   ];
+}
+
+function extractRenderedQuestionDescription(metadata, media) {
+  if (!metadata.answer_id && !metadata.question_id) {
+    return {};
+  }
+
+  const root = document.querySelector(".QuestionPage .QuestionRichText");
+  if (!root) {
+    return { question_description: "" };
+  }
+
+  if (root.classList.contains("QuestionRichText--collapsed")) {
+    return {
+      question_description: (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.cleanText)(root.querySelector("[itemprop='text']")?.textContent || "")
+    };
+  }
+
+  const richText = root.querySelector(".RichText[itemprop='text']")
+    || root.querySelector("[itemprop='text']");
+  if (!richText) {
+    return { question_description: "" };
+  }
+
+  const blocks = parseBlocks(richText, media, { imageKind: "question-image" });
+  const rendered = blocks.length > 0 ? blocks.join("\n\n") : renderRich(richText, media, { imageKind: "question-image" });
+  return {
+    question_description: rendered.replace(/\n{3,}/g, "\n\n").trim()
+  };
 }
 
 function yamlString(value) {
@@ -1527,6 +1551,7 @@ async function downloadMediaAssets(media, options = {}) {
   const seenSources = new Set();
   const counters = {
     image: 0,
+    "question-image": 0,
     gif: 0,
     video: 0,
     media: 0
@@ -1538,17 +1563,19 @@ async function downloadMediaAssets(media, options = {}) {
       continue;
     }
 
-    if (seenSources.has(item.src)) {
+    const kind = normalizedMediaKind(item.kind, counters);
+    const key = mediaResultKey(item.src, kind);
+    if (seenSources.has(key)) {
       continue;
     }
-    seenSources.add(item.src);
+    seenSources.add(key);
 
-    const kind = counters[item.kind] === undefined ? "media" : item.kind;
     counters[kind] += 1;
     tasks.push({
       src: item.src,
       kind,
-      index: counters[kind]
+      index: counters[kind],
+      key
     });
   }
 
@@ -1559,7 +1586,8 @@ async function downloadMediaAssets(media, options = {}) {
     if (!item.src) {
       continue;
     }
-    const result = sourceResults.get(item.src);
+    const kind = normalizedMediaKind(item.kind, counters);
+    const result = sourceResults.get(mediaResultKey(item.src, kind));
     replacements.set(item.placeholder, result?.localPath || item.src);
   }
 
@@ -1586,13 +1614,13 @@ async function runMediaDownloadQueue(tasks, options) {
 
       try {
         const downloaded = await downloadOneMedia(task.src, task.kind, task.index);
-        results.set(task.src, {
+        results.set(task.key, {
           localPath: `./assets/${downloaded.fileName}`,
           asset: downloaded
         });
       } catch (error) {
         console.warn(`[Zhihu Archive Kit] failed to download ${task.src}:`, error);
-        results.set(task.src, {
+        results.set(task.key, {
           localPath: task.src,
           asset: null
         });
@@ -1605,6 +1633,14 @@ async function runMediaDownloadQueue(tasks, options) {
 
   await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
   return results;
+}
+
+function normalizedMediaKind(kind, counters) {
+  return counters[kind] === undefined ? "media" : kind;
+}
+
+function mediaResultKey(src, kind) {
+  return `${kind}\n${src}`;
 }
 
 async function downloadOneMedia(src, kind, index) {
@@ -2700,6 +2736,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   DEFAULT_COLLECTION_NAME: () => (/* binding */ DEFAULT_COLLECTION_NAME),
 /* harmony export */   changeExportRootDirectory: () => (/* binding */ changeExportRootDirectory),
 /* harmony export */   createCollection: () => (/* binding */ createCollection),
+/* harmony export */   findSavedCollectionsForFolder: () => (/* binding */ findSavedCollectionsForFolder),
 /* harmony export */   listCollections: () => (/* binding */ listCollections),
 /* harmony export */   supportsDirectoryPicker: () => (/* binding */ supportsDirectoryPicker),
 /* harmony export */   writeArtifactToCollection: () => (/* binding */ writeArtifactToCollection),
@@ -2745,6 +2782,26 @@ async function writeArtifactToCollection(artifact, collectionName) {
   for (const asset of artifact.assets) {
     await writeFile(assetsFolder, asset.fileName, asset.data);
   }
+}
+
+async function findSavedCollectionsForFolder(folderName) {
+  if (!supportsDirectoryPicker()) {
+    return [];
+  }
+
+  const root = await getGrantedExportRootDirectory();
+  if (!root) {
+    return [];
+  }
+
+  const collections = await listExistingCollections(root);
+  const savedCollections = [];
+  for (const collection of collections) {
+    if (await directoryExists(collection.handle, folderName)) {
+      savedCollections.push(collection.name);
+    }
+  }
+  return savedCollections;
 }
 
 async function listCollections() {
@@ -2831,9 +2888,48 @@ async function getExportRootDirectory() {
   return changeExportRootDirectory();
 }
 
+async function getGrantedExportRootDirectory() {
+  const stored = await readStoredDirectoryHandle();
+  if (!stored) {
+    return null;
+  }
+  return await hasReadWritePermission(stored) ? stored : null;
+}
+
 async function ensureDefaultCollection(root) {
   const collection = await root.getDirectoryHandle(DEFAULT_COLLECTION_NAME, { create: true });
   return ensureCollectionMetadata(collection, DEFAULT_COLLECTION_NAME, "");
+}
+
+async function listExistingCollections(root) {
+  const collections = [];
+  for await (const [name, handle] of root.entries()) {
+    if (handle.kind !== "directory") {
+      continue;
+    }
+    if (await isContentDirectory(handle)) {
+      continue;
+    }
+    if (!await fileExists(handle, COLLECTION_METADATA_FILE)) {
+      continue;
+    }
+
+    const metadata = await readCollectionMetadata(handle);
+    collections.push({
+      name: metadata.name || name,
+      handle
+    });
+  }
+
+  return collections.sort((a, b) => {
+    if (a.name === DEFAULT_COLLECTION_NAME) {
+      return -1;
+    }
+    if (b.name === DEFAULT_COLLECTION_NAME) {
+      return 1;
+    }
+    return a.name.localeCompare(b.name, "zh-Hans-CN");
+  });
 }
 
 async function getCollectionDirectory(root, collectionName) {
@@ -2872,9 +2968,19 @@ async function ensureCollectionMetadata(collection, name, description) {
   });
 }
 
+async function readCollectionMetadata(collection) {
+  const handle = await collection.getFileHandle(COLLECTION_METADATA_FILE, { create: false });
+  const file = await handle.getFile();
+  return JSON.parse(await file.text());
+}
+
 async function writeCollectionMetadata(collection, metadata) {
   await writeFile(collection, COLLECTION_METADATA_FILE, `${JSON.stringify(metadata, null, 2)}\n`);
   return metadata;
+}
+
+async function hasReadWritePermission(handle) {
+  return await handle.queryPermission({ mode: "readwrite" }) === "granted";
 }
 
 async function ensureReadWritePermission(handle) {
@@ -3013,7 +3119,7 @@ async function saveCurrentPageAsZip(button) {
   await saveZipWithButton(button, _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageZip);
 }
 
-async function changeDirectoryWithButton(button) {
+async function changeDirectoryWithButton(button, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "选择目录...", true);
@@ -3021,7 +3127,7 @@ async function changeDirectoryWithButton(button) {
   try {
     await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.changeExportRootDirectory)();
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "目录已更改", true);
-    resetButtonLater(button, originalText, 1600);
+    resetButtonLater(button, originalText, 1600, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] change directory failed:", error);
     button.disabled = false;
@@ -3035,7 +3141,7 @@ async function changeDirectoryWithButton(button) {
   }
 }
 
-async function saveArtifactWithButton(button, buildArtifact) {
+async function saveArtifactWithButton(button, buildArtifact, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "载入收藏夹...", true);
@@ -3044,7 +3150,7 @@ async function saveArtifactWithButton(button, buildArtifact) {
     const collections = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)();
     button.disabled = false;
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
-    showCollectionMenu(button, buildArtifact, collections);
+    showCollectionMenu(button, buildArtifact, collections, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] collection menu failed:", error);
     button.disabled = false;
@@ -3056,7 +3162,7 @@ async function saveArtifactWithButton(button, buildArtifact) {
   }
 }
 
-function showCollectionMenu(button, buildArtifact, collections) {
+function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
   const control = button.closest(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}`);
   if (!control) {
     throw new Error("找不到保存控件。");
@@ -3089,7 +3195,7 @@ function showCollectionMenu(button, buildArtifact, collections) {
   saveButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-save`;
   saveButton.textContent = "保存";
   saveButton.addEventListener("click", async () => {
-    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, select.value, menu);
+    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, select.value, menu, refreshStatus);
   });
 
   const cancelButton = document.createElement("button");
@@ -3141,7 +3247,7 @@ async function createCollectionFromPrompt(select) {
   }
 }
 
-async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, collectionName, menu) {
+async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, collectionName, menu, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存中...", true);
@@ -3161,7 +3267,7 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
 
     menu.remove();
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存成功", true);
-    resetButtonLater(button, originalText, 1600);
+    resetButtonLater(button, originalText, 1600, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] folder save failed:", error);
     button.disabled = false;
@@ -3221,9 +3327,18 @@ function showUserError(error, fallbackMessage) {
   window.alert(`${fallbackMessage}：${message}`);
 }
 
-function resetButtonLater(button, text, delayMs) {
-  window.setTimeout(() => {
+function resetButtonLater(button, text, delayMs, refreshStatus) {
+  window.setTimeout(async () => {
     button.disabled = false;
+    if (refreshStatus) {
+      try {
+        await refreshStatus();
+      } catch (error) {
+        console.warn("[Zhihu Archive Kit] save status refresh failed:", error);
+        (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, text, true);
+      }
+      return;
+    }
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, text, true);
   }, delayMs);
 }
@@ -3242,10 +3357,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   createSaveControl: () => (/* binding */ createSaveControl),
 /* harmony export */   ensureSaveControlStyle: () => (/* binding */ ensureSaveControlStyle),
 /* harmony export */   removeSaveControls: () => (/* binding */ removeSaveControls),
-/* harmony export */   setButtonState: () => (/* binding */ setButtonState)
+/* harmony export */   setButtonState: () => (/* binding */ setButtonState),
+/* harmony export */   setSavedStatus: () => (/* binding */ setSavedStatus),
+/* harmony export */   setUnsavedStatus: () => (/* binding */ setUnsavedStatus)
 /* harmony export */ });
 /* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./constants.js */ "./src/userscript/constants.js");
 
+
+const DEFAULT_SAVE_BUTTON_TEXT = "保存";
+const DEFAULT_SAVE_BUTTON_TITLE = "选择收藏夹后保存当前知乎回答/文章到本地目录";
 
 /**
  * UI helpers for content-bound save controls.
@@ -3428,8 +3548,8 @@ function createSaveControl(onSave, onZip, onChangeDirectory) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__primary`;
-  button.textContent = "保存";
-  button.title = "选择收藏夹后保存当前知乎回答/文章到本地目录";
+  button.textContent = DEFAULT_SAVE_BUTTON_TEXT;
+  button.title = DEFAULT_SAVE_BUTTON_TITLE;
   button.addEventListener("click", async (event) => {
     event.stopPropagation();
     await onSave(button);
@@ -3476,6 +3596,23 @@ function createSaveControl(onSave, onZip, onChangeDirectory) {
 function setButtonState(button, text, ok) {
   button.textContent = text;
   button.style.background = ok ? "" : "#c02c38";
+}
+
+function setSavedStatus(button, collectionNames) {
+  if (!collectionNames.length) {
+    setUnsavedStatus(button);
+    return;
+  }
+
+  button.textContent = "已保存";
+  button.title = `已保存于：${collectionNames.join("、")}`;
+  button.style.background = "";
+}
+
+function setUnsavedStatus(button) {
+  button.textContent = DEFAULT_SAVE_BUTTON_TEXT;
+  button.title = DEFAULT_SAVE_BUTTON_TITLE;
+  button.style.background = "";
 }
 
 function removeSaveControls() {
@@ -3559,9 +3696,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
 /* harmony import */ var _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../save-core/markdown.js */ "./src/save-core/markdown.js");
 /* harmony import */ var _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../save-core/target.js */ "./src/save-core/target.js");
-/* harmony import */ var _comment_staging_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./comment-staging.js */ "./src/userscript/comment-staging.js");
-/* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
-/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+/* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
+/* harmony import */ var _comment_staging_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./comment-staging.js */ "./src/userscript/comment-staging.js");
+/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
+/* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
+/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
+
+
 
 
 
@@ -3585,7 +3726,7 @@ boot();
 
 function boot() {
   exposeTestApi();
-  (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_5__.mountCommentStaging)();
+  (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_6__.mountCommentStaging)();
   (0,_batch_client_js__WEBPACK_IMPORTED_MODULE_1__.startBatchClient)();
   scheduleInject();
 
@@ -3625,11 +3766,11 @@ function scheduleInject() {
 
 function injectControls() {
   if (!isManualSavePage()) {
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.removeSaveControls)();
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.removeSaveControls)();
     return;
   }
 
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.ensureSaveControlStyle)();
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.ensureSaveControlStyle)();
   injectAnswerControls();
   injectArticleControl();
 }
@@ -3643,25 +3784,31 @@ function injectAnswerControls() {
       continue;
     }
 
+    let target;
     try {
-      (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractAnswerTarget)(answerItem);
+      target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractAnswerTarget)(answerItem);
     } catch {
       continue;
     }
 
+    const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(target);
     const host = answerItem.querySelector(".RichContent") || answerItem;
     host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
-    host.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveArtifactWithButton)(
+    const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArtifactWithButton)(
         button,
-        (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options))
+        (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options)),
+        () => refreshSaveStatus(control, folderName)
       ),
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveZipWithButton)(
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(
         button,
         (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
       ),
-      _single_save_js__WEBPACK_IMPORTED_MODULE_6__.changeDirectoryWithButton
-    ));
+      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.changeDirectoryWithButton)(button, () => refreshAllSaveStatuses())
+    );
+    control.setAttribute("data-zhmd-folder-name", folderName);
+    host.prepend(control);
+    refreshSaveStatus(control, folderName);
     answerItem.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "answer");
   }
 }
@@ -3685,25 +3832,50 @@ function injectArticleControl() {
     return;
   }
 
+  const articleTarget = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractArticleTarget)(articleRoot);
+  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(articleTarget);
   articleHost.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
-  articleHost.prepend((0,_ui_js__WEBPACK_IMPORTED_MODULE_7__.createSaveControl)(
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveArtifactWithButton)(
+  const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArtifactWithButton)(
       button,
-      (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options))
+      (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options)),
+      () => refreshSaveStatus(control, folderName)
     ),
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_6__.saveZipWithButton)(
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(
       button,
       (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
     ),
-    _single_save_js__WEBPACK_IMPORTED_MODULE_6__.changeDirectoryWithButton
-  ));
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.changeDirectoryWithButton)(button, () => refreshAllSaveStatuses())
+  );
+  control.setAttribute("data-zhmd-folder-name", folderName);
+  articleHost.prepend(control);
+  refreshSaveStatus(control, folderName);
   articleRoot.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "article");
+}
+
+async function refreshSaveStatus(control, folderName) {
+  const button = control.querySelector(".zhmd-save-control__primary");
+  if (!button || button.disabled) {
+    return;
+  }
+
+  try {
+    const collectionNames = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_7__.findSavedCollectionsForFolder)(folderName);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.setSavedStatus)(button, collectionNames);
+  } catch (error) {
+    console.warn("[Zhihu Archive Kit] saved status check failed:", error);
+  }
+}
+
+async function refreshAllSaveStatuses() {
+  await Promise.all(Array.from(document.querySelectorAll("[data-zhmd-folder-name]"))
+    .map((control) => refreshSaveStatus(control, control.getAttribute("data-zhmd-folder-name") || "")));
 }
 
 function withCommentProvider(options) {
   return {
     ...options,
-    commentsProvider: ({ target }) => (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_5__.getStagedCommentsForTarget)(target)
+    commentsProvider: ({ target }) => (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_6__.getStagedCommentsForTarget)(target)
   };
 }
 

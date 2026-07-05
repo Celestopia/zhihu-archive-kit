@@ -102,7 +102,7 @@ src/save-core/target.js -> extractMetadata()
 
 本项目用途：
 
-- 写入回答 `index.md` frontmatter 的 `question_title`、`question_url`、`question_time_created`、`question_time_modified`、`question_answer_count`、`question_comment_count`、`question_follower_count` 和 `question_topic`。
+- 写入回答 `index.md` frontmatter 的 `question_title`、`question_description`、`question_url`、`question_time_created`、`question_time_modified`、`question_answer_count`、`question_comment_count`、`question_follower_count` 和 `question_topic`。
 - `question_title` 来源于 `.QuestionPage meta[itemprop='name']`。回答预览页和本地导航页中的问题标题应读取该字段。
 - `question_url` 只来源于 `.QuestionPage meta[itemprop='url']`。如果该 meta 缺失，保存为空字符串，不根据 `question_id` 推导。
 - `question_topic` 来源于 `meta[itemprop='keywords']`，保存为逗号分隔字符串。
@@ -112,7 +112,34 @@ src/save-core/target.js -> extractMetadata()
 
 ```text
 src/save-core/target.js -> extractQuestionMetadata()
+src/save-core/markdown.js -> extractRenderedQuestionDescription()
 ```
+
+### 问题描述区域
+
+问题描述位于问题头部的 `.QuestionRichText`。折叠状态下通常是：
+
+```html
+<div class="QuestionRichText QuestionRichText--expandable QuestionRichText--collapsed">
+  <div>
+    <span itemprop="text">可见截断文本…</span>
+    <button class="QuestionRichText-more">显示全部</button>
+  </div>
+</div>
+```
+
+展开后通常包含完整富文本：
+
+```html
+<div class="QuestionRichText QuestionRichText--expandable">
+  <span class="RichText ztext" itemprop="text">
+    <p>第一段</p>
+    <p>第二段</p>
+  </span>
+</div>
+```
+
+本项目不会自动点击 `.QuestionRichText-more`。保存时读取当前状态：折叠时只保存 `[itemprop='text']` 的可见文本；展开时用 `.RichText[itemprop='text']` 渲染完整 Markdown。描述中的图片注册为 `question-image` 媒体资源。
 
 ### 回答卡片根节点
 

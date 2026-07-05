@@ -13,13 +13,16 @@ import { applyMediaReplacements, renderDocument } from "../save-core/markdown.js
 import {
   detectTarget,
   extractAnswerTarget,
+  extractArticleTarget,
   findAnswerContentRoot,
   findArticleContentRoot,
   findArticleRoot
 } from "../save-core/target.js";
+import { targetFolderName } from "../shared/url.js";
 import { getStagedCommentsForTarget, mountCommentStaging } from "./comment-staging.js";
+import { findSavedCollectionsForFolder } from "./directory-save.js";
 import { changeDirectoryWithButton, saveArtifactWithButton, saveZipWithButton } from "./single-save.js";
-import { createSaveControl, ensureSaveControlStyle, removeSaveControls } from "./ui.js";
+import { createSaveControl, ensureSaveControlStyle, removeSaveControls, setSavedStatus } from "./ui.js";
 
 /**
  * Tampermonkey entry point.
@@ -93,25 +96,31 @@ function injectAnswerControls() {
       continue;
     }
 
+    let target;
     try {
-      extractAnswerTarget(answerItem);
+      target = extractAnswerTarget(answerItem);
     } catch {
       continue;
     }
 
+    const folderName = targetFolderName(target);
     const host = answerItem.querySelector(".RichContent") || answerItem;
     host.classList.add(CONTROL_HOST_CLASS);
-    host.prepend(createSaveControl(
+    const control = createSaveControl(
       (button) => saveArtifactWithButton(
         button,
-        (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options))
+        (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options)),
+        () => refreshSaveStatus(control, folderName)
       ),
       (button) => saveZipWithButton(
         button,
         (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
       ),
-      changeDirectoryWithButton
-    ));
+      (button) => changeDirectoryWithButton(button, () => refreshAllSaveStatuses())
+    );
+    control.setAttribute("data-zhmd-folder-name", folderName);
+    host.prepend(control);
+    refreshSaveStatus(control, folderName);
     answerItem.setAttribute(CONTROL_BOUND_ATTR, "answer");
   }
 }
@@ -135,19 +144,44 @@ function injectArticleControl() {
     return;
   }
 
+  const articleTarget = extractArticleTarget(articleRoot);
+  const folderName = targetFolderName(articleTarget);
   articleHost.classList.add(CONTROL_HOST_CLASS);
-  articleHost.prepend(createSaveControl(
+  const control = createSaveControl(
     (button) => saveArtifactWithButton(
       button,
-      (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options))
+      (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options)),
+      () => refreshSaveStatus(control, folderName)
     ),
     (button) => saveZipWithButton(
       button,
       (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
     ),
-    changeDirectoryWithButton
-  ));
+    (button) => changeDirectoryWithButton(button, () => refreshAllSaveStatuses())
+  );
+  control.setAttribute("data-zhmd-folder-name", folderName);
+  articleHost.prepend(control);
+  refreshSaveStatus(control, folderName);
   articleRoot.setAttribute(CONTROL_BOUND_ATTR, "article");
+}
+
+async function refreshSaveStatus(control, folderName) {
+  const button = control.querySelector(".zhmd-save-control__primary");
+  if (!button || button.disabled) {
+    return;
+  }
+
+  try {
+    const collectionNames = await findSavedCollectionsForFolder(folderName);
+    setSavedStatus(button, collectionNames);
+  } catch (error) {
+    console.warn("[Zhihu Archive Kit] saved status check failed:", error);
+  }
+}
+
+async function refreshAllSaveStatuses() {
+  await Promise.all(Array.from(document.querySelectorAll("[data-zhmd-folder-name]"))
+    .map((control) => refreshSaveStatus(control, control.getAttribute("data-zhmd-folder-name") || "")));
 }
 
 function withCommentProvider(options) {

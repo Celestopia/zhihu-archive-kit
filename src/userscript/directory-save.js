@@ -40,6 +40,26 @@ export async function writeArtifactToCollection(artifact, collectionName) {
   }
 }
 
+export async function findSavedCollectionsForFolder(folderName) {
+  if (!supportsDirectoryPicker()) {
+    return [];
+  }
+
+  const root = await getGrantedExportRootDirectory();
+  if (!root) {
+    return [];
+  }
+
+  const collections = await listExistingCollections(root);
+  const savedCollections = [];
+  for (const collection of collections) {
+    if (await directoryExists(collection.handle, folderName)) {
+      savedCollections.push(collection.name);
+    }
+  }
+  return savedCollections;
+}
+
 export async function listCollections() {
   if (!supportsDirectoryPicker()) {
     throw new Error("当前浏览器不支持保存到文件夹，请使用 Chrome/Edge，或通过齿轮菜单下载 ZIP。");
@@ -124,9 +144,48 @@ async function getExportRootDirectory() {
   return changeExportRootDirectory();
 }
 
+async function getGrantedExportRootDirectory() {
+  const stored = await readStoredDirectoryHandle();
+  if (!stored) {
+    return null;
+  }
+  return await hasReadWritePermission(stored) ? stored : null;
+}
+
 async function ensureDefaultCollection(root) {
   const collection = await root.getDirectoryHandle(DEFAULT_COLLECTION_NAME, { create: true });
   return ensureCollectionMetadata(collection, DEFAULT_COLLECTION_NAME, "");
+}
+
+async function listExistingCollections(root) {
+  const collections = [];
+  for await (const [name, handle] of root.entries()) {
+    if (handle.kind !== "directory") {
+      continue;
+    }
+    if (await isContentDirectory(handle)) {
+      continue;
+    }
+    if (!await fileExists(handle, COLLECTION_METADATA_FILE)) {
+      continue;
+    }
+
+    const metadata = await readCollectionMetadata(handle);
+    collections.push({
+      name: metadata.name || name,
+      handle
+    });
+  }
+
+  return collections.sort((a, b) => {
+    if (a.name === DEFAULT_COLLECTION_NAME) {
+      return -1;
+    }
+    if (b.name === DEFAULT_COLLECTION_NAME) {
+      return 1;
+    }
+    return a.name.localeCompare(b.name, "zh-Hans-CN");
+  });
 }
 
 async function getCollectionDirectory(root, collectionName) {
@@ -165,9 +224,19 @@ async function ensureCollectionMetadata(collection, name, description) {
   });
 }
 
+async function readCollectionMetadata(collection) {
+  const handle = await collection.getFileHandle(COLLECTION_METADATA_FILE, { create: false });
+  const file = await handle.getFile();
+  return JSON.parse(await file.text());
+}
+
 async function writeCollectionMetadata(collection, metadata) {
   await writeFile(collection, COLLECTION_METADATA_FILE, `${JSON.stringify(metadata, null, 2)}\n`);
   return metadata;
+}
+
+async function hasReadWritePermission(handle) {
+  return await handle.queryPermission({ mode: "readwrite" }) === "granted";
 }
 
 async function ensureReadWritePermission(handle) {

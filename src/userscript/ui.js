@@ -1,5 +1,8 @@
 import { CONTROL_CLASS, CONTROL_HOST_CLASS, CONTROL_STYLE_ID } from "./constants.js";
 
+const DEFAULT_SAVE_BUTTON_TEXT = "保存";
+const DEFAULT_SAVE_BUTTON_TITLE = "选择收藏夹后保存当前知乎回答/文章到本地目录";
+
 /**
  * UI helpers for content-bound save controls.
  *
@@ -181,8 +184,8 @@ export function createSaveControl(onSave, onZip, onChangeDirectory) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = `${CONTROL_CLASS}__primary`;
-  button.textContent = "保存";
-  button.title = "选择收藏夹后保存当前知乎回答/文章到本地目录";
+  button.textContent = DEFAULT_SAVE_BUTTON_TEXT;
+  button.title = DEFAULT_SAVE_BUTTON_TITLE;
   button.addEventListener("click", async (event) => {
     event.stopPropagation();
     await onSave(button);
@@ -229,6 +232,23 @@ export function createSaveControl(onSave, onZip, onChangeDirectory) {
 export function setButtonState(button, text, ok) {
   button.textContent = text;
   button.style.background = ok ? "" : "#c02c38";
+}
+
+export function setSavedStatus(button, collectionNames) {
+  if (!collectionNames.length) {
+    setUnsavedStatus(button);
+    return;
+  }
+
+  button.textContent = "已保存";
+  button.title = `已保存于：${collectionNames.join("、")}`;
+  button.style.background = "";
+}
+
+export function setUnsavedStatus(button) {
+  button.textContent = DEFAULT_SAVE_BUTTON_TEXT;
+  button.title = DEFAULT_SAVE_BUTTON_TITLE;
+  button.style.background = "";
 }
 
 export function removeSaveControls() {

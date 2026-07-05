@@ -35,6 +35,7 @@ export async function renderSavedFolder(folderPath) {
       timeModified: parsed.metadata.time_modified || "",
       timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
       questionTitle: parsed.metadata.question_title || "",
+      questionDescriptionHtml: marked.parseInline(parsed.metadata.question_description || ""),
       questionUrl: parsed.metadata.question_url || "",
       questionTimeCreated: parsed.metadata.question_time_created || "",
       questionTimeModified: parsed.metadata.question_time_modified || "",
@@ -111,7 +112,11 @@ function parseFrontmatterValue(value) {
     return "";
   }
   if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
-    return trimmed.slice(1, -1).replace(/\\"/g, "\"");
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed.slice(1, -1).replace(/\\"/g, "\"");
+    }
   }
   if (/^-?\d+$/.test(trimmed)) {
     return Number(trimmed);

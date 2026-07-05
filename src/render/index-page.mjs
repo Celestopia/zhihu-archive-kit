@@ -506,16 +506,20 @@ function renderCollectionNav({ collections, totalCount }) {
   <aside class="collection-nav" aria-label="收藏夹">
     <p class="collection-nav-title">收藏夹</p>
     <div class="collection-nav-list">
-      <button type="button" data-collection-filter="all" aria-pressed="true">
+      <button type="button" data-collection-filter="all" aria-pressed="true" title="所有">
         <span>所有</span><span class="collection-nav-count">${escapeHtml(totalCount)}</span>
       </button>
       ${collections.map((collection) => `
-        <button type="button" data-collection-filter="${escapeAttr(collection.name)}" aria-pressed="false" title="${escapeAttr(collection.description || collection.name)}">
+        <button type="button" data-collection-filter="${escapeAttr(collection.name)}" aria-pressed="false" title="${escapeAttr(collectionTooltip(collection))}">
           <span>${escapeHtml(collection.name)}</span><span class="collection-nav-count">${escapeHtml(collection.count)}</span>
         </button>
       `).join("")}
     </div>
   </aside>`;
+}
+
+function collectionTooltip(collection) {
+  return collection.description.trim() || collection.name;
 }
 
 function toPosixPath(value) {

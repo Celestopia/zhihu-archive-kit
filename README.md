@@ -62,6 +62,7 @@ time_created: "..."
 time_modified: "..."
 time_exported: "..."
 question_title: "..."
+question_description: "..."
 question_url: "..."
 question_time_created: "..."
 question_time_modified: "..."
@@ -79,7 +80,7 @@ content_excerpt: "..."
 
 `source_type` 为 `answer` 或 `article`。回答的 `title` 使用 `question_title - author的回答` 格式；文章的 `title` 是文章标题。`content_excerpt` 是从正文生成的纯文本摘要，供本地导航页直接展示。
 
-回答文件会额外保存所属问题的元信息，字段名以 `question_` 开头。专栏文章不会输出这些字段。回答预览页和本地导航页中的问题标题读取 `question_title`。`question_url` 只从问题 DOM 的 `meta[itemprop='url']` 读取；如果知乎页面中缺少该 meta，不会根据问题 ID 推导 URL，而是保存为空字符串。`question_topic` 是逗号分隔的标签字符串；如果知乎页面中缺少某个问题字段，该字段会保存为空字符串。
+回答文件会额外保存所属问题的元信息，字段名以 `question_` 开头。专栏文章不会输出这些字段。回答预览页和本地导航页中的问题标题读取 `question_title`。`question_description` 来自页面当前已渲染的问题描述：未展开时保存可见截断文本，手动展开后保存完整描述；描述图片会下载到 `assets/question-image-001.ext` 并写入 Markdown 图片引用。`question_url` 只从问题 DOM 的 `meta[itemprop='url']` 读取；如果知乎页面中缺少该 meta，不会根据问题 ID 推导 URL，而是保存为空字符串。`question_topic` 是逗号分隔的标签字符串；如果知乎页面中缺少某个问题字段，该字段会保存为空字符串。
 
 ## 安装油猴脚本
 
@@ -144,7 +145,7 @@ userscripts/zhihu-archive-kit.user.js
 4. 继续加载更多评论后，可以重复点击暂存；脚本会按评论 ID 去重。
 5. 最后点击回答或文章左侧的“保存”或齿轮菜单里的“下载为 ZIP”。
 
-保存结果中的 `comments.json` 会包含评论 ID、作者、作者主页、正文、发布时间、喜欢数、IP 属地、评论图片路径和二级回复结构。它不重复保存回答或文章的 ID；内容身份以 `index.md` 的 frontmatter 为准。评论图片会下载到 `assets/`，文件名形如 `comment-image-001.png`；如果下载失败，`image_url` 会保留远程 URL。评论暂存只保存在当前页面内存中，刷新页面后需要重新暂存。
+保存结果中的 `comments.json` 会包含评论 ID、作者、作者主页、正文、发布时间、喜欢数、IP 属地、评论图片路径和二级回复结构。评论发布时间只保存年月日，不保存时分秒。它不重复保存回答或文章的 ID；内容身份以 `index.md` 的 frontmatter 为准。评论图片会下载到 `assets/`，文件名形如 `comment-image-001.png`；如果下载失败，`image_url` 会保留远程 URL。评论暂存只保存在当前页面内存中，刷新页面后需要重新暂存。
 
 ## 批量保存
 
@@ -261,7 +262,7 @@ assets/
 preview.html
 ```
 
-`preview.html` 与 `assets/` 位于同一文件夹内，可以直接用浏览器打开。页面上方显示回答或文章正文，下方是可展开的评论区。回答预览页还会显示所属问题的创建时间、修改时间、回答数、评论数、关注数和标签。每次运行会覆盖同名 `preview.html`，不会修改 `index.md`、`comments.json` 或 `assets/`。
+`preview.html` 与 `assets/` 位于同一文件夹内，可以直接用浏览器打开。页面上方显示回答或文章正文，下方是可展开的评论区。回答预览页还会显示所属问题的创建时间、修改时间、回答数、评论数、关注数、标签和问题描述。每次运行会覆盖同名 `preview.html`，不会修改 `index.md`、`comments.json` 或 `assets/`。
 
 ## 生成导航页
 
@@ -279,7 +280,7 @@ npm run render:index -- output
 
 命令会扫描根目录下的一级收藏夹目录。收藏夹目录需要包含 `collection.json`；每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，就会被视为一个有效内容目录。根目录下直接保存的旧内容目录不会进入导航页。
 
-导航页列表只展示回答或文章自身的标题、作者、摘要和统计信息。回答所属问题的创建时间、修改时间、回答数、评论数、关注数和标签只在点击进入单篇 `preview.html` 后显示。
+导航页列表只展示回答或文章自身的标题、作者、摘要和统计信息。回答所属问题的创建时间、修改时间、回答数、评论数、关注数、标签和问题描述只在单篇 `preview.html` 或导航页点击“阅读全文”后的问题信息卡片中显示。
 
 ```text
 index.html

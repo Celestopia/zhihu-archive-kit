@@ -12,15 +12,19 @@ import { cleanText, escapeLinkText, normalizeLink } from "./utils.js";
 export function extractPage({ root, metadata }) {
   const media = [];
   const blocks = parseBlocks(root, media);
+  const pageMetadata = {
+    ...metadata,
+    ...extractRenderedQuestionDescription(metadata, media)
+  };
 
   return {
-    metadata,
+    metadata: pageMetadata,
     markdown: blocks.filter(Boolean).join("\n\n").replace(/\n{3,}/g, "\n\n").trim(),
     media
   };
 }
 
-export function parseBlocks(container, media) {
+export function parseBlocks(container, media, options = {}) {
   const blocks = [];
 
   for (const node of Array.from(container.childNodes)) {
@@ -28,7 +32,7 @@ export function parseBlocks(container, media) {
       continue;
     }
 
-    const rendered = renderBlock(node, media);
+    const rendered = renderBlock(node, media, options);
     if (Array.isArray(rendered)) {
       blocks.push(...rendered.filter(Boolean));
     } else if (rendered) {
@@ -39,48 +43,48 @@ export function parseBlocks(container, media) {
   return blocks;
 }
 
-export function renderBlock(node, media) {
+export function renderBlock(node, media, options = {}) {
   const tag = node.tagName.toLowerCase();
 
   // Heading levels map directly to Markdown heading depth.
   if (tag === "h1") {
-    return `# ${renderRich(node, media).trim()}`;
+    return `# ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h2") {
-    return `## ${renderRich(node, media).trim()}`;
+    return `## ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h3") {
-    return `### ${renderRich(node, media).trim()}`;
+    return `### ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h4") {
-    return `#### ${renderRich(node, media).trim()}`;
+    return `#### ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h5") {
-    return `##### ${renderRich(node, media).trim()}`;
+    return `##### ${renderRich(node, media, options).trim()}`;
   }
   if (tag === "h6") {
-    return `###### ${renderRich(node, media).trim()}`;
+    return `###### ${renderRich(node, media, options).trim()}`;
   }
 
   if (tag === "p") {
-    return renderRich(node, media).trim();
+    return renderRich(node, media, options).trim();
   }
   if (tag === "blockquote") {
-    const quoteBlocks = parseBlocks(node, media);
-    const text = quoteBlocks.length > 0 ? quoteBlocks.join("\n\n") : renderRich(node, media).trim();
+    const quoteBlocks = parseBlocks(node, media, options);
+    const text = quoteBlocks.length > 0 ? quoteBlocks.join("\n\n") : renderRich(node, media, options).trim();
     return text.split("\n").map((line) => `> ${line}`.trimEnd()).join("\n");
   }
   if (tag === "figure") {
-    return renderFigure(node, media);
+    return renderFigure(node, media, options);
   }
   if (tag === "ul" || tag === "ol") {
-    return renderList(node, tag === "ol", media);
+    return renderList(node, tag === "ol", media, options);
   }
   if (tag === "hr") {
     return "---";
   }
   if (tag === "table") {
-    return renderTable(node, media);
+    return renderTable(node, media, options);
   }
   if (tag === "pre") {
     return renderCodeBlock(node);
@@ -105,7 +109,7 @@ export function renderBlock(node, media) {
       return renderVideo(video, media);
     }
 
-    const nested = parseBlocks(node, media);
+    const nested = parseBlocks(node, media, options);
     if (nested.length > 0) {
       return nested;
     }
@@ -116,10 +120,10 @@ export function renderBlock(node, media) {
     return renderVideo(video, media);
   }
 
-  return renderRich(node, media).trim();
+  return renderRich(node, media, options).trim();
 }
 
-export function renderRich(node, media) {
+export function renderRich(node, media, options = {}) {
   let output = "";
 
   for (const child of Array.from(node.childNodes)) {
@@ -135,9 +139,9 @@ export function renderRich(node, media) {
     const tag = el.tagName.toLowerCase();
 
     if (tag === "b" || tag === "strong") {
-      output += `**${renderRich(el, media)}**`;
+      output += `**${renderRich(el, media, options)}**`;
     } else if (tag === "i" || tag === "em") {
-      output += `*${renderRich(el, media)}*`;
+      output += `*${renderRich(el, media, options)}*`;
     } else if (tag === "br") {
       output += "\n";
     } else if (tag === "code") {
@@ -147,9 +151,9 @@ export function renderRich(node, media) {
     } else if (tag === "span" && el.classList.contains("ztext-math")) {
       output += renderMath(el);
     } else if (tag === "img") {
-      output += renderImage(el, media);
+      output += renderImage(el, media, options);
     } else {
-      output += renderRich(el, media);
+      output += renderRich(el, media, options);
     }
   }
 
@@ -186,12 +190,12 @@ export function renderMath(el) {
   return `$${tex}$`;
 }
 
-export function renderFigure(figure, media) {
+export function renderFigure(figure, media, options = {}) {
   const img = figure.querySelector("img");
-  return img ? renderImage(img, media) : "";
+  return img ? renderImage(img, media, options) : "";
 }
 
-export function renderImage(img, media) {
+export function renderImage(img, media, options = {}) {
   let src = selectImageUrl(img);
   if (!src) {
     return "";
@@ -202,7 +206,7 @@ export function renderImage(img, media) {
     src = guessGifUrl(src);
   }
 
-  const placeholder = registerMedia(media, src, isGif ? "gif" : "image");
+  const placeholder = registerMedia(media, src, options.imageKind || (isGif ? "gif" : "image"));
   const alt = escapeLinkText(cleanText(img.getAttribute("alt") || ""));
   return `![${alt}](${placeholder})`;
 }
@@ -231,36 +235,36 @@ export function renderCodeBlock(node) {
   return `${fence}${language}\n${content}\n${fence}`;
 }
 
-export function renderList(list, ordered, media) {
+export function renderList(list, ordered, media, options = {}) {
   const items = Array.from(list.children).filter((child) => child.tagName.toLowerCase() === "li");
   return items.map((item, index) => {
     const marker = ordered ? `${index + 1}.` : "-";
-    const text = renderListItem(item, media);
+    const text = renderListItem(item, media, options);
     return `${marker} ${text}`;
   }).join("\n");
 }
 
-export function renderListItem(item, media) {
+export function renderListItem(item, media, options = {}) {
   const blockChildren = Array.from(item.children).filter((child) => {
     const tag = child.tagName.toLowerCase();
     return ["p", "blockquote", "pre", "div", "figure", "table"].includes(tag);
   });
 
   if (blockChildren.length === 0) {
-    return renderRich(item, media).trim().replace(/\n+/g, "\n  ");
+      return renderRich(item, media, options).trim().replace(/\n+/g, "\n  ");
   }
 
   return blockChildren.map((child) => {
     if (child.tagName.toLowerCase() === "p") {
-      return renderRich(child, media).trim();
+      return renderRich(child, media, options).trim();
     }
-    return renderBlock(child, media);
+    return renderBlock(child, media, options);
   }).filter(Boolean).join("\n  ");
 }
 
-export function renderTable(table, media) {
+export function renderTable(table, media, options = {}) {
   const rows = Array.from(table.rows).map((row) => {
-    return Array.from(row.cells).map((cell) => compactTableCell(renderRich(cell, media)));
+    return Array.from(row.cells).map((cell) => compactTableCell(renderRich(cell, media, options)));
   });
 
   if (rows.length === 0) {
@@ -318,6 +322,7 @@ function renderQuestionMetadata(metadata) {
 
   return [
     `question_title: ${yamlString(metadata.question_title)}`,
+    `question_description: ${yamlString(metadata.question_description)}`,
     `question_url: ${yamlString(metadata.question_url)}`,
     `question_time_created: ${yamlString(metadata.question_time_created)}`,
     `question_time_modified: ${yamlString(metadata.question_time_modified)}`,
@@ -326,6 +331,35 @@ function renderQuestionMetadata(metadata) {
     `question_follower_count: ${yamlNumberOrEmptyString(metadata.question_follower_count)}`,
     `question_topic: ${yamlString(metadata.question_topic)}`
   ];
+}
+
+function extractRenderedQuestionDescription(metadata, media) {
+  if (!metadata.answer_id && !metadata.question_id) {
+    return {};
+  }
+
+  const root = document.querySelector(".QuestionPage .QuestionRichText");
+  if (!root) {
+    return { question_description: "" };
+  }
+
+  if (root.classList.contains("QuestionRichText--collapsed")) {
+    return {
+      question_description: cleanText(root.querySelector("[itemprop='text']")?.textContent || "")
+    };
+  }
+
+  const richText = root.querySelector(".RichText[itemprop='text']")
+    || root.querySelector("[itemprop='text']");
+  if (!richText) {
+    return { question_description: "" };
+  }
+
+  const blocks = parseBlocks(richText, media, { imageKind: "question-image" });
+  const rendered = blocks.length > 0 ? blocks.join("\n\n") : renderRich(richText, media, { imageKind: "question-image" });
+  return {
+    question_description: rendered.replace(/\n{3,}/g, "\n\n").trim()
+  };
 }
 
 export function yamlString(value) {

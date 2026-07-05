@@ -29,6 +29,7 @@ export async function downloadMediaAssets(media, options = {}) {
   const seenSources = new Set();
   const counters = {
     image: 0,
+    "question-image": 0,
     gif: 0,
     video: 0,
     media: 0
@@ -40,17 +41,19 @@ export async function downloadMediaAssets(media, options = {}) {
       continue;
     }
 
-    if (seenSources.has(item.src)) {
+    const kind = normalizedMediaKind(item.kind, counters);
+    const key = mediaResultKey(item.src, kind);
+    if (seenSources.has(key)) {
       continue;
     }
-    seenSources.add(item.src);
+    seenSources.add(key);
 
-    const kind = counters[item.kind] === undefined ? "media" : item.kind;
     counters[kind] += 1;
     tasks.push({
       src: item.src,
       kind,
-      index: counters[kind]
+      index: counters[kind],
+      key
     });
   }
 
@@ -61,7 +64,8 @@ export async function downloadMediaAssets(media, options = {}) {
     if (!item.src) {
       continue;
     }
-    const result = sourceResults.get(item.src);
+    const kind = normalizedMediaKind(item.kind, counters);
+    const result = sourceResults.get(mediaResultKey(item.src, kind));
     replacements.set(item.placeholder, result?.localPath || item.src);
   }
 
@@ -88,13 +92,13 @@ async function runMediaDownloadQueue(tasks, options) {
 
       try {
         const downloaded = await downloadOneMedia(task.src, task.kind, task.index);
-        results.set(task.src, {
+        results.set(task.key, {
           localPath: `./assets/${downloaded.fileName}`,
           asset: downloaded
         });
       } catch (error) {
         console.warn(`[Zhihu Archive Kit] failed to download ${task.src}:`, error);
-        results.set(task.src, {
+        results.set(task.key, {
           localPath: task.src,
           asset: null
         });
@@ -107,6 +111,14 @@ async function runMediaDownloadQueue(tasks, options) {
 
   await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
   return results;
+}
+
+function normalizedMediaKind(kind, counters) {
+  return counters[kind] === undefined ? "media" : kind;
+}
+
+function mediaResultKey(src, kind) {
+  return `${kind}\n${src}`;
 }
 
 export async function downloadOneMedia(src, kind, index) {

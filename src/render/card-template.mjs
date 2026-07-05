@@ -162,6 +162,28 @@ export function renderCardCss() {
       display: inline-flex;
       gap: 4px;
     }
+    .question-description {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+    .question-description-title {
+      margin: 0 0 8px;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .question-description-body {
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+    .question-description-body img {
+      vertical-align: top;
+    }
     .summary-text[hidden],
     .summary-text [hidden],
     .read-more[hidden] {
@@ -451,8 +473,8 @@ function renderQuestionInfo(item) {
   }
 
   const rows = [
-    questionInfoItem("问题创建", item.questionTimeCreated ? formatDisplayTime(item.questionTimeCreated) : ""),
-    questionInfoItem("问题修改", item.questionTimeModified ? formatDisplayTime(item.questionTimeModified) : ""),
+    questionInfoItem("创建时间", item.questionTimeCreated ? formatDisplayTime(item.questionTimeCreated) : ""),
+    questionInfoItem("修改时间", item.questionTimeModified ? formatDisplayTime(item.questionTimeModified) : ""),
     questionInfoItem("回答数", item.questionAnswerCount),
     questionInfoItem("评论数", item.questionCommentCount),
     questionInfoItem("关注数", item.questionFollowerCount),
@@ -469,11 +491,20 @@ function renderQuestionInfo(item) {
           <div class="question-info-row question-info-row--time">${rows.slice(0, 2).join("")}</div>
           <div class="question-info-row question-info-row--stats">${rows.slice(2).join("")}</div>
         </dl>
+        ${questionDescriptionCard(item.questionDescriptionHtml || "")}
       </section>`;
 }
 
 function questionInfoItem(label, value) {
   return `<div class="question-info-item"><dt>${escapeHtml(label)}：</dt><dd>${escapeHtml(value ?? "")}</dd></div>`;
+}
+
+function questionDescriptionCard(valueHtml) {
+  return `
+        <section class="question-description" aria-label="问题描述">
+          <p class="question-description-title">问题描述</p>
+          <div class="question-description-body">${valueHtml}</div>
+        </section>`;
 }
 
 function renderSummaryRow(summaryText, summaryTruncated) {

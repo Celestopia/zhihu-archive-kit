@@ -20,7 +20,7 @@ export async function saveCurrentPageAsZip(button) {
   await saveZipWithButton(button, buildCurrentPageZip);
 }
 
-export async function changeDirectoryWithButton(button) {
+export async function changeDirectoryWithButton(button, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   setButtonState(button, "选择目录...", true);
@@ -28,7 +28,7 @@ export async function changeDirectoryWithButton(button) {
   try {
     await changeExportRootDirectory();
     setButtonState(button, "目录已更改", true);
-    resetButtonLater(button, originalText, 1600);
+    resetButtonLater(button, originalText, 1600, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] change directory failed:", error);
     button.disabled = false;
@@ -42,7 +42,7 @@ export async function changeDirectoryWithButton(button) {
   }
 }
 
-export async function saveArtifactWithButton(button, buildArtifact) {
+export async function saveArtifactWithButton(button, buildArtifact, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   setButtonState(button, "载入收藏夹...", true);
@@ -51,7 +51,7 @@ export async function saveArtifactWithButton(button, buildArtifact) {
     const collections = await listCollections();
     button.disabled = false;
     setButtonState(button, originalText, true);
-    showCollectionMenu(button, buildArtifact, collections);
+    showCollectionMenu(button, buildArtifact, collections, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] collection menu failed:", error);
     button.disabled = false;
@@ -63,7 +63,7 @@ export async function saveArtifactWithButton(button, buildArtifact) {
   }
 }
 
-function showCollectionMenu(button, buildArtifact, collections) {
+function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
   const control = button.closest(`.${CONTROL_CLASS}`);
   if (!control) {
     throw new Error("找不到保存控件。");
@@ -96,7 +96,7 @@ function showCollectionMenu(button, buildArtifact, collections) {
   saveButton.className = `${CONTROL_CLASS}__collection-save`;
   saveButton.textContent = "保存";
   saveButton.addEventListener("click", async () => {
-    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, select.value, menu);
+    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, select.value, menu, refreshStatus);
   });
 
   const cancelButton = document.createElement("button");
@@ -148,7 +148,7 @@ async function createCollectionFromPrompt(select) {
   }
 }
 
-async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, collectionName, menu) {
+async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, collectionName, menu, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   setButtonState(button, "保存中...", true);
@@ -168,7 +168,7 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
 
     menu.remove();
     setButtonState(button, "保存成功", true);
-    resetButtonLater(button, originalText, 1600);
+    resetButtonLater(button, originalText, 1600, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] folder save failed:", error);
     button.disabled = false;
@@ -228,9 +228,18 @@ function showUserError(error, fallbackMessage) {
   window.alert(`${fallbackMessage}：${message}`);
 }
 
-function resetButtonLater(button, text, delayMs) {
-  window.setTimeout(() => {
+function resetButtonLater(button, text, delayMs, refreshStatus) {
+  window.setTimeout(async () => {
     button.disabled = false;
+    if (refreshStatus) {
+      try {
+        await refreshStatus();
+      } catch (error) {
+        console.warn("[Zhihu Archive Kit] save status refresh failed:", error);
+        setButtonState(button, text, true);
+      }
+      return;
+    }
     setButtonState(button, text, true);
   }, delayMs);
 }

@@ -263,51 +263,41 @@ function normalizeCommentTime(value) {
     return "";
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
-    return text;
+    return text.slice(0, 10);
   }
   if (/^\d{2}-\d{2}$/.test(text)) {
     const date = new Date();
     const [month, day] = text.split("-").map((part) => Number(part));
     date.setMonth(month - 1, day);
     date.setHours(0, 0, 0, 0);
-    return formatLocalDate(date, false);
+    return formatLocalDate(date);
   }
   if (text.includes("分钟前")) {
     const date = new Date();
     date.setMinutes(date.getMinutes() - Number.parseInt(text, 10));
     date.setSeconds(0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   if (text.includes("小时前")) {
     const date = new Date();
     date.setHours(date.getHours() - Number.parseInt(text, 10));
-    date.setMinutes(0, 0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   if (text.includes("昨天")) {
     const date = new Date();
     date.setDate(date.getDate() - 1);
-    date.setSeconds(0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   if (text === "刚刚") {
     const date = new Date();
-    date.setSeconds(0, 0);
-    return formatLocalDate(date, true);
+    return formatLocalDate(date);
   }
   return text;
 }
 
-function formatLocalDate(date, includeTime) {
+function formatLocalDate(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-  if (!includeTime) {
-    return `${year}-${month}-${day}`;
-  }
-
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return `${year}-${month}-${day}`;
 }

@@ -23,6 +23,7 @@ time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-02T08:30:40.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
 question_title: "测试问题标题"
+question_description: "第一行问题描述\\n第二行问题描述 ![](./assets/comment-image-001.png)"
 question_time_created: "2019-01-21T01:47:26.000Z"
 question_url: "https://www.zhihu.com/question/123"
 question_time_modified: "2019-02-03T05:53:39.000Z"
@@ -101,9 +102,13 @@ assert.match(html, /href="https:\/\/www\.zhihu\.com\/question\/123"/);
 assert.match(html, /question-info-row question-info-row--time/);
 assert.match(html, /question-info-row question-info-row--stats/);
 assert.match(html, /\.question-info-list dt \{[\s\S]*?font-weight: 400;/);
-assert.match(html, /问题创建/);
+assert.match(html, /<section class="question-description" aria-label="问题描述">/);
+assert.match(html, /<p class="question-description-title">问题描述<\/p>/);
+assert.match(html, /创建时间/);
+assert.doesNotMatch(html, /问题创建/);
 assert.match(html, /2019-01-21 09:47:26/);
-assert.match(html, /问题修改/);
+assert.match(html, /修改时间/);
+assert.doesNotMatch(html, /问题修改/);
 assert.match(html, /2019-02-03 13:53:39/);
 assert.match(html, /回答数/);
 assert.match(html, /10467/);
@@ -111,6 +116,12 @@ assert.match(html, /关注数/);
 assert.match(html, /35855/);
 assert.match(html, /标签/);
 assert.match(html, /心理, 人际交往, 尴尬/);
+assert.match(html, /<div class="question-description-body">第一行问题描述/);
+assert.match(html, /第二行问题描述/);
+assert.match(html, /\.question-description \{[\s\S]*?border-radius: 8px;/);
+assert.match(html, /\.question-description-title \{[\s\S]*?font-weight: 700;/);
+assert.match(html, /\.question-description-body img \{[\s\S]*?vertical-align: top;/);
+assert.match(html, /<img src="\.\/assets\/comment-image-001\.png" alt="">/);
 assert.doesNotMatch(html, / 24:46:52/);
 assert.match(html, /正文标题/);
 assert.match(html, /评论区/);
@@ -164,12 +175,13 @@ await fs.writeFile(path.join(legacyRoot, "comments.json"), JSON.stringify({
 const legacyOutputPath = await renderSavedFolder(legacyRoot);
 const legacyHtml = await fs.readFile(legacyOutputPath, "utf8");
 assert.match(legacyHtml, /问题信息/);
-assert.match(legacyHtml, /问题创建/);
-assert.match(legacyHtml, /问题修改/);
+assert.match(legacyHtml, /创建时间/);
+assert.match(legacyHtml, /修改时间/);
 assert.match(legacyHtml, /回答数/);
 assert.match(legacyHtml, /评论数/);
 assert.match(legacyHtml, /关注数/);
 assert.match(legacyHtml, /标签/);
+assert.match(legacyHtml, /<p class="question-description-title">问题描述<\/p>\s*<div class="question-description-body"><\/div>/);
 assert.doesNotMatch(legacyHtml, /阅读原问题/);
 
 console.log("HTML render checks passed.");

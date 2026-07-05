@@ -179,7 +179,7 @@ article-<article_id>
 }
 ```
 
-`comments.json` 只保存评论区自身数据，不保存回答或文章的 `target` 身份字段。回答/文章类型、ID 和所属问题信息以 `index.md` frontmatter 为准。单条评论包含 `id`、`author`、`author_url`、`content`、`time_created`、`like_count`、`ip_location`、`image_url`、`reply_to_author`、`reply_to_author_url` 和 `children`。二级评论只出现在父评论的 `children` 中。评论图片下载成功时，`image_url` 指向 `./assets/comment-image-001.ext`；下载失败时保留远程 URL。
+`comments.json` 只保存评论区自身数据，不保存回答或文章的 `target` 身份字段。回答/文章类型、ID 和所属问题信息以 `index.md` frontmatter 为准。单条评论包含 `id`、`author`、`author_url`、`content`、`time_created`、`like_count`、`ip_location`、`image_url`、`reply_to_author`、`reply_to_author_url` 和 `children`。`time_created` 只保留年月日，格式为 `YYYY-MM-DD`；页面中的相对时间会按保存时的本地日期折算。二级评论只出现在父评论的 `children` 中。评论图片下载成功时，`image_url` 指向 `./assets/comment-image-001.ext`；下载失败时保留远程 URL。
 
 ## 批量保存流程
 
@@ -309,6 +309,7 @@ time_created: "..."
 time_modified: "..."
 time_exported: "..."
 question_title: "..."
+question_description: "..."
 question_url: "..."
 question_time_created: "..."
 question_time_modified: "..."
@@ -326,7 +327,7 @@ content_excerpt: "..."
 
 `source_type` 由保存目标写入，值为 `answer` 或 `article`。回答的 `title` 由 `question_title` 和作者名生成，格式为 `question_title - author的回答`；文章的 `title` 仍是文章标题。`content_excerpt` 由保存核心从 Markdown 正文生成，是本地导航页使用的纯文本摘要。
 
-`target.js` 优先从 `meta[itemprop]` 标签读取元数据。回答页通常使用 `dateCreated`、`dateModified`、`upvoteCount`、`commentCount`；文章页通常使用 `datePublished`、`dateModified`、`commentCount`。回答所属问题的元信息从 `.QuestionPage` 范围内读取 `name`、`url`、`dateCreated`、`dateModified`、`answerCount`、`commentCount`、`zhihu:followerCount` 和 `keywords`，并写入 `question_*` frontmatter 字段；回答预览页和本地导航页中的问题标题读取 `question_title`；`question_url` 只来自 `meta[itemprop='url']`，缺失时保存为空字符串；`question_topic` 是逗号分隔字符串。
+`target.js` 优先从 `meta[itemprop]` 标签读取元数据。回答页通常使用 `dateCreated`、`dateModified`、`upvoteCount`、`commentCount`；文章页通常使用 `datePublished`、`dateModified`、`commentCount`。回答所属问题的元信息从 `.QuestionPage` 范围内读取 `name`、`url`、`dateCreated`、`dateModified`、`answerCount`、`commentCount`、`zhihu:followerCount` 和 `keywords`，并写入 `question_*` frontmatter 字段；回答预览页和本地导航页中的问题标题读取 `question_title`；`question_description` 由 `.QuestionRichText` 当前渲染内容生成，折叠时保存可见文本，展开时保存完整富文本 Markdown，图片使用 `question-image` 资源前缀；`question_url` 只来自 `meta[itemprop='url']`，缺失时保存为空字符串；`question_topic` 是逗号分隔字符串。
 
 喜欢数和收藏数通常没有对应的 `meta[itemprop]`，项目会在当前回答/文章容器内查找包含“喜欢”或“收藏”的底部操作按钮，并从按钮文本、`aria-label` 或 `title` 中解析数量。
 
