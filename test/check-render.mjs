@@ -10,8 +10,11 @@ import { renderSavedFolder } from "../src/render/render.mjs";
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-"));
 const assetsDir = path.join(root, "assets");
+const emojiDir = path.join(root, "_emoji");
 await fs.mkdir(assetsDir);
+await fs.mkdir(emojiDir);
 await fs.writeFile(path.join(assetsDir, "comment-image-001.png"), Buffer.from([1, 2, 3]));
+await fs.writeFile(path.join(emojiDir, "zhihu-v2-c71427010ca7866f9b08c37ec20672e0.png"), Buffer.from([4, 5, 6]));
 
 await fs.writeFile(path.join(root, "index.md"), `---
 source_type: "answer"
@@ -23,7 +26,7 @@ time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-02T08:30:40.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
 question_title: "测试问题标题"
-question_description: "第一行问题描述\\n第二行问题描述 ![](./assets/comment-image-001.png)"
+question_description: "第一行问题描述 [赞]\\n第二行问题描述 ![](./assets/comment-image-001.png)"
 question_time_created: "2019-01-21T01:47:26.000Z"
 question_url: "https://www.zhihu.com/question/123"
 question_time_modified: "2019-02-03T05:53:39.000Z"
@@ -42,6 +45,12 @@ content_excerpt: "测试回答摘要"
 
 这里是正文。
 
+普通表情 [赞]，未知表情 [不存在]，行内代码 \`[赞]\`。
+
+\`\`\`
+[赞]
+\`\`\`
+
 ![正文图](./assets/image-001.jpg)
 `);
 
@@ -55,7 +64,7 @@ await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
       id: "c1",
       author: "评论者",
       author_url: "https://www.zhihu.com/people/commenter",
-      content: "一级评论 [链接](https://example.com)",
+      content: "一级评论 [赞] [链接](https://example.com)",
       time_created: "2026-06-10",
       like_count: 5,
       ip_location: "北京",
@@ -67,7 +76,7 @@ await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
           id: "c2",
           author: "回复者",
           author_url: "",
-          content: "二级评论",
+          content: "二级评论 [赞]",
           time_created: "2026-06-10 12:00:00",
           like_count: 1,
           ip_location: "上海",
@@ -117,6 +126,9 @@ assert.match(html, /35855/);
 assert.match(html, /标签/);
 assert.match(html, /心理, 人际交往, 尴尬/);
 assert.match(html, /<div class="question-description-body">第一行问题描述/);
+assert.match(html, /class="zhihu-emoji"/);
+assert.match(html, /src="_emoji\/zhihu-v2-c71427010ca7866f9b08c37ec20672e0\.png"/);
+assert.match(html, /alt="\[赞\]"/);
 assert.match(html, /第二行问题描述/);
 assert.match(html, /\.question-description \{[\s\S]*?border-radius: 8px;/);
 assert.match(html, /\.question-description-title \{[\s\S]*?font-weight: 700;/);
@@ -124,6 +136,10 @@ assert.match(html, /\.question-description-body img \{[\s\S]*?vertical-align: to
 assert.match(html, /<img src="\.\/assets\/comment-image-001\.png" alt="">/);
 assert.doesNotMatch(html, / 24:46:52/);
 assert.match(html, /正文标题/);
+assert.match(html, /未知表情 \[不存在\]/);
+assert.match(html, /行内代码 <code>\[赞\]<\/code>/);
+assert.match(html, /<code>\[赞\]\n<\/code>/);
+assert.match(html, /\.zhihu-emoji \{[\s\S]*?vertical-align: -0\.25em;/);
 assert.match(html, /评论区/);
 assert.match(html, /--accent-soft: #edf5ff/);
 assert.match(html, /<section class="comments" data-comments>\s*<div class="comments-header">\s*<span class="comments-heading">\s*<span class="comments-title">评论区<\/span>\s*<span class="comments-count">（已存 2 条）<\/span>\s*<\/span>\s*<span class="comment-tools">/);

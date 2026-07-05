@@ -4,6 +4,11 @@ import { marked } from "marked";
 import { renderContentCard } from "./card-template.mjs";
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { renderHtmlDocument } from "./template.mjs";
+import {
+  createEmojiContext,
+  ensureZhihuEmojiAssets,
+  renderZhihuEmojiInMarkdown
+} from "./zhihu-emoji.mjs";
 
 const OUTPUT_FILE = "preview.html";
 
@@ -22,6 +27,12 @@ export async function renderSavedFolder(folderPath) {
   const type = requireSourceType(parsed.metadata.source_type);
   const comments = commentsJson.comments || [];
   const title = displayTitle(parsed.metadata, type);
+  const emojiContext = await createEmojiContext(root);
+  const availableEmojiTokens = await ensureZhihuEmojiAssets([
+    parsed.body,
+    parsed.metadata.question_description || "",
+    ...collectCommentMarkdown(comments)
+  ], emojiContext);
 
   const html = renderHtmlDocument({
     title,
@@ -35,7 +46,7 @@ export async function renderSavedFolder(folderPath) {
       timeModified: parsed.metadata.time_modified || "",
       timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
       questionTitle: parsed.metadata.question_title || "",
-      questionDescriptionHtml: marked.parseInline(parsed.metadata.question_description || ""),
+      questionDescriptionHtml: marked.parseInline(renderMarkdownWithEmoji(parsed.metadata.question_description || "", emojiContext, availableEmojiTokens)),
       questionUrl: parsed.metadata.question_url || "",
       questionTimeCreated: parsed.metadata.question_time_created || "",
       questionTimeModified: parsed.metadata.question_time_modified || "",
@@ -47,9 +58,9 @@ export async function renderSavedFolder(folderPath) {
       commentCount: parsed.metadata.comment_count,
       likeCount: parsed.metadata.like_count,
       favoriteCount: parsed.metadata.favorite_count,
-      bodyHtml: marked.parse(parsed.body),
+      bodyHtml: marked.parse(renderMarkdownWithEmoji(parsed.body, emojiContext, availableEmojiTokens)),
       storedCommentCount: countStoredComments(comments),
-      commentsHtml: renderComments(comments)
+      commentsHtml: renderComments(comments, emojiContext, availableEmojiTokens)
     }, { mode: "preview" })
   });
 
@@ -124,12 +135,12 @@ function parseFrontmatterValue(value) {
   return trimmed;
 }
 
-function renderComments(comments) {
+function renderComments(comments, emojiContext, availableEmojiTokens) {
   if (!comments.length) {
     return `<div class="empty">暂无暂存评论。</div>`;
   }
 
-  return `<div class="comment-list">${comments.map((comment) => renderComment(comment, 0)).join("")}</div>`;
+  return `<div class="comment-list">${comments.map((comment) => renderComment(comment, 0, emojiContext, availableEmojiTokens)).join("")}</div>`;
 }
 
 function countStoredComments(comments) {
@@ -139,7 +150,7 @@ function countStoredComments(comments) {
   }, 0);
 }
 
-function renderComment(comment, level) {
+function renderComment(comment, level, emojiContext, availableEmojiTokens) {
   const classes = ["comment-card"];
   if (level > 0) {
     classes.push("comment-card--child");
@@ -161,9 +172,9 @@ function renderComment(comment, level) {
         <div class="comment-author">${author}${replyTo}</div>
         <div class="comment-meta">${renderCommentMeta(comment)}</div>
       </div>
-      <div class="comment-body">${marked.parse(comment.content || "")}</div>
+      <div class="comment-body">${marked.parse(renderMarkdownWithEmoji(comment.content || "", emojiContext, availableEmojiTokens))}</div>
       ${comment.image_url ? `<img class="comment-image" src="${escapeAttr(comment.image_url)}" alt="评论图片">` : ""}
-      ${children.length ? renderReplies(children, level + 1) : ""}
+      ${children.length ? renderReplies(children, level + 1, emojiContext, availableEmojiTokens) : ""}
     </section>
   `;
 }
@@ -176,13 +187,28 @@ function renderCommentMeta(comment) {
   ].filter(Boolean).map(escapeHtml).join(" · ");
 }
 
-function renderReplies(children, level) {
+function renderReplies(children, level, emojiContext, availableEmojiTokens) {
   return `
     <details class="comment-replies">
       <summary>${children.length} 条回复</summary>
-      ${children.map((child) => renderComment(child, level)).join("")}
+      ${children.map((child) => renderComment(child, level, emojiContext, availableEmojiTokens)).join("")}
     </details>
   `;
+}
+
+function renderMarkdownWithEmoji(markdown, emojiContext, availableEmojiTokens) {
+  return renderZhihuEmojiInMarkdown(markdown, emojiContext, availableEmojiTokens);
+}
+
+function collectCommentMarkdown(comments) {
+  const values = [];
+  for (const comment of comments) {
+    values.push(comment.content || "");
+    if (Array.isArray(comment.children)) {
+      values.push(...collectCommentMarkdown(comment.children));
+    }
+  }
+  return values;
 }
 
 async function assertFile(filePath, name) {

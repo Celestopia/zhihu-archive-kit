@@ -357,6 +357,14 @@ export function renderCardCss() {
     .comment-body {
       overflow-wrap: anywhere;
     }
+    .zhihu-emoji {
+      width: 1.35em;
+      height: 1.35em;
+      margin: 0 .08em;
+      border-radius: 0;
+      object-fit: contain;
+      vertical-align: -0.25em;
+    }
     .comment-image {
       display: block;
       margin-top: 10px;

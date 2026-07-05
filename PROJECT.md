@@ -37,6 +37,7 @@ src/batch/
 
 src/render/
   cli.mjs
+  zhihu-emoji.mjs
   index-cli.mjs
   index-page.mjs
   render.mjs
@@ -80,7 +81,7 @@ userscripts/
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
-`src/render/` 包含静态 HTML 预览、导航页生成器和本地浏览服务。它只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。
+`src/render/` 包含静态 HTML 预览、导航页生成器和本地浏览服务。它只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。
 
 `src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数。目前这里包含 URL 识别、清洗和目标文件夹命名逻辑。
 
@@ -239,13 +240,15 @@ npm run render -- output/question-123-answer-456
 
 `render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。回答详情预览页会展示 `question_*` 问题元信息；导航页列表保持轻量，不展示这些问题字段。
 
+渲染前会扫描正文、问题描述和评论正文中的知乎表情 token，例如 `[赞]`、`[感谢]`。已知 token 来自 `zhihu-emoji.mjs` 维护的映射表，图片下载到保存根目录的 `_emoji/`，并在 HTML 中替换为 `<img class="zhihu-emoji">`。缓存文件已存在时直接复用；下载失败时保留原始 token 并输出 warning。Markdown 和 `comments.json` 不会因为本地表情渲染而被改写。行内代码和代码块中的 token 不替换。
+
 输出固定为：
 
 ```text
 preview.html
 ```
 
-`preview.html` 与 `assets/` 保持同级，因此正文图片、视频和评论图片继续使用项目已有的相对路径。页面使用和导航页相同的内容卡片模板，默认显示完整正文，评论区由卡片底部的“评论区”按钮展开。
+`preview.html` 与 `assets/` 保持同级，因此正文图片、视频和评论图片继续使用项目已有的相对路径。内容目录位于收藏夹下时，表情图片使用指向保存根目录 `_emoji/` 的相对路径。页面使用和导航页相同的内容卡片模板，默认显示完整正文，评论区由卡片底部的“评论区”按钮展开。
 
 ## HTML 导航页流程
 

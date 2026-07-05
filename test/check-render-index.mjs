@@ -20,8 +20,10 @@ const skippedDir = path.join(root, "not-content");
 await fs.mkdir(path.join(answerDir, "assets"), { recursive: true });
 await fs.mkdir(path.join(articleDir, "assets"), { recursive: true });
 await fs.mkdir(path.join(rootDirectDir, "assets"), { recursive: true });
+await fs.mkdir(path.join(root, "_emoji"), { recursive: true });
 await fs.mkdir(skippedDir);
 await fs.mkdir(emptyCollectionDir);
+await fs.writeFile(path.join(root, "_emoji", "zhihu-v2-c71427010ca7866f9b08c37ec20672e0.png"), Buffer.from([7, 8, 9]));
 
 await writeCollectionMetadata(defaultCollectionDir, {
   schema_version: 1,
@@ -54,7 +56,7 @@ time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-12T16:46:52.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
 question_title: "回答所属问题标题"
-question_description: "导航页展开后显示的问题描述"
+question_description: "导航页展开后显示的问题描述 [赞]"
 question_time_created: "2019-01-21T01:47:26.000Z"
 question_url: "https://www.zhihu.com/question/123"
 question_time_modified: "2019-02-03T05:53:39.000Z"
@@ -71,7 +73,7 @@ content_excerpt: "来自 frontmatter 的固定摘要"
 
 ## 正文标题
 
-这是一段用于生成摘要的回答正文，包含 [链接](https://example.com) 和 **加粗文本**。
+这是一段用于生成摘要的回答正文，包含 [链接](https://example.com)、**加粗文本** 和 [赞]。
 
 这里还有更长的正文内容，用来确保导航页不会把完整正文直接嵌入根目录 index.html。继续补充若干文字让摘要截断发生，导航页应该只保留前面的摘要，不应该内嵌后续完整正文。这里再补充一段测试文字，让正文长度明显超过摘要限制。
 
@@ -90,7 +92,7 @@ await fs.writeFile(path.join(answerDir, "comments.json"), JSON.stringify({
       id: "c1",
       author: "评论者",
       author_url: "",
-      content: "COMMENT_ONLY_MARKER 一级评论",
+      content: "COMMENT_ONLY_MARKER 一级评论 [赞]",
       time_created: "2026-06-10",
       like_count: 1,
       ip_location: "北京",
@@ -291,6 +293,8 @@ assert.doesNotMatch(html, /not-content/);
 const answerPreview = await fs.readFile(path.join(answerDir, "preview.html"), "utf8");
 assert.match(answerPreview, /FULL_BODY_ONLY_MARKER/);
 assert.match(answerPreview, /COMMENT_ONLY_MARKER/);
+assert.match(answerPreview, /src="\.\.\/\.\.\/_emoji\/zhihu-v2-c71427010ca7866f9b08c37ec20672e0\.png"/);
+assert.match(answerPreview, /class="zhihu-emoji"/);
 assert.match(answerPreview, /\.\/assets\/image-001\.jpg/);
 assert.match(answerPreview, /<section class="feed feed--preview">/);
 assert.match(answerPreview, /<h1 class="title">回答所属问题标题<\/h1>/);
@@ -300,7 +304,7 @@ assert.match(answerPreview, /href="https:\/\/www\.zhihu\.com\/question\/123"/);
 assert.match(answerPreview, /问题标签导航页不应展示/);
 assert.match(answerPreview, /<section class="question-description" aria-label="问题描述">/);
 assert.match(answerPreview, /<p class="question-description-title">问题描述<\/p>/);
-assert.match(answerPreview, /<div class="question-description-body">导航页展开后显示的问题描述<\/div>/);
+assert.match(answerPreview, /<div class="question-description-body">导航页展开后显示的问题描述 <img class="zhihu-emoji"/);
 assert.match(answerPreview, /<div class="expand-panel expand-panel--body" data-panel="body" data-loaded="1">/);
 assert.match(answerPreview, /data-card-body/);
 assert.match(answerPreview, /<section class="comments" data-comments>/);
