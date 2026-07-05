@@ -70,9 +70,7 @@ export function renderBlock(node, media, options = {}) {
     return renderRich(node, media, options).trim();
   }
   if (tag === "blockquote") {
-    const quoteBlocks = parseBlocks(node, media, options);
-    const text = quoteBlocks.length > 0 ? quoteBlocks.join("\n\n") : renderRich(node, media, options).trim();
-    return text.split("\n").map((line) => `> ${line}`.trimEnd()).join("\n");
+    return renderBlockquote(node, media, options);
   }
   if (tag === "figure") {
     return renderFigure(node, media, options);
@@ -158,6 +156,29 @@ export function renderRich(node, media, options = {}) {
   }
 
   return output;
+}
+
+function renderBlockquote(node, media, options) {
+  const text = blockquoteHasDirectInlineContent(node)
+    ? renderRich(node, media, options).trim()
+    : parseBlocks(node, media, options).join("\n\n").trim();
+  return text.split("\n").map((line) => `> ${line}`.trimEnd()).join("\n");
+}
+
+function blockquoteHasDirectInlineContent(node) {
+  return Array.from(node.childNodes).some((child) => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      return Boolean(cleanText(child.textContent || ""));
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) {
+      return false;
+    }
+    return isInlineQuoteChild(child);
+  });
+}
+
+function isInlineQuoteChild(node) {
+  return !["p", "blockquote", "pre", "div", "figure", "table", "ul", "ol", "hr"].includes(node.tagName.toLowerCase());
 }
 
 export function renderInlineCode(text) {
