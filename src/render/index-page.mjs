@@ -15,6 +15,7 @@ const INDEX_FILE = "index.html";
 const COLLECTION_METADATA_FILE = "collection.json";
 const DEFAULT_COLLECTION_NAME = "默认收藏夹";
 const PAGE_SIZE = 20;
+const INTERNAL_DIRECTORY_PREFIX = "_";
 
 /**
  * Build a lightweight static navigation page for saved Zhihu content.
@@ -26,6 +27,10 @@ export async function renderOutputIndex(rootPath = "output") {
   const collections = [];
 
   for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (isInternalDirectoryName(entry.name)) {
+      continue;
+    }
+
     const collectionPath = path.join(root, entry.name);
     const metadataPath = path.join(collectionPath, COLLECTION_METADATA_FILE);
     if (!await isFile(metadataPath)) {
@@ -524,6 +529,10 @@ function collectionTooltip(collection) {
 
 function toPosixPath(value) {
   return value.split(path.sep).join("/");
+}
+
+function isInternalDirectoryName(name) {
+  return String(name || "").startsWith(INTERNAL_DIRECTORY_PREFIX);
 }
 
 async function isFile(filePath) {

@@ -31,6 +31,8 @@ assert.match(content, /默认收藏夹/);
 assert.match(content, /collection\.json/);
 assert.match(content, /选择收藏夹/);
 assert.match(content, /新建收藏夹/);
+assert.match(content, /收藏夹名称不能以下划线开头/);
+assert.match(content, /isInternalDirectoryName/);
 assert.match(content, /createCollection/);
 assert.match(content, /writeArtifactToCollection/);
 assert.match(content, /findSavedCollectionsForFolder/);

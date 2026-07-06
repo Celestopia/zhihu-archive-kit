@@ -24,6 +24,12 @@ await fs.mkdir(path.join(root, "_emoji"), { recursive: true });
 await fs.mkdir(skippedDir);
 await fs.mkdir(emptyCollectionDir);
 await fs.writeFile(path.join(root, "_emoji", "zhihu-v2-c71427010ca7866f9b08c37ec20672e0.png"), Buffer.from([7, 8, 9]));
+await fs.writeFile(path.join(root, "_emoji", "collection.json"), JSON.stringify({
+  schema_version: 1,
+  name: "_emoji",
+  time_created: "2026-06-12T15:00:00.000+08:00",
+  description: ""
+}, null, 2));
 
 await writeCollectionMetadata(defaultCollectionDir, {
   schema_version: 1,
@@ -208,6 +214,8 @@ assert.match(html, /<span>所有<\/span><span class="collection-nav-count">23<\/
 assert.match(html, /data-collection-filter="默认收藏夹"/);
 assert.match(html, /data-collection-filter="技术收藏"/);
 assert.match(html, /data-collection-filter="空收藏夹"/);
+assert.doesNotMatch(html, /data-collection-filter="_emoji"/);
+assert.doesNotMatch(html, /<span>_emoji<\/span>/);
 assert.match(html, /<span>默认收藏夹<\/span><span class="collection-nav-count">22<\/span>/);
 assert.match(html, /<span>技术收藏<\/span><span class="collection-nav-count">1<\/span>/);
 assert.match(html, /title="技术类内容"/);

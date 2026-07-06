@@ -12,6 +12,7 @@ const STORE_NAME = "settings";
 const EXPORT_ROOT_KEY = "export-root-directory";
 export const DEFAULT_COLLECTION_NAME = "默认收藏夹";
 export const COLLECTION_METADATA_FILE = "collection.json";
+const INTERNAL_DIRECTORY_PREFIX = "_";
 
 export async function writeArtifactToDirectory(artifact) {
   await writeArtifactToCollection(artifact, DEFAULT_COLLECTION_NAME);
@@ -73,11 +74,11 @@ export async function listCollections() {
     if (handle.kind !== "directory") {
       continue;
     }
-    if (await isContentDirectory(handle)) {
+    if (isInternalDirectoryName(name) || !await isCollectionDirectory(handle)) {
       continue;
     }
 
-    const metadata = await ensureCollectionMetadata(handle, name, "");
+    const metadata = await readCollectionMetadata(handle);
     collections.push(metadata);
   }
 
@@ -163,10 +164,7 @@ async function listExistingCollections(root) {
     if (handle.kind !== "directory") {
       continue;
     }
-    if (await isContentDirectory(handle)) {
-      continue;
-    }
-    if (!await fileExists(handle, COLLECTION_METADATA_FILE)) {
+    if (isInternalDirectoryName(name) || !await isCollectionDirectory(handle)) {
       continue;
     }
 
@@ -263,6 +261,10 @@ async function isContentDirectory(handle) {
   return await fileExists(handle, "index.md") && await fileExists(handle, "comments.json");
 }
 
+async function isCollectionDirectory(handle) {
+  return !await isContentDirectory(handle) && await fileExists(handle, COLLECTION_METADATA_FILE);
+}
+
 async function fileExists(parent, name) {
   try {
     await parent.getFileHandle(name, { create: false });
@@ -313,7 +315,14 @@ function validateCollectionName(name) {
   if (!cleanName || cleanName === "." || cleanName === ".." || cleanName.includes("/") || cleanName.includes("\\")) {
     throw new Error("收藏夹名称不能为空，且不能是 .、..，也不能包含 / 或 \\。");
   }
+  if (isInternalDirectoryName(cleanName)) {
+    throw new Error("收藏夹名称不能以下划线开头。");
+  }
   return cleanName;
+}
+
+function isInternalDirectoryName(name) {
+  return String(name || "").startsWith(INTERNAL_DIRECTORY_PREFIX);
 }
 
 function formatLocalIso(date) {

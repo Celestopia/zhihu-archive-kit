@@ -155,6 +155,8 @@ article-<article_id>
 
 `默认收藏夹` 是真实目录名，不是根目录别名。根目录直接内容不属于任何收藏夹。
 
+保存根目录下以下划线开头的一级目录保留给项目内部资源，不作为收藏夹展示，也不能由用户创建为收藏夹。表情缓存目录 `_emoji/` 使用这个规则。
+
 齿轮菜单中的“下载为 ZIP”流程调用绑定 DOM 对应的 ZIP 构建函数，再通过 FileSaver 交给浏览器下载。
 
 ## 评论保存流程
@@ -240,7 +242,7 @@ npm run render -- output/question-123-answer-456
 
 `render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。回答详情预览页会展示 `question_*` 问题元信息；导航页列表保持轻量，不展示这些问题字段。
 
-渲染前会扫描正文、问题描述和评论正文中的知乎表情 token，例如 `[赞]`、`[感谢]`。已知 token 来自 `zhihu-emoji.mjs` 维护的映射表，图片下载到保存根目录的 `_emoji/`，并在 HTML 中替换为 `<img class="zhihu-emoji">`。缓存文件已存在时直接复用；下载失败时保留原始 token 并输出 warning。Markdown 和 `comments.json` 不会因为本地表情渲染而被改写。行内代码和代码块中的 token 不替换。
+渲染前会扫描正文、问题描述和评论正文中的知乎表情 token，例如 `[赞]`、`[感谢]`。已知 token 来自 `zhihu-emoji.mjs` 维护的映射表，图片下载到保存根目录的 `_emoji/`，并在 HTML 中替换为 `<img class="zhihu-emoji">`。`_emoji/` 是内部资源目录，不参与收藏夹扫描。缓存文件已存在时直接复用；下载失败时保留原始 token 并输出 warning。Markdown 和 `comments.json` 不会因为本地表情渲染而被改写。行内代码和代码块中的 token 不替换。
 
 输出固定为：
 
@@ -259,7 +261,7 @@ npm run render:index
 npm run render:index -- output
 ```
 
-`index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过根目录直存内容和无元数据目录。
+`index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过根目录直存内容、无元数据目录和以下划线开头的内部目录。
 
 每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和摘要，按 `time_exported` 倒序生成：
 
