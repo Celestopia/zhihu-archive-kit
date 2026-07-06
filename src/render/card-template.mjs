@@ -238,6 +238,9 @@ export function renderCardCss() {
       font-size: 15px;
       line-height: 1;
     }
+    .feed-action__icon svg {
+      display: block;
+    }
     .expand-panel {
       margin-top: 16px;
       padding-top: 16px;
@@ -337,11 +340,7 @@ export function renderCardCss() {
       border-left: 3px solid #e6edf7;
     }
     .comment-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
     .comment-author {
       font-weight: 700;
@@ -350,12 +349,35 @@ export function renderCardCss() {
       color: var(--text);
       text-decoration: none;
     }
-    .comment-meta {
-      color: var(--muted);
-      font-size: 13px;
-    }
     .comment-body {
       overflow-wrap: anywhere;
+    }
+    .comment-body p {
+      margin: 4px 0;
+    }
+    .comment-foot {
+      align-items: center;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+    .comment-info {
+      min-width: 0;
+    }
+    .comment-like {
+      align-items: center;
+      display: inline-flex;
+      flex: 0 0 auto;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .comment-like-icon {
+      color: #8492a6;
+      display: inline-block;
+      flex: 0 0 auto;
     }
     .zhihu-emoji {
       width: 1.35em;
@@ -442,10 +464,10 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
         ? `<div class="expand-panel expand-panel--body" data-panel="body" data-loaded="1"><div data-card-body>${item.bodyHtml || ""}</div></div>`
         : `<div class="expand-panel expand-panel--body" data-panel="body" hidden></div>`}
       <div class="feed-actions">
-        ${feedCountItem("▲", "赞同", item.upvoteCount)}
-        ${feedCountItem("♥", "喜欢", item.likeCount)}
-        ${feedCountItem("★", "收藏", item.favoriteCount)}
-        ${feedCountItem("●", "评论", item.commentCount)}
+        ${feedCountItem("upvote", "赞同", item.upvoteCount)}
+        ${feedCountItem("like", "喜欢", item.likeCount)}
+        ${feedCountItem("favorite", "收藏", item.favoriteCount)}
+        ${feedCountItem("comment", "评论", item.commentCount)}
         <button class="feed-action feed-action--comment action-pill" type="button" data-action="toggle-comments" aria-expanded="false"><span data-label>评论区</span></button>
       </div>
       ${isPreview
@@ -530,12 +552,25 @@ function authorValue(item) {
   return `<a href="${escapeAttr(item.authorUrl)}">${escapeHtml(item.author)}</a>`;
 }
 
-function feedCountItem(icon, label, value) {
+function feedCountItem(iconName, label, value) {
   if (value === null || value === undefined || value === "") {
     return "";
   }
   const text = label === "评论" ? `${value} 条评论` : `${label} ${value}`;
-  return `<span class="feed-action"><span class="feed-action__icon" aria-hidden="true">${escapeHtml(icon)}</span>${escapeHtml(text)}</span>`;
+  return `<span class="feed-action"><span class="feed-action__icon" aria-hidden="true">${feedIcon(iconName)}</span>${escapeHtml(text)}</span>`;
+}
+
+function feedIcon(name) {
+  if (name === "like") {
+    return `<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M16.984 3.324c1.73.315 3.125 1.472 4.04 2.978 1.893 3.116.758 6.989-1.384 9.556a23.241 23.241 0 0 1-3.96 3.737c-.66.486-1.308.895-1.902 1.196-.579.294-1.166.517-1.695.57a.845.845 0 0 1-.145.002c-.529-.038-1.127-.267-1.708-.564a14.407 14.407 0 0 1-1.947-1.232 23.512 23.512 0 0 1-4.081-3.88C2.165 13.207 1.139 9.536 2.85 6.514 3.742 4.94 5.14 3.71 6.896 3.348c1.606-.332 3.363.094 5.103 1.394 1.696-1.267 3.409-1.704 4.985-1.418Z" clip-rule="evenodd"></path></svg>`;
+  }
+  if (name === "favorite") {
+    return `<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor"><path d="M10.424 2.828c.7-1.213 2.452-1.213 3.152 0l2.47 4.285c.038.064.1.109.172.124l4.839 1.027c1.37.29 1.912 1.956.974 2.997l-3.312 3.674a.26.26 0 0 0-.065.201l.52 4.92c.146 1.393-1.27 2.422-2.55 1.852l-4.518-2.014a.26.26 0 0 0-.212 0l-4.518 2.014c-1.28.57-2.696-.46-2.55-1.853l.52-4.919a.26.26 0 0 0-.065-.2L1.969 11.26c-.938-1.041-.396-2.707.974-2.997l4.839-1.027a.26.26 0 0 0 .171-.124l2.471-4.285Z"></path></svg>`;
+  }
+  if (name === "comment") {
+    return `<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.37c5.67 0 10.266 4.085 10.267 9.125 0 2.08-.786 3.997-2.105 5.532a1.064 1.064 0 0 0-.247.91l.644 3.056c.24 1.157-.66 1.58-1.444 1.157l-2.925-1.584c-.53-.287-1.153-.338-1.743-.21-.784.172-1.604.265-2.447.265-5.67 0-10.268-4.087-10.268-9.126C1.732 6.455 6.33 2.37 12 2.37Z"></path></svg>`;
+  }
+  return `<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M13.792 3.681c-.781-1.406-2.803-1.406-3.584 0l-7.79 14.023c-.76 1.367.228 3.046 1.791 3.046h15.582c1.563 0 2.55-1.68 1.791-3.046l-7.79-14.023Z" clip-rule="evenodd"></path></svg>`;
 }
 
 /**
