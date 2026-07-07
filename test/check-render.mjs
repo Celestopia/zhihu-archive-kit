@@ -26,7 +26,7 @@ time_created: "2026-06-01T00:00:00.000Z"
 time_modified: "2026-06-02T08:30:40.000Z"
 time_exported: "2026-06-11T16:46:52.000Z"
 question_title: "测试问题标题"
-question_description: "第一行问题描述 [赞]\\n第二行问题描述 ![](./assets/comment-image-001.png)"
+question_description: "第一行问题描述 [赞]\\n第二行问题描述，继续补充一段超过八十个字符的文字，用来验证问题描述默认只显示摘要而不是完整内容。![](./assets/comment-image-001.png)"
 question_time_created: "2019-01-21T01:47:26.000Z"
 question_url: "https://www.zhihu.com/question/123"
 question_time_modified: "2019-02-03T05:53:39.000Z"
@@ -125,13 +125,22 @@ assert.match(html, /关注数/);
 assert.match(html, /35855/);
 assert.match(html, /标签/);
 assert.match(html, /心理, 人际交往, 尴尬/);
-assert.match(html, /<div class="question-description-body">第一行问题描述/);
+assert.match(html, /<div class="question-description-summary" data-question-description-summary>第一行问题描述 \[赞\] 第二行问题描述，继续补充一段超过八十个字符的文字，用来验证问题描述默认只显示摘要而不是完整内容。/);
+assert.match(html, /<button class="question-description-toggle" type="button" data-action="toggle-question-description" aria-expanded="false"><span data-label>显示全部<\/span>/);
+assert.doesNotMatch(html, /<div class="question-description-summary"[^>]*>[^<]*comment-image-001\.png/);
+assert.match(html, /<div class="question-description-body" data-question-description-body hidden>第一行问题描述/);
 assert.match(html, /class="zhihu-emoji"/);
 assert.match(html, /src="_emoji\/zhihu-v2-c71427010ca7866f9b08c37ec20672e0\.png"/);
 assert.match(html, /alt="\[赞\]"/);
 assert.match(html, /第二行问题描述/);
+assert.match(html, /data-action="toggle-question-description" aria-expanded="true"><span data-label>收起<\/span>/);
+assert.match(html, /function toggleQuestionDescription\(button\)/);
+assert.match(html, /summary\.hidden = nextExpanded;/);
+assert.match(html, /body\.hidden = !nextExpanded;/);
 assert.match(html, /\.question-description \{[\s\S]*?border-radius: 8px;/);
 assert.match(html, /\.question-description-title \{[\s\S]*?font-weight: 700;/);
+assert.match(html, /\.question-description-summary \{[\s\S]*?white-space: pre-wrap;/);
+assert.match(html, /\.question-description-toggle \{[\s\S]*?color: var\(--accent\);/);
 assert.match(html, /\.question-description-body img \{[\s\S]*?vertical-align: top;/);
 assert.match(html, /<img src="\.\/assets\/comment-image-001\.png" alt="">/);
 assert.doesNotMatch(html, / 24:46:52/);

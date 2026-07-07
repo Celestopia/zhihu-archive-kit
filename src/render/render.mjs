@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { marked } from "marked";
-import { renderContentCard } from "./card-template.mjs";
+import { extractQuestionDescriptionSummary, renderContentCard } from "./card-template.mjs";
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { renderHtmlDocument } from "./template.mjs";
 import {
@@ -27,10 +27,12 @@ export async function renderSavedFolder(folderPath) {
   const type = requireSourceType(parsed.metadata.source_type);
   const comments = commentsJson.comments || [];
   const title = displayTitle(parsed.metadata, type);
+  const questionDescriptionMarkdown = parsed.metadata.question_description || "";
+  const questionDescriptionSummary = extractQuestionDescriptionSummary(questionDescriptionMarkdown);
   const emojiContext = await createEmojiContext(root);
   const availableEmojiTokens = await ensureZhihuEmojiAssets([
     parsed.body,
-    parsed.metadata.question_description || "",
+    questionDescriptionMarkdown,
     ...collectCommentMarkdown(comments)
   ], emojiContext);
 
@@ -46,7 +48,9 @@ export async function renderSavedFolder(folderPath) {
       timeModified: parsed.metadata.time_modified || "",
       timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
       questionTitle: parsed.metadata.question_title || "",
-      questionDescriptionHtml: marked.parseInline(renderMarkdownWithEmoji(parsed.metadata.question_description || "", emojiContext, availableEmojiTokens)),
+      questionDescriptionHtml: marked.parseInline(renderMarkdownWithEmoji(questionDescriptionMarkdown, emojiContext, availableEmojiTokens)),
+      questionDescriptionSummary: questionDescriptionSummary.text,
+      questionDescriptionExpandable: questionDescriptionSummary.truncated || questionDescriptionSummary.hasImage,
       questionUrl: parsed.metadata.question_url || "",
       questionTimeCreated: parsed.metadata.question_time_created || "",
       questionTimeModified: parsed.metadata.question_time_modified || "",

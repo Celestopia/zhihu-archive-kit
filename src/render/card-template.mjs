@@ -1,6 +1,7 @@
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 
 const SUMMARY_LIMIT = 160;
+const QUESTION_DESCRIPTION_SUMMARY_LIMIT = 80;
 
 /**
  * Shared card CSS for the output index and single-content preview pages.
@@ -181,8 +182,29 @@ export function renderCardCss() {
       font-size: 14px;
       white-space: pre-wrap;
     }
+    .question-description-body[hidden] {
+      display: none;
+    }
     .question-description-body img {
       vertical-align: top;
+    }
+    .question-description-summary {
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+    .question-description-toggle {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      display: inline;
+      font: inherit;
+      margin-left: 4px;
+      padding: 0;
+      vertical-align: baseline;
+    }
+    .question-description-toggle:hover {
+      color: #0958d9;
     }
     .summary-text[hidden],
     .summary-text [hidden],
@@ -616,7 +638,7 @@ function renderQuestionInfo(item) {
           <div class="question-info-row question-info-row--time">${rows.slice(0, 2).join("")}</div>
           <div class="question-info-row question-info-row--stats">${rows.slice(2).join("")}</div>
         </dl>
-        ${questionDescriptionCard(item.questionDescriptionHtml || "")}
+        ${questionDescriptionCard(item.questionDescriptionHtml || "", item.questionDescriptionSummary || "", Boolean(item.questionDescriptionExpandable))}
       </section>`;
 }
 
@@ -624,11 +646,20 @@ function questionInfoItem(label, value) {
   return `<div class="question-info-item"><dt>${escapeHtml(label)}：</dt><dd>${escapeHtml(value ?? "")}</dd></div>`;
 }
 
-function questionDescriptionCard(valueHtml) {
-  return `
+function questionDescriptionCard(valueHtml, summaryText, expandable) {
+  if (!expandable) {
+    return `
         <section class="question-description" aria-label="问题描述">
           <p class="question-description-title">问题描述</p>
           <div class="question-description-body">${valueHtml}</div>
+        </section>`;
+  }
+
+  return `
+        <section class="question-description" aria-label="问题描述">
+          <p class="question-description-title">问题描述</p>
+          <div class="question-description-summary" data-question-description-summary>${escapeHtml(summaryText)}${summaryText ? "..." : ""}<button class="question-description-toggle" type="button" data-action="toggle-question-description" aria-expanded="false"><span data-label>显示全部</span> <span aria-hidden="true">⌄</span></button></div>
+          <div class="question-description-body" data-question-description-body hidden>${valueHtml}<button class="question-description-toggle" type="button" data-action="toggle-question-description" aria-expanded="true"><span data-label>收起</span> <span aria-hidden="true">⌃</span></button></div>
         </section>`;
 }
 
@@ -851,6 +882,31 @@ export function renderCardScript() {
       button.querySelector("[data-label]").textContent = nextExpanded ? "收起全部" : "展开全部";
     }
 
+    function toggleQuestionDescription(button) {
+      const card = button.closest(".question-description");
+      const summary = card?.querySelector("[data-question-description-summary]");
+      const body = card?.querySelector("[data-question-description-body]");
+      if (!summary || !body) {
+        return;
+      }
+
+      const expanded = button.getAttribute("aria-expanded") === "true";
+      const nextExpanded = !expanded;
+      summary.hidden = nextExpanded;
+      body.hidden = !nextExpanded;
+      for (const toggle of card.querySelectorAll('[data-action="toggle-question-description"]')) {
+        toggle.setAttribute("aria-expanded", String(nextExpanded));
+      }
+      const summaryLabel = summary.querySelector("[data-label]");
+      const bodyLabel = body.querySelector("[data-label]");
+      if (summaryLabel) {
+        summaryLabel.textContent = nextExpanded ? "收起" : "展开";
+      }
+      if (bodyLabel) {
+        bodyLabel.textContent = nextExpanded ? "收起" : "展开";
+      }
+    }
+
     function escapeHtml(value) {
       return String(value).replace(/[&<>"]/g, (ch) => ({
         "&": "&amp;",
@@ -880,6 +936,11 @@ export function renderCardScript() {
         event.stopPropagation();
         toggleCommentReplies(actionButton);
       }
+      if (action === "toggle-question-description") {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleQuestionDescription(actionButton);
+      }
     });
   `;
 }
@@ -897,6 +958,23 @@ export function extractSummary(markdownBody) {
   return {
     text: text.length > SUMMARY_LIMIT ? text.slice(0, SUMMARY_LIMIT) : text,
     truncated: text.length > SUMMARY_LIMIT
+  };
+}
+
+export function extractQuestionDescriptionSummary(markdownBody) {
+  const text = String(markdownBody || "")
+    .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[#>*_`~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    text: text.length > QUESTION_DESCRIPTION_SUMMARY_LIMIT ? text.slice(0, QUESTION_DESCRIPTION_SUMMARY_LIMIT) : text,
+    truncated: text.length > QUESTION_DESCRIPTION_SUMMARY_LIMIT,
+    hasImage: /!\[[^\]]*]\([^)]+\)/.test(String(markdownBody || ""))
   };
 }
 
