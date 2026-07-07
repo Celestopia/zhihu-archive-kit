@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   extractSummary,
-  formatDisplayTime,
   renderCardCss,
   renderCardScript,
   renderContentCard,
@@ -102,8 +101,7 @@ export async function renderOutputIndex(rootPath = "output") {
   const outputPath = path.join(root, INDEX_FILE);
   await fs.writeFile(outputPath, renderIndexDocument({
     items,
-    collections,
-    generatedAt: new Date()
+    collections
   }), "utf8");
   return outputPath;
 }
@@ -122,7 +120,7 @@ function requireSourceType(value) {
   throw new Error("index.md frontmatter must include source_type as answer or article.");
 }
 
-function renderIndexDocument({ items, collections, generatedAt }) {
+function renderIndexDocument({ items, collections }) {
   const answerCount = items.filter((item) => item.type === "answer").length;
   const articleCount = items.filter((item) => item.type === "article").length;
 
@@ -224,6 +222,11 @@ function renderIndexDocument({ items, collections, generatedAt }) {
       line-height: 1.25;
     }
     .summary {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+    }
+    .summary-row {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
@@ -352,14 +355,18 @@ function renderIndexDocument({ items, collections, generatedAt }) {
   <main>
     <header class="header">
       <h1>知乎保存导航</h1>
-      <p class="summary">
-        <span>总数：<strong>${items.length}</strong></span>
-        <span>回答：<strong>${answerCount}</strong></span>
-        <span>文章：<strong>${articleCount}</strong></span>
-        <span>收藏夹：<strong id="current-collection">所有</strong></span>
-        <span>当前显示：<strong id="visible-count">${items.length}</strong></span>
-        <span>生成时间：<strong>${escapeHtml(formatDisplayTime(generatedAt))}</strong></span>
-      </p>
+      <div class="summary">
+        <p class="summary-row">
+          <span>总数：<strong>${items.length}</strong></span>
+          <span>回答：<strong>${answerCount}</strong></span>
+          <span>文章：<strong>${articleCount}</strong></span>
+        </p>
+        <p class="summary-row">
+          <span>收藏夹：<strong id="current-collection">所有</strong></span>
+          <span>当前显示：<strong id="visible-count">${items.length}</strong></span>
+          <span>描述：<strong id="current-collection-description">全部收藏夹内容</strong></span>
+        </p>
+      </div>
     </header>
     <section class="toolbar" aria-label="筛选">
       <input id="search" class="search" type="search" placeholder="搜索标题、作者或摘要">
@@ -381,6 +388,7 @@ ${renderCardScript()}
     const searchInput = document.getElementById("search");
     const visibleCount = document.getElementById("visible-count");
     const currentCollection = document.getElementById("current-collection");
+    const currentCollectionDescription = document.getElementById("current-collection-description");
     const pagination = document.getElementById("pagination");
     const cards = Array.from(document.querySelectorAll(".item"));
     const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
@@ -411,7 +419,13 @@ ${renderCardScript()}
 
       visibleCount.textContent = String(matchedCards.length);
       currentCollection.textContent = activeCollection === "all" ? "所有" : activeCollection;
+      currentCollectionDescription.textContent = activeCollectionDescription();
       renderPagination(totalPages);
+    }
+
+    function activeCollectionDescription() {
+      const button = collectionButtons.find((item) => item.dataset.collectionFilter === activeCollection);
+      return button?.dataset.collectionDescription || "暂无收藏夹描述";
     }
 
     function resetToFirstPage() {
@@ -511,11 +525,11 @@ function renderCollectionNav({ collections, totalCount }) {
   <aside class="collection-nav" aria-label="收藏夹">
     <p class="collection-nav-title">收藏夹</p>
     <div class="collection-nav-list">
-      <button type="button" data-collection-filter="all" aria-pressed="true" title="所有">
+      <button type="button" data-collection-filter="all" data-collection-description="全部收藏夹内容" aria-pressed="true" title="所有">
         <span>所有</span><span class="collection-nav-count">${escapeHtml(totalCount)}</span>
       </button>
       ${collections.map((collection) => `
-        <button type="button" data-collection-filter="${escapeAttr(collection.name)}" aria-pressed="false" title="${escapeAttr(collectionTooltip(collection))}">
+        <button type="button" data-collection-filter="${escapeAttr(collection.name)}" data-collection-description="${escapeAttr(collectionDescriptionText(collection))}" aria-pressed="false" title="${escapeAttr(collectionTooltip(collection))}">
           <span>${escapeHtml(collection.name)}</span><span class="collection-nav-count">${escapeHtml(collection.count)}</span>
         </button>
       `).join("")}
@@ -525,6 +539,10 @@ function renderCollectionNav({ collections, totalCount }) {
 
 function collectionTooltip(collection) {
   return collection.description.trim() || collection.name;
+}
+
+function collectionDescriptionText(collection) {
+  return collection.description.trim() || "暂无收藏夹描述";
 }
 
 function toPosixPath(value) {
