@@ -37,6 +37,7 @@ src/batch/
 
 src/render/
   cli.mjs
+  edit-api.mjs
   zhihu-emoji.mjs
   index-cli.mjs
   index-page.mjs
@@ -81,7 +82,7 @@ userscripts/
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务、浏览器端批量客户端和 ZIP 解压逻辑。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
-`src/render/` 包含静态 HTML 预览、导航页生成器和本地浏览服务。它只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。
+`src/render/` 包含静态 HTML 预览、导航页生成器、本地浏览服务和导航页编辑 API。渲染路径只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`edit-api.mjs` 只服务 `render:serve`，负责收藏夹元数据写入、收藏夹重命名、内容删除和内容移动。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。
 
 `src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数。目前这里包含 URL 识别、清洗和目标文件夹命名逻辑。
 
@@ -280,6 +281,8 @@ npm run render:serve -- output --port 17892
 
 `serve.mjs` 会先刷新导航页，再用 Node 内置 HTTP 服务托管保存根目录。服务只绑定 `127.0.0.1`。分页是导航页里的客户端行为，不新增 HTTP 分页接口。收藏夹内内容的动态加载路径包含收藏夹目录层级，例如 `默认收藏夹/question-xxx-answer-yyy/preview.html`。直接用 `file://` 打开 `index.html` 只能浏览列表，展开正文或评论时会提示使用本地服务。
 
+通过 `render:serve` 打开的导航页还可以编辑本地保存结果。顶部卡片的 `...` 菜单调用本地 API 新建收藏夹，或在选中具体收藏夹时修改收藏夹名称和描述；左侧收藏夹栏的 `+` 也调用同一新建逻辑，右键收藏夹会打开同一组名称和描述编辑动作。内容卡片的 `...` 菜单可以永久删除当前内容目录，或把内容目录移动到其它收藏夹；移动目标列表在菜单内滚动，不改变卡片布局。所有写操作都限制在当前保存根目录内：收藏夹必须带 `collection.json`，内容目录必须同时带 `index.md` 和 `comments.json`，以下划线开头的内部目录不可操作，重名或目标已存在时直接失败且不覆盖。
+
 ## localhost API
 
 批量服务只监听 `127.0.0.1`：
@@ -298,6 +301,18 @@ GET  /api/state
 `/api/job/:id/fail` 记录浏览器端保存失败原因。连续失败或检测到风控原因时，队列会暂停。
 
 `/api/state` 用于查看当前批量状态。
+
+本地浏览服务也只监听 `127.0.0.1`。它保留静态文件 GET/HEAD 服务，并额外提供导航页编辑 API：
+
+```text
+GET    /api/collections
+POST   /api/collections
+PATCH  /api/collections/:name
+DELETE /api/items/:collection/:folder
+POST   /api/items/:collection/:folder/move
+```
+
+`GET /api/collections` 返回当前收藏夹、描述和内容数量。`POST /api/collections` 创建收藏夹并写入 `collection.json`。`PATCH /api/collections/:name` 修改收藏夹名称或描述；名称变化时重命名收藏夹目录，并保留 `time_created`。`DELETE /api/items/:collection/:folder` 永久删除内容目录。`POST /api/items/:collection/:folder/move` 把内容目录移动到目标收藏夹。浏览服务 API 写入成功后会重新运行导航页生成流程，使 `index.html` 和相关 `preview.html` 与文件系统保持一致。
 
 ## Markdown 渲染
 

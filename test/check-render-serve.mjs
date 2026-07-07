@@ -54,8 +54,36 @@ try {
 
   const missingResponse = await fetch(`${handle.url}missing.html`);
   assert.equal(missingResponse.status, 404);
+
+  const collectionsResponse = await fetch(`${handle.url}api/collections`);
+  assert.equal(collectionsResponse.status, 200);
+  assert.deepEqual((await collectionsResponse.json()).collections.map((item) => item.name), ["默认收藏夹"]);
+
+  const createResponse = await fetch(`${handle.url}api/collections`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "服务收藏夹", description: "由 API 创建" })
+  });
+  assert.equal(createResponse.status, 201);
+  assert.equal(await fileExists(path.join(root, "服务收藏夹", "collection.json")), true);
+
+  const refreshedIndexResponse = await fetch(handle.url);
+  assert.equal(refreshedIndexResponse.status, 200);
+  assert.match(await refreshedIndexResponse.text(), /服务收藏夹/);
 } finally {
   await stopRenderServer(handle);
 }
 
 console.log("HTML navigation server checks passed.");
+
+async function fileExists(filePath) {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.isFile();
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}

@@ -12,7 +12,7 @@ export function renderCardCss() {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 8px;
-      overflow: hidden;
+      overflow: visible;
     }
     .item {
       padding: 22px 26px;
@@ -234,6 +234,77 @@ export function renderCardCss() {
       background: #dcecff;
       color: var(--accent);
     }
+    .item-menu-wrap {
+      margin-left: auto;
+      position: relative;
+    }
+    .item-menu-button {
+      align-items: center;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #8492a6;
+      cursor: pointer;
+      display: inline-flex;
+      font: inherit;
+      font-weight: 700;
+      height: 24px;
+      justify-content: center;
+      min-width: 30px;
+      padding: 0 8px;
+    }
+    .item-menu-button:hover,
+    .item-menu-button[aria-expanded="true"] {
+      background: #f2f4f7;
+      color: var(--accent);
+    }
+    .item-menu {
+      position: absolute;
+      right: 0;
+      bottom: 30px;
+      z-index: 4;
+      min-width: 150px;
+      padding: 6px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 10px 28px rgba(16, 24, 40, .14);
+    }
+    .item-menu--move {
+      overflow: visible;
+    }
+    .item-menu-scroll {
+      display: block;
+      max-height: 170px;
+      overflow-y: auto;
+    }
+    .item-menu[hidden] {
+      display: none;
+    }
+    .item-menu button,
+    .item-menu-title {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      padding: 7px 9px;
+      text-align: left;
+    }
+    .item-menu button {
+      cursor: pointer;
+    }
+    .item-menu button:hover {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .item-menu-title {
+      color: var(--muted);
+      cursor: default;
+    }
     .feed-action__icon {
       font-size: 15px;
       line-height: 1;
@@ -449,10 +520,11 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
     : `<a class="title" href="${escapeAttr(previewHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a>`;
   const previewAttrs = previewHref ? ` data-preview-href="${escapeAttr(previewHref)}"` : "";
   const collectionAttrs = item.collectionName ? ` data-collection="${escapeAttr(item.collectionName)}"` : "";
+  const folderAttrs = item.folderName ? ` data-folder="${escapeAttr(item.folderName)}"` : "";
   const summaryText = item.summaryText || "暂无摘要。";
 
   return `
-    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}>
+    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}${folderAttrs}>
       <div class="item-head">
         ${titleHtml}
         <div class="item-badges">
@@ -480,6 +552,7 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
         ${feedCountItem("favorite", "收藏", item.favoriteCount)}
         ${feedCountItem("comment", "评论", item.commentCount)}
         <button class="feed-action feed-action--comment action-pill" type="button" data-action="toggle-comments" aria-expanded="false"><span data-label>评论区</span></button>
+        ${isPreview ? "" : itemMenuHtml()}
       </div>
       ${isPreview
         ? `<div class="expand-panel" data-panel="comments" data-loaded="1" hidden>${renderCommentsSection({
@@ -489,6 +562,17 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
         : `<div class="expand-panel" data-panel="comments" hidden></div>`}
     </article>
   `;
+}
+
+function itemMenuHtml() {
+  return `
+        <span class="item-menu-wrap">
+          <button class="item-menu-button" type="button" data-item-menu-button aria-expanded="false" aria-label="内容操作菜单">...</button>
+          <span class="item-menu" data-item-menu hidden>
+            <button type="button" data-edit-action="move-item">移动</button>
+            <button type="button" data-edit-action="delete-item">删除</button>
+          </span>
+        </span>`;
 }
 
 export function renderCommentsSection({ storedCommentCount = 0, commentsHtml = "" }) {

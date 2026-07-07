@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { EditApiError, handleEditApiRequest } from "./edit-api.mjs";
 import { renderOutputIndex } from "./index-page.mjs";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -49,13 +50,18 @@ export function stopRenderServer(handle) {
 }
 
 async function serveRequest({ request, response, root }) {
+  const url = new URL(request.url || "/", `http://${request.headers.host || DEFAULT_HOST}`);
+  if (url.pathname.startsWith("/api/")) {
+    await serveApiRequest({ request, response, root, url });
+    return;
+  }
+
   if (request.method !== "GET" && request.method !== "HEAD") {
     response.writeHead(405, { "content-type": "text/plain; charset=utf-8" });
     response.end("Method Not Allowed");
     return;
   }
 
-  const url = new URL(request.url || "/", `http://${request.headers.host || DEFAULT_HOST}`);
   const pathname = decodeURIComponent(url.pathname);
   const relativePath = pathname === "/" ? INDEX_FILE : pathname.replace(/^\/+/, "");
   const filePath = path.resolve(root, relativePath);
@@ -95,6 +101,72 @@ async function serveRequest({ request, response, root }) {
   }
 
   response.end(await fs.readFile(filePath));
+}
+
+async function serveApiRequest({ request, response, root, url }) {
+  try {
+    const segments = apiSegments(url.pathname);
+    const body = request.method === "GET" || request.method === "HEAD"
+      ? undefined
+      : await readJsonBody(request);
+    const result = await handleEditApiRequest({
+      root,
+      method: request.method,
+      segments,
+      body
+    });
+
+    if (result.mutated) {
+      await renderOutputIndex(root);
+    }
+
+    writeJson(response, result.status, result.body);
+  } catch (error) {
+    if (error instanceof EditApiError) {
+      writeJson(response, error.status, { error: error.message });
+      return;
+    }
+    throw error;
+  }
+}
+
+function apiSegments(pathname) {
+  return pathname
+    .replace(/^\/api\/?/, "")
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decodeURIComponent(segment));
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 64 * 1024) {
+      throw new EditApiError(413, "Request body is too large.");
+    }
+    chunks.push(chunk);
+  }
+
+  if (!chunks.length) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new EditApiError(400, "Request body must be valid JSON.");
+  }
+}
+
+function writeJson(response, status, body) {
+  const json = `${JSON.stringify(body)}\n`;
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(json)
+  });
+  response.end(json);
 }
 
 function contentType(filePath) {
