@@ -343,11 +343,22 @@ export function renderCardCss() {
       margin-bottom: 4px;
     }
     .comment-author {
+      align-items: center;
+      display: inline-flex;
+      gap: 6px;
       font-weight: 700;
     }
     .comment-author a {
       color: var(--text);
       text-decoration: none;
+    }
+    .comment-reply-icon {
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid #8492a6;
+      border-top: 4px solid transparent;
+      display: inline-block;
+      height: 0;
+      width: 0;
     }
     .comment-body {
       overflow-wrap: anywhere;

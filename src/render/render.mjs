@@ -160,7 +160,7 @@ function renderComment(comment, level, emojiContext, availableEmojiTokens) {
     ? `<a href="${escapeAttr(comment.author_url)}">${escapeHtml(comment.author || "匿名用户")}</a>`
     : escapeHtml(comment.author || "匿名用户");
   const replyTo = level > 0 && comment.reply_to_author
-    ? ` 回复 ${comment.reply_to_author_url
+    ? ` ${replyIcon()} ${comment.reply_to_author_url
       ? `<a href="${escapeAttr(comment.reply_to_author_url)}">${escapeHtml(comment.reply_to_author)}</a>`
       : escapeHtml(comment.reply_to_author)}`
     : "";
@@ -191,6 +191,10 @@ function renderCommentInfo(comment) {
 
 function heartIcon() {
   return `<svg class="comment-like-icon" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.984 3.324c1.73.315 3.125 1.472 4.04 2.978 1.893 3.116.758 6.989-1.384 9.556a23.241 23.241 0 0 1-3.96 3.737c-.66.486-1.308.895-1.902 1.196-.579.294-1.166.517-1.695.57a.845.845 0 0 1-.145.002c-.529-.038-1.127-.267-1.708-.564a14.407 14.407 0 0 1-1.947-1.232 23.512 23.512 0 0 1-4.081-3.88C2.165 13.207 1.139 9.536 2.85 6.514 3.742 4.94 5.14 3.71 6.896 3.348c1.606-.332 3.363.094 5.103 1.394 1.696-1.267 3.409-1.704 4.985-1.418Z" clip-rule="evenodd"></path></svg>`;
+}
+
+function replyIcon() {
+  return `<span class="comment-reply-icon" role="img" aria-label="回复" title="回复"></span>`;
 }
 
 function renderReplies(children, level, emojiContext, availableEmojiTokens) {
