@@ -139,14 +139,9 @@ function injectArticleControl() {
     return;
   }
 
-  const articleHost = articleRoot.querySelector(".Post-Row-Content-left");
-  if (!articleHost) {
-    return;
-  }
-
   const articleTarget = extractArticleTarget(articleRoot);
   const folderName = targetFolderName(articleTarget);
-  articleHost.classList.add(CONTROL_HOST_CLASS);
+  articleRoot.classList.add(CONTROL_HOST_CLASS);
   const control = createSaveControl(
     (button) => saveArtifactWithButton(
       button,
@@ -160,7 +155,7 @@ function injectArticleControl() {
     (button) => changeDirectoryWithButton(button, () => refreshAllSaveStatuses())
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
-  articleHost.prepend(control);
+  articleRoot.prepend(control);
   refreshSaveStatus(control, folderName);
   articleRoot.setAttribute(CONTROL_BOUND_ATTR, "article");
 }

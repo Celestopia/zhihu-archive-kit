@@ -97,9 +97,9 @@ export function extractArticleTarget(articleRoot) {
 }
 
 export function findArticleRoot() {
-  return document.querySelector(".Post-content")
+  return document.querySelector(".Post-Main")
     || document.querySelector(".Post-RichTextContainer")
-    || document.querySelector(".Post-Main")
+    || document.querySelector(".Post-content")
     || null;
 }
 

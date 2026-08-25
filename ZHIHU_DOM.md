@@ -469,12 +469,12 @@ https://zhuanlan.zhihu.com/p/<article_id>
 .Post-RichTextContainer
 ```
 
-项目注入按钮时优先绑定：
+项目注入按钮时优先绑定居中的正文卡片，避免相对于页面级容器向左定位后落到视口外：
 
 ```text
-.Post-content
-.Post-RichTextContainer
 .Post-Main
+.Post-RichTextContainer
+.Post-content
 ```
 
 代码依赖：

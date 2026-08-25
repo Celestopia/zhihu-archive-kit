@@ -1897,9 +1897,9 @@ function extractArticleTarget(articleRoot) {
 }
 
 function findArticleRoot() {
-  return document.querySelector(".Post-content")
+  return document.querySelector(".Post-Main")
     || document.querySelector(".Post-RichTextContainer")
-    || document.querySelector(".Post-Main")
+    || document.querySelector(".Post-content")
     || null;
 }
 
@@ -3857,14 +3857,9 @@ function injectArticleControl() {
     return;
   }
 
-  const articleHost = articleRoot.querySelector(".Post-Row-Content-left");
-  if (!articleHost) {
-    return;
-  }
-
   const articleTarget = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractArticleTarget)(articleRoot);
   const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(articleTarget);
-  articleHost.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
+  articleRoot.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
   const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
     (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArtifactWithButton)(
       button,
@@ -3878,7 +3873,7 @@ function injectArticleControl() {
     (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.changeDirectoryWithButton)(button, () => refreshAllSaveStatuses())
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
-  articleHost.prepend(control);
+  articleRoot.prepend(control);
   refreshSaveStatus(control, folderName);
   articleRoot.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "article");
 }

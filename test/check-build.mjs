@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const userscriptPath = path.join(rootDir, "userscripts", "zhihu-archive-kit.user.js");
 const content = await readFile(userscriptPath, "utf8");
+const mainSource = await readFile(path.join(rootDir, "src", "userscript", "main.js"), "utf8");
+const targetSource = await readFile(path.join(rootDir, "src", "save-core", "target.js"), "utf8");
 
 assert.match(content, /\/\/ ==UserScript==/);
 assert.match(content, /@name\s+Zhihu Archive Kit/);
@@ -41,6 +43,13 @@ assert.match(content, /data-zhmd-folder-name/);
 assert.match(content, /showDirectoryPicker/);
 assert.match(content, /buildAnswerItemArtifact/);
 assert.match(content, /buildArticleRootArtifact/);
+assert.match(mainSource, /articleRoot\.classList\.add\(CONTROL_HOST_CLASS\)/);
+assert.match(mainSource, /articleRoot\.prepend\(control\)/);
+assert.doesNotMatch(content, /Post-Row-Content-left/);
+assert.match(
+  targetSource,
+  /function findArticleRoot\(\) \{\s*return document\.querySelector\("\.Post-Main"\)[\s\S]*?document\.querySelector\("\.Post-content"\)/
+);
 assert.match(content, /comments\.json/);
 assert.match(content, /mountCommentStaging/);
 assert.match(content, /parseCommentContainer/);
