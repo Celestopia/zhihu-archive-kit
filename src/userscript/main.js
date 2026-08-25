@@ -1,4 +1,4 @@
-import { CONTROL_BOUND_ATTR, CONTROL_HOST_CLASS } from "./constants.js";
+import { CONTROL_BOUND_ATTR, CONTROL_HOST_CLASS, CONTROL_SCOPE_CLASS } from "./constants.js";
 import { startBatchClient } from "../batch/client.js";
 import {
   buildAnswerItemArtifact,
@@ -103,25 +103,15 @@ function injectAnswerControls() {
       continue;
     }
 
-    const folderName = targetFolderName(target);
     const host = answerItem.querySelector(".RichContent") || answerItem;
-    host.classList.add(CONTROL_HOST_CLASS);
-    const control = createSaveControl(
-      (button) => saveArtifactWithButton(
-        button,
-        (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options)),
-        () => refreshSaveStatus(control, folderName)
-      ),
-      (button) => saveZipWithButton(
-        button,
-        (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
-      ),
-      (button) => changeDirectoryWithButton(button, () => refreshAllSaveStatuses())
-    );
-    control.setAttribute("data-zhmd-folder-name", folderName);
-    host.prepend(control);
-    refreshSaveStatus(control, folderName);
-    answerItem.setAttribute(CONTROL_BOUND_ATTR, "answer");
+    mountSaveControl({
+      scope: answerItem,
+      host,
+      target,
+      boundType: "answer",
+      buildArtifact: (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options)),
+      buildZip: (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
+    });
   }
 }
 
@@ -140,24 +130,33 @@ function injectArticleControl() {
   }
 
   const articleTarget = extractArticleTarget(articleRoot);
-  const folderName = targetFolderName(articleTarget);
-  articleRoot.classList.add(CONTROL_HOST_CLASS);
+  mountSaveControl({
+    scope: articleRoot,
+    host: articleRoot,
+    target: articleTarget,
+    boundType: "article",
+    buildArtifact: (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options)),
+    buildZip: (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
+  });
+}
+
+function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
+  const folderName = targetFolderName(target);
+  scope.classList.add(CONTROL_SCOPE_CLASS);
+  host.classList.add(CONTROL_HOST_CLASS);
   const control = createSaveControl(
     (button) => saveArtifactWithButton(
       button,
-      (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options)),
+      buildArtifact,
       () => refreshSaveStatus(control, folderName)
     ),
-    (button) => saveZipWithButton(
-      button,
-      (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
-    ),
+    (button) => saveZipWithButton(button, buildZip),
     (button) => changeDirectoryWithButton(button, () => refreshAllSaveStatuses())
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
-  articleRoot.prepend(control);
+  host.prepend(control);
   refreshSaveStatus(control, folderName);
-  articleRoot.setAttribute(CONTROL_BOUND_ATTR, "article");
+  scope.setAttribute(CONTROL_BOUND_ATTR, boundType);
 }
 
 async function refreshSaveStatus(control, folderName) {

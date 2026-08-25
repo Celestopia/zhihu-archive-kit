@@ -16,6 +16,7 @@ const userscriptPath = path.join(rootDir, "userscripts", "zhihu-archive-kit.user
 const content = await readFile(userscriptPath, "utf8");
 const mainSource = await readFile(path.join(rootDir, "src", "userscript", "main.js"), "utf8");
 const targetSource = await readFile(path.join(rootDir, "src", "save-core", "target.js"), "utf8");
+const uiSource = await readFile(path.join(rootDir, "src", "userscript", "ui.js"), "utf8");
 
 assert.match(content, /\/\/ ==UserScript==/);
 assert.match(content, /@name\s+Zhihu Archive Kit/);
@@ -32,6 +33,11 @@ assert.match(content, /更改保存目录/);
 assert.match(content, /默认收藏夹/);
 assert.match(content, /collection\.json/);
 assert.match(content, /选择收藏夹/);
+assert.match(content, /document\.body\.append\(menu\)/);
+assert.match(content, /position: fixed/);
+assert.match(content, /z-index: 2147483647/);
+assert.match(uiSource, /CONTROL_CLASS\}__collection-menu.*item\.remove/s);
+assert.match(uiSource, /CONTROL_CLASS\}__collection-menu button/);
 assert.match(content, /新建收藏夹/);
 assert.match(content, /收藏夹名称不能以下划线开头/);
 assert.match(content, /isInternalDirectoryName/);
@@ -43,8 +49,10 @@ assert.match(content, /data-zhmd-folder-name/);
 assert.match(content, /showDirectoryPicker/);
 assert.match(content, /buildAnswerItemArtifact/);
 assert.match(content, /buildArticleRootArtifact/);
-assert.match(mainSource, /articleRoot\.classList\.add\(CONTROL_HOST_CLASS\)/);
-assert.match(mainSource, /articleRoot\.prepend\(control\)/);
+assert.match(mainSource, /function mountSaveControl/);
+assert.match(mainSource, /scope\.classList\.add\(CONTROL_SCOPE_CLASS\)/);
+assert.match(mainSource, /host\.classList\.add\(CONTROL_HOST_CLASS\)/);
+assert.match(mainSource, /host\.prepend\(control\)/);
 assert.doesNotMatch(content, /Post-Row-Content-left/);
 assert.match(
   targetSource,
@@ -60,7 +68,11 @@ assert.match(content, /return text\.slice\(0, 10\)/);
 assert.doesNotMatch(content, /commentsTarget/);
 assert.doesNotMatch(content, /includeTime/);
 assert.match(content, /zhmd-save-control/);
-assert.match(content, /AnswerItem:hover/);
+assert.match(content, /zhmd-save-control-scope/);
+assert.doesNotMatch(content, /AnswerItem:hover/);
+assert.doesNotMatch(content, /Post-content:hover/);
+assert.doesNotMatch(content, /Post-RichTextContainer:hover/);
+assert.doesNotMatch(content, /Post-Main:hover/);
 assert.match(content, /question-\$\{questionId\}-answer-\$\{target\.id\}/);
 assert.match(content, /downloadMediaAssets/);
 assert.match(content, /isZhidaEntityLink/);

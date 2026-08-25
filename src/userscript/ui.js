@@ -1,4 +1,4 @@
-import { CONTROL_CLASS, CONTROL_HOST_CLASS, CONTROL_STYLE_ID } from "./constants.js";
+import { CONTROL_CLASS, CONTROL_HOST_CLASS, CONTROL_SCOPE_CLASS, CONTROL_STYLE_ID } from "./constants.js";
 
 const DEFAULT_SAVE_BUTTON_TEXT = "保存";
 const DEFAULT_SAVE_BUTTON_TITLE = "选择收藏夹后保存当前知乎回答/文章到本地目录";
@@ -18,10 +18,6 @@ export function ensureSaveControlStyle() {
   const style = document.createElement("style");
   style.id = CONTROL_STYLE_ID;
   style.textContent = `
-    .AnswerItem .RichContent,
-    .Post-content,
-    .Post-RichTextContainer,
-    .Post-Main,
     .${CONTROL_HOST_CLASS} {
       position: relative;
     }
@@ -51,17 +47,14 @@ export function ensureSaveControlStyle() {
       margin-top: 48px;
     }
 
-    .AnswerItem:hover .${CONTROL_CLASS},
-    .Post-content:hover .${CONTROL_CLASS},
-    .Post-RichTextContainer:hover .${CONTROL_CLASS},
-    .Post-Main:hover .${CONTROL_CLASS},
-    .${CONTROL_HOST_CLASS}:hover .${CONTROL_CLASS},
+    .${CONTROL_SCOPE_CLASS}:hover .${CONTROL_CLASS},
     .${CONTROL_CLASS}:hover {
       opacity: 1;
       pointer-events: auto;
     }
 
-    .${CONTROL_CLASS} button {
+    .${CONTROL_CLASS} button,
+    .${CONTROL_CLASS}__collection-menu button {
       border: none;
       border-radius: 6px;
       color: #fff;
@@ -120,14 +113,14 @@ export function ensureSaveControlStyle() {
     }
 
     .${CONTROL_CLASS}__collection-menu {
-      position: absolute;
-      left: 0;
-      top: 44px;
+      position: fixed;
       width: 188px;
       padding: 8px;
       border-radius: 6px;
       background: rgba(23, 25, 31, .96);
       box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+      z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     .${CONTROL_CLASS}__collection-title {
@@ -253,4 +246,5 @@ export function setUnsavedStatus(button) {
 
 export function removeSaveControls() {
   document.querySelectorAll(`.${CONTROL_CLASS}`).forEach((item) => item.remove());
+  document.querySelectorAll(`.${CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
 }

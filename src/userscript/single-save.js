@@ -69,7 +69,7 @@ function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
     throw new Error("找不到保存控件。");
   }
 
-  closeCollectionMenu(control);
+  closeCollectionMenu();
 
   const menu = document.createElement("div");
   menu.className = `${CONTROL_CLASS}__collection-menu`;
@@ -110,7 +110,11 @@ function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
   actions.append(newButton, cancelButton, saveButton);
 
   menu.append(title, select, actions);
-  control.querySelector(`.${CONTROL_CLASS}__inner`).append(menu);
+  const inner = control.querySelector(`.${CONTROL_CLASS}__inner`);
+  const rect = inner.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 212))}px`;
+  menu.style.top = `${Math.max(8, Math.min(rect.top + 44, window.innerHeight - 220))}px`;
+  document.body.append(menu);
 }
 
 function fillCollectionSelect(select, collections, selectedName = "") {
@@ -184,8 +188,8 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
   }
 }
 
-function closeCollectionMenu(control) {
-  control.querySelectorAll(`.${CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
+function closeCollectionMenu() {
+  document.querySelectorAll(`.${CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
 }
 
 export async function saveZipWithButton(button, buildZip) {

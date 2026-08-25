@@ -2734,10 +2734,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   CONTROL_BOUND_ATTR: () => (/* binding */ CONTROL_BOUND_ATTR),
 /* harmony export */   CONTROL_CLASS: () => (/* binding */ CONTROL_CLASS),
 /* harmony export */   CONTROL_HOST_CLASS: () => (/* binding */ CONTROL_HOST_CLASS),
+/* harmony export */   CONTROL_SCOPE_CLASS: () => (/* binding */ CONTROL_SCOPE_CLASS),
 /* harmony export */   CONTROL_STYLE_ID: () => (/* binding */ CONTROL_STYLE_ID)
 /* harmony export */ });
 const CONTROL_CLASS = "zhmd-save-control";
 const CONTROL_HOST_CLASS = "zhmd-save-control-host";
+const CONTROL_SCOPE_CLASS = "zhmd-save-control-scope";
 const CONTROL_STYLE_ID = "zhmd-save-control-style";
 const CONTROL_BOUND_ATTR = "data-zhmd-save-bound";
 const BATCH_STATUS_ID = "zhmd-batch-status";
@@ -3198,7 +3200,7 @@ function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
     throw new Error("找不到保存控件。");
   }
 
-  closeCollectionMenu(control);
+  closeCollectionMenu();
 
   const menu = document.createElement("div");
   menu.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-menu`;
@@ -3239,7 +3241,11 @@ function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
   actions.append(newButton, cancelButton, saveButton);
 
   menu.append(title, select, actions);
-  control.querySelector(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__inner`).append(menu);
+  const inner = control.querySelector(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__inner`);
+  const rect = inner.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 212))}px`;
+  menu.style.top = `${Math.max(8, Math.min(rect.top + 44, window.innerHeight - 220))}px`;
+  document.body.append(menu);
 }
 
 function fillCollectionSelect(select, collections, selectedName = "") {
@@ -3313,8 +3319,8 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
   }
 }
 
-function closeCollectionMenu(control) {
-  control.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
+function closeCollectionMenu() {
+  document.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
 }
 
 async function saveZipWithButton(button, buildZip) {
@@ -3412,10 +3418,6 @@ function ensureSaveControlStyle() {
   const style = document.createElement("style");
   style.id = _constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_STYLE_ID;
   style.textContent = `
-    .AnswerItem .RichContent,
-    .Post-content,
-    .Post-RichTextContainer,
-    .Post-Main,
     .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS} {
       position: relative;
     }
@@ -3445,17 +3447,14 @@ function ensureSaveControlStyle() {
       margin-top: 48px;
     }
 
-    .AnswerItem:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
-    .Post-content:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
-    .Post-RichTextContainer:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
-    .Post-Main:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
-    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS}:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_SCOPE_CLASS}:hover .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS},
     .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}:hover {
       opacity: 1;
       pointer-events: auto;
     }
 
-    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS} button {
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS} button,
+    .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-menu button {
       border: none;
       border-radius: 6px;
       color: #fff;
@@ -3514,14 +3513,14 @@ function ensureSaveControlStyle() {
     }
 
     .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-menu {
-      position: absolute;
-      left: 0;
-      top: 44px;
+      position: fixed;
       width: 188px;
       padding: 8px;
       border-radius: 6px;
       background: rgba(23, 25, 31, .96);
       box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+      z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-title {
@@ -3647,6 +3646,7 @@ function setUnsavedStatus(button) {
 
 function removeSaveControls() {
   document.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}`).forEach((item) => item.remove());
+  document.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__collection-menu`).forEach((item) => item.remove());
 }
 
 
@@ -3821,25 +3821,15 @@ function injectAnswerControls() {
       continue;
     }
 
-    const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(target);
     const host = answerItem.querySelector(".RichContent") || answerItem;
-    host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
-    const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArtifactWithButton)(
-        button,
-        (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options)),
-        () => refreshSaveStatus(control, folderName)
-      ),
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(
-        button,
-        (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
-      ),
-      (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.changeDirectoryWithButton)(button, () => refreshAllSaveStatuses())
-    );
-    control.setAttribute("data-zhmd-folder-name", folderName);
-    host.prepend(control);
-    refreshSaveStatus(control, folderName);
-    answerItem.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "answer");
+    mountSaveControl({
+      scope: answerItem,
+      host,
+      target,
+      boundType: "answer",
+      buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options)),
+      buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
+    });
   }
 }
 
@@ -3858,24 +3848,33 @@ function injectArticleControl() {
   }
 
   const articleTarget = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractArticleTarget)(articleRoot);
-  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(articleTarget);
-  articleRoot.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
+  mountSaveControl({
+    scope: articleRoot,
+    host: articleRoot,
+    target: articleTarget,
+    boundType: "article",
+    buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options)),
+    buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
+  });
+}
+
+function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
+  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(target);
+  scope.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_SCOPE_CLASS);
+  host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
   const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
     (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArtifactWithButton)(
       button,
-      (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options)),
+      buildArtifact,
       () => refreshSaveStatus(control, folderName)
     ),
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(
-      button,
-      (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
-    ),
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(button, buildZip),
     (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.changeDirectoryWithButton)(button, () => refreshAllSaveStatuses())
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
-  articleRoot.prepend(control);
+  host.prepend(control);
   refreshSaveStatus(control, folderName);
-  articleRoot.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, "article");
+  scope.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, boundType);
 }
 
 async function refreshSaveStatus(control, folderName) {

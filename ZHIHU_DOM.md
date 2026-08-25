@@ -771,6 +771,8 @@ src/save-core/markdown.js -> renderBlock()
 
 ```text
 .zhmd-save-control
+.zhmd-save-control-scope
+.zhmd-save-control-host
 .zhmd-save-control__inner
 .zhmd-save-control__primary
 .zhmd-save-control__gear
@@ -790,16 +792,17 @@ data-zhmd-save-bound="answer"
 data-zhmd-save-bound="article"
 ```
 
+回答卡片和文章卡片使用同一套控件挂载逻辑。内容作用域添加 `.zhmd-save-control-scope`，定位宿主添加 `.zhmd-save-control-host`。前者只负责悬浮显隐，后者只负责绝对定位。
+
 显示逻辑：
 
 ```text
-.AnswerItem:hover .zhmd-save-control
-.Post-content:hover .zhmd-save-control
-.Post-RichTextContainer:hover .zhmd-save-control
+.zhmd-save-control-scope:hover .zhmd-save-control
 .zhmd-save-control:hover
 ```
 
 按钮位于内容左侧，内部使用 sticky 定位，使长回答滚动时按钮仍可见。
+收藏夹选择菜单打开后挂载到 `document.body`，使用视口坐标对齐保存按钮，避免受到回答或文章正文层叠上下文的遮挡。
 
 代码依赖：
 
