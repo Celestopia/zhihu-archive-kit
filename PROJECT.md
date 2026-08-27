@@ -36,15 +36,17 @@ src/batch/
   time.js
 
 src/render/
+  card-template.mjs
   cli.mjs
   edit-api.mjs
-  zhihu-emoji.mjs
+  html-utils.mjs
   index-cli.mjs
   index-page.mjs
   render.mjs
   serve-cli.mjs
   serve.mjs
   template.mjs
+  zhihu-emoji.mjs
 
 src/shared/
   url.js
@@ -52,7 +54,10 @@ src/shared/
 test/
   check-build.mjs
   check-extract.mjs
+  check-markdown.mjs
+  check-question-metadata.mjs
   check-render.mjs
+  check-render-edit-api.mjs
   check-render-index.mjs
   check-render-serve.mjs
 
@@ -264,13 +269,47 @@ npm run render:index -- output
 
 `index-cli.mjs` 默认扫描 `output/`，也可以接收一个保存根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过根目录直存内容、无元数据目录和以下划线开头的内部目录。
 
-每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和摘要，按 `time_exported` 倒序生成：
+每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和摘要，按 `time_exported` 倒序生成初始页面：
 
 ```text
 index.html
 ```
 
-导航页只内置标题、摘要、元数据、收藏夹名、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。新保存内容优先读取 frontmatter 中的 `content_excerpt`；旧内容没有该字段时再从 Markdown 正文生成摘要。左侧悬浮收藏夹菜单来自 `collection.json`，支持“所有”和单个收藏夹筛选；搜索和回答/文章类型筛选继续叠加生效。筛选结果在客户端分页显示，`index-page.mjs` 中的 `PAGE_SIZE = 20` 控制每页数量；切换收藏夹、类型或搜索时回到第一页。卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单页预览，右上角“阅读原文”链接在新窗口打开知乎原文。`preview.html` 和导航页卡片共用同一套渲染模板；区别是单篇预览默认显示全文，不显示摘要折叠控件。
+### 导航页生成数据
+
+导航页只内置标题、摘要、元数据、收藏夹名、原文 URL 和 `preview.html` 相对路径，不内嵌完整正文和评论。新保存内容优先读取 frontmatter 中的 `content_excerpt`；没有该字段时从 Markdown 正文生成摘要。
+
+`index-page.mjs` 把以下 frontmatter 字段传给导航卡片：
+
+```text
+upvote_count    -> data-sort-upvote
+like_count      -> data-sort-like
+favorite_count  -> data-sort-favorite
+comment_count   -> data-sort-comment
+time_created    -> data-sort-created
+time_modified   -> data-sort-modified
+time_exported   -> data-sort-exported
+```
+
+统计数输出为十进制数值，时间在生成阶段转换为毫秒时间戳，缺失或无效值输出为空字符串。数字 `0` 是有效排序值。`data-sort-comment` 表示知乎原文评论总数，不是 `comments.json` 中已保存的评论数量。排序属性只出现在导航卡片中，单篇 `preview.html` 不输出这些属性。
+
+### 客户端筛选、排序与分页
+
+左侧收藏夹菜单来自 `collection.json`，支持“所有”和单个收藏夹筛选；搜索和回答/文章类型筛选继续叠加生效。客户端处理顺序固定为：
+
+```text
+收藏夹、类型和搜索筛选 -> 排序全部匹配卡片 -> 分页 -> 更新可见卡片
+```
+
+`PAGE_SIZE = 20` 控制每页数量。默认排序字段是导出时间，默认方向是降序；切换字段时方向恢复为降序，排序状态不写入本地存储。缺失或无效值无论升序还是降序都排在末尾；主排序值相同时，先按导出时间降序，再按目录名排序，确保结果稳定。切换收藏夹、类型、搜索、排序字段或排序方向时回到第一页。排序通过移动现有卡片 DOM 节点完成，不重新创建卡片，因此不会丢失已展开正文或评论的状态。
+
+卡片元信息行读取作者、创建时间、修改时间和导出时间；导出时间作为右侧独立字段显示。在“所有”收藏夹中，修改时间后还显示来源收藏夹；选中具体收藏夹时隐藏，因为当前筛选已经明确表达了收藏夹上下文。
+
+### 按需内容加载
+
+页面通过 `fetch()` 按需读取对应 `preview.html`，用 `DOMParser` 抽取 `[data-card-body]` 或 `[data-comments]`，并把 `./assets/...` 这类相对资源路径改写为内容目录下的路径。正文展开时隐藏摘要行，并在同一位置加载完整正文，避免把引用、链接卡片或段落结构裁剪断开。标题链接在新窗口打开单篇预览，右上角“阅读原文”链接在新窗口打开知乎原文。
+
+`preview.html` 和导航页卡片共用 `card-template.mjs`；单篇预览默认显示全文，不显示导航页的摘要折叠、内容管理或排序数据。
 
 推荐通过本地服务打开：
 
@@ -437,7 +476,7 @@ npm test
 - 构建后的油猴脚本是否包含预期 metadata、保存入口、评论暂存入口、批量 API 标记和 frontmatter 字段。
 - ZIP 解压是否拒绝路径逃逸，并在目标文件夹已存在时失败。
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
-- HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录并生成轻量 `index.html`。
+- HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录，并生成带筛选、排序和分页行为的轻量 `index.html`。
 - 本地浏览服务能否只绑定 `127.0.0.1`，并正确返回导航页、单篇预览页和 404。
 
 真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、目录授权和 Tampermonkey 行为需要手动验收。

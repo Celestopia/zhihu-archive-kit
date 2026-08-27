@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { renderOutputIndex } from "../src/render/index-page.mjs";
+import { compareSortableValues, renderOutputIndex } from "../src/render/index-page.mjs";
 
 /**
  * Focused checks for output-level HTML navigation generation.
@@ -16,6 +16,14 @@ const answerDir = path.join(defaultCollectionDir, "question-123-answer-456");
 const articleDir = path.join(techCollectionDir, "article-789");
 const rootDirectDir = path.join(root, "question-root-answer-999");
 const skippedDir = path.join(root, "not-content");
+
+assert.ok(compareSortableValues("10", "5", true) < 0);
+assert.ok(compareSortableValues("10", "5", false) > 0);
+assert.ok(compareSortableValues("", "0", true) > 0);
+assert.ok(compareSortableValues("", "0", false) > 0);
+assert.ok(compareSortableValues("invalid", "0", true) > 0);
+assert.equal(compareSortableValues("0", "0", true), 0);
+assert.equal(compareSortableValues("", "invalid", false), 0);
 
 await fs.mkdir(path.join(answerDir, "assets"), { recursive: true });
 await fs.mkdir(path.join(articleDir, "assets"), { recursive: true });
@@ -239,8 +247,23 @@ assert.match(html, /data-collection-filter="空收藏夹" data-collection-descri
 assert.match(html, /data-collection="默认收藏夹"/);
 assert.match(html, /data-collection="技术收藏"/);
 assert.match(html, /data-folder="question-123-answer-456"/);
+assert.match(html, /data-folder="question-123-answer-456" data-sort-upvote="10" data-sort-like="3" data-sort-favorite="4" data-sort-comment="2" data-sort-created="\d+" data-sort-modified="\d+" data-sort-exported="\d+"/);
+assert.match(html, /data-folder="article-789" data-sort-upvote="5" data-sort-like="" data-sort-favorite="" data-sort-comment="1" data-sort-created="" data-sort-modified="" data-sort-exported="\d+"/);
+assert.ok(html.indexOf('data-folder="question-123-answer-456"') < html.indexOf('data-folder="article-789"'));
+assert.match(html, /<section class="toolbar" aria-label="筛选和排序">/);
+assert.match(html, /<label for="sort-field">排序<\/label>/);
+assert.match(html, /<select id="sort-field" class="sort-select">\s*<option value="exported" selected>导出时间<\/option>\s*<option value="created">创建时间<\/option>\s*<option value="modified">修改时间<\/option>\s*<option value="upvote">赞同<\/option>\s*<option value="like">喜欢<\/option>\s*<option value="favorite">收藏<\/option>\s*<option value="comment">评论<\/option>\s*<\/select>/);
+assert.match(html, /<button id="sort-direction" class="sort-direction" type="button" aria-pressed="true" aria-label="当前降序，点击切换为升序">↓ 降序<\/button>/);
+assert.match(html, /\.toolbar \{[\s\S]*?grid-template-columns: minmax\(220px, 1fr\) auto auto;/);
 assert.match(html, /activeCollection = "all"/);
+assert.match(html, /activeSortField = "exported"/);
+assert.match(html, /sortDescending = true/);
+assert.match(html, /const sortDataKeys = \{[\s\S]*?comment: "sortComment"[\s\S]*?\};/);
 assert.match(html, /matchesCollection = activeCollection === "all" \|\| card\.dataset\.collection === activeCollection/);
+assert.match(html, /\}\)\.sort\(compareCards\);\s*contentList\.append\(\.\.\.matchedCards\);/);
+assert.match(html, /compareSortableValues\([\s\S]*?leftRaw === "" \? null : Number\(leftRaw\)[\s\S]*?return descending \? right - left : left - right;/);
+assert.match(html, /const exported = compareSortableValues\(left\.dataset\.sortExported, right\.dataset\.sortExported, true\);/);
+assert.match(html, /return \(left\.dataset\.folder \|\| ""\)\.localeCompare\(right\.dataset\.folder \|\| "", "zh-Hans-CN"\);/);
 assert.match(html, /const collectionSource = card\.querySelector\("\[data-collection-source\]"\);[\s\S]*?collectionSource\.hidden = activeCollection !== "all";/);
 assert.match(html, /currentCollection\.textContent = activeCollection === "all" \? "所有" : activeCollection/);
 assert.match(html, /currentCollectionDescription\.textContent = activeCollectionDescription\(\);/);
@@ -263,6 +286,9 @@ assert.match(html, /button\.setAttribute\("aria-current", "page"\)/);
 assert.match(html, /items\.push\("ellipsis"\)/);
 assert.match(html, /function resetToFirstPage\(\) \{\s*currentPage = 1;\s*\}/);
 assert.match(html, /searchInput\.addEventListener\("input", \(\) => \{\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
+assert.match(html, /sortFieldSelect\.addEventListener\("change", \(\) => \{\s*activeSortField = sortFieldSelect\.value;\s*sortDescending = true;\s*syncSortDirectionButton\(\);\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
+assert.match(html, /sortDirectionButton\.addEventListener\("click", \(\) => \{\s*sortDescending = !sortDescending;\s*syncSortDirectionButton\(\);\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
+assert.doesNotMatch(html, /localStorage/);
 assert.match(html, /activeFilter = button\.dataset\.filter;[\s\S]*?resetToFirstPage\(\);[\s\S]*?applyFilters\(\);/);
 assert.match(html, /activeCollection = button\.dataset\.collectionFilter;[\s\S]*?resetToFirstPage\(\);[\s\S]*?applyFilters\(\);/);
 assert.match(html, /applyFilters\(\);\s*<\/script>/);
@@ -350,6 +376,7 @@ assert.match(answerPreview, /src="\.\.\/\.\.\/_emoji\/zhihu-v2-c71427010ca7866f9
 assert.match(answerPreview, /class="zhihu-emoji"/);
 assert.match(answerPreview, /\.\/assets\/image-001\.jpg/);
 assert.match(answerPreview, /<section class="feed feed--preview">/);
+assert.doesNotMatch(answerPreview, /data-sort-(?:upvote|like|favorite|comment|created|modified|exported)=/);
 assert.match(answerPreview, /<h1 class="title">回答所属问题标题<\/h1>/);
 assert.match(answerPreview, /<section class="question-info" aria-label="问题信息">/);
 assert.match(answerPreview, /阅读原问题/);

@@ -543,10 +543,11 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
   const previewAttrs = previewHref ? ` data-preview-href="${escapeAttr(previewHref)}"` : "";
   const collectionAttrs = item.collectionName ? ` data-collection="${escapeAttr(item.collectionName)}"` : "";
   const folderAttrs = item.folderName ? ` data-folder="${escapeAttr(item.folderName)}"` : "";
+  const sortAttrs = isPreview ? "" : renderSortAttributes(item);
   const summaryText = item.summaryText || "暂无摘要。";
 
   return `
-    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}${folderAttrs}>
+    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}${folderAttrs}${sortAttrs}>
       <div class="item-head">
         ${titleHtml}
         <div class="item-badges">
@@ -585,6 +586,27 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
         : `<div class="expand-panel" data-panel="comments" hidden></div>`}
     </article>
   `;
+}
+
+function renderSortAttributes(item) {
+  return [
+    ["upvote", sortableNumber(item.upvoteCount)],
+    ["like", sortableNumber(item.likeCount)],
+    ["favorite", sortableNumber(item.favoriteCount)],
+    ["comment", sortableNumber(item.commentCount)],
+    ["created", sortableTime(item.timeCreated)],
+    ["modified", sortableTime(item.timeModified)],
+    ["exported", sortableTime(item.timeExported)]
+  ].map(([name, value]) => ` data-sort-${name}="${value}"`).join("");
+}
+
+function sortableNumber(value) {
+  return Number.isFinite(value) ? String(value) : "";
+}
+
+function sortableTime(value) {
+  const date = parseTimeValue(value);
+  return date ? String(date.getTime()) : "";
 }
 
 function itemMenuHtml() {

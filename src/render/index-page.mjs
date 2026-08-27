@@ -97,7 +97,10 @@ export async function renderOutputIndex(rootPath = "output") {
     }
     return a.name.localeCompare(b.name, "zh-Hans-CN");
   });
-  items.sort((a, b) => sortTime(b.timeExported) - sortTime(a.timeExported));
+  items.sort((a, b) => {
+    return sortTime(b.timeExported) - sortTime(a.timeExported)
+      || a.folderName.localeCompare(b.folderName, "zh-Hans-CN");
+  });
 
   const outputPath = path.join(root, INDEX_FILE);
   await fs.writeFile(outputPath, renderIndexDocument({
@@ -119,6 +122,27 @@ function requireSourceType(value) {
     return value;
   }
   throw new Error("index.md frontmatter must include source_type as answer or article.");
+}
+
+export function compareSortableValues(leftRaw, rightRaw, descending) {
+  const parsedLeft = leftRaw === "" ? null : Number(leftRaw);
+  const parsedRight = rightRaw === "" ? null : Number(rightRaw);
+  const left = Number.isFinite(parsedLeft) ? parsedLeft : null;
+  const right = Number.isFinite(parsedRight) ? parsedRight : null;
+
+  if (left === null && right === null) {
+    return 0;
+  }
+  if (left === null) {
+    return 1;
+  }
+  if (right === null) {
+    return -1;
+  }
+  if (left === right) {
+    return 0;
+  }
+  return descending ? right - left : left - right;
 }
 
 function renderIndexDocument({ items, collections }) {
@@ -358,7 +382,7 @@ function renderIndexDocument({ items, collections }) {
     }
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(220px, 1fr) auto;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
       gap: 12px;
       align-items: center;
       padding: 14px;
@@ -374,6 +398,32 @@ function renderIndexDocument({ items, collections }) {
       font: inherit;
       padding: 8px 10px;
       background: #fff;
+    }
+    .sort-controls {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .sort-controls label {
+      color: var(--muted);
+    }
+    .sort-select,
+    .sort-direction {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      padding: 6px 10px;
+    }
+    .sort-direction {
+      cursor: pointer;
+    }
+    .sort-select:hover,
+    .sort-direction:hover {
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .filters {
       display: flex;
@@ -466,6 +516,9 @@ function renderIndexDocument({ items, collections }) {
         grid-template-columns: 1fr;
         position: static;
       }
+      .sort-controls {
+        flex-wrap: wrap;
+      }
     }
   </style>
 </head>
@@ -495,8 +548,21 @@ function renderIndexDocument({ items, collections }) {
         </div>
       </div>
     </header>
-    <section class="toolbar" aria-label="筛选">
+    <section class="toolbar" aria-label="筛选和排序">
       <input id="search" class="search" type="search" placeholder="搜索标题、作者或摘要">
+      <div class="sort-controls">
+        <label for="sort-field">排序</label>
+        <select id="sort-field" class="sort-select">
+          <option value="exported" selected>导出时间</option>
+          <option value="created">创建时间</option>
+          <option value="modified">修改时间</option>
+          <option value="upvote">赞同</option>
+          <option value="like">喜欢</option>
+          <option value="favorite">收藏</option>
+          <option value="comment">评论</option>
+        </select>
+        <button id="sort-direction" class="sort-direction" type="button" aria-pressed="true" aria-label="当前降序，点击切换为升序">↓ 降序</button>
+      </div>
       <div class="filters">
         <button type="button" data-filter="all" aria-pressed="true">全部</button>
         <button type="button" data-filter="answer" aria-pressed="false">回答</button>
@@ -511,20 +577,36 @@ function renderIndexDocument({ items, collections }) {
   <script>
 ${renderCardScript()}
 
+${compareSortableValues.toString()}
+
     const PAGE_SIZE = ${PAGE_SIZE};
     const searchInput = document.getElementById("search");
     const visibleCount = document.getElementById("visible-count");
     const currentCollection = document.getElementById("current-collection");
     const currentCollectionDescription = document.getElementById("current-collection-description");
+    const contentList = document.getElementById("content-list");
     const headerMenuButton = document.getElementById("header-menu-button");
     const headerMenu = document.getElementById("header-menu");
     const collectionContextMenu = document.getElementById("collection-context-menu");
     const pagination = document.getElementById("pagination");
+    const sortFieldSelect = document.getElementById("sort-field");
+    const sortDirectionButton = document.getElementById("sort-direction");
     const cards = Array.from(document.querySelectorAll(".item"));
     const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
     const collectionButtons = Array.from(document.querySelectorAll("[data-collection-filter]"));
+    const sortDataKeys = {
+      exported: "sortExported",
+      created: "sortCreated",
+      modified: "sortModified",
+      upvote: "sortUpvote",
+      like: "sortLike",
+      favorite: "sortFavorite",
+      comment: "sortComment"
+    };
     let activeFilter = "all";
     let activeCollection = "all";
+    let activeSortField = "exported";
+    let sortDescending = true;
     let currentPage = 1;
 
     function applyFilters() {
@@ -534,7 +616,9 @@ ${renderCardScript()}
         const matchesCollection = activeCollection === "all" || card.dataset.collection === activeCollection;
         const matchesQuery = !query || card.textContent.toLowerCase().includes(query);
         return matchesType && matchesCollection && matchesQuery;
-      });
+      }).sort(compareCards);
+
+      contentList.append(...matchedCards);
 
       const totalPages = Math.max(1, Math.ceil(matchedCards.length / PAGE_SIZE));
       if (currentPage > totalPages) {
@@ -556,6 +640,33 @@ ${renderCardScript()}
       currentCollectionDescription.textContent = activeCollectionDescription();
       syncHeaderMenu();
       renderPagination(totalPages);
+    }
+
+    function compareCards(left, right) {
+      const primary = compareSortableValues(
+        left.dataset[sortDataKeys[activeSortField]],
+        right.dataset[sortDataKeys[activeSortField]],
+        sortDescending
+      );
+      if (primary !== 0) {
+        return primary;
+      }
+
+      const exported = compareSortableValues(left.dataset.sortExported, right.dataset.sortExported, true);
+      if (exported !== 0) {
+        return exported;
+      }
+
+      return (left.dataset.folder || "").localeCompare(right.dataset.folder || "", "zh-Hans-CN");
+    }
+
+    function syncSortDirectionButton() {
+      sortDirectionButton.textContent = sortDescending ? "↓ 降序" : "↑ 升序";
+      sortDirectionButton.setAttribute("aria-pressed", String(sortDescending));
+      sortDirectionButton.setAttribute(
+        "aria-label",
+        sortDescending ? "当前降序，点击切换为升序" : "当前升序，点击切换为降序"
+      );
     }
 
     function activeCollectionDescription() {
@@ -634,6 +745,19 @@ ${renderCardScript()}
     }
 
     searchInput.addEventListener("input", () => {
+      resetToFirstPage();
+      applyFilters();
+    });
+    sortFieldSelect.addEventListener("change", () => {
+      activeSortField = sortFieldSelect.value;
+      sortDescending = true;
+      syncSortDirectionButton();
+      resetToFirstPage();
+      applyFilters();
+    });
+    sortDirectionButton.addEventListener("click", () => {
+      sortDescending = !sortDescending;
+      syncSortDirectionButton();
       resetToFirstPage();
       applyFilters();
     });
