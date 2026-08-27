@@ -560,6 +560,7 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
           ${item.author ? `<span>作者：${authorValue(item)}</span>` : ""}
           ${item.timeCreated ? `<span>创建：${escapeHtml(formatDisplayTime(item.timeCreated))}</span>` : ""}
           ${item.timeModified ? `<span>修改：${escapeHtml(formatDisplayTime(item.timeModified))}</span>` : ""}
+          ${item.collectionName ? `<span data-collection-source>收藏夹：${escapeHtml(item.collectionName)}</span>` : ""}
         </div>
         ${item.timeExported ? `<span class="meta-export">导出：${escapeHtml(formatDisplayTime(item.timeExported))}</span>` : ""}
       </div>

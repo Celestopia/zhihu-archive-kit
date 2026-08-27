@@ -545,6 +545,10 @@ ${renderCardScript()}
       const visibleCards = new Set(matchedCards.slice(start, start + PAGE_SIZE));
       for (const card of cards) {
         card.hidden = !visibleCards.has(card);
+        const collectionSource = card.querySelector("[data-collection-source]");
+        if (collectionSource) {
+          collectionSource.hidden = activeCollection !== "all";
+        }
       }
 
       visibleCount.textContent = String(matchedCards.length);
