@@ -118,6 +118,14 @@ userscripts/zhihu-archive-kit.user.js
 npm run render:serve
 ```
 
+需要 Windows 快捷方式时，在项目目录运行一次：
+
+```powershell
+.\create-local-browser-shortcut.ps1
+```
+
+该命令会在项目目录生成 `Zhihu Archive Kit.lnk`。快捷方式启动同一个本地服务，并使用项目的应用图标；项目目录移动后需要重新运行命令。
+
 本地服务启动后，每次点击“保存”都会打开收藏夹菜单。你可以选择 `默认收藏夹`、其它已有收藏夹，或新建收藏夹后再保存。油猴脚本生成 ZIP 并上传到只监听本机的服务，由服务解压到所选收藏夹。
 
 网页端保存后的目录结构类似：

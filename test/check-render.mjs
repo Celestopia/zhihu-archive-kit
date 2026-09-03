@@ -93,6 +93,7 @@ const outputPath = await renderSavedFolder(root, { emojiCacheDir: emojiDir });
 assert.equal(outputPath, path.join(root, "preview.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
+assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,/);
 assert.match(html, /测试问题标题/);
 assert.match(html, /<section class="feed feed--preview">/);
 assert.match(html, /<h1 class="title">测试问题标题<\/h1>/);

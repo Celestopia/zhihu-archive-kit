@@ -26,11 +26,14 @@ for (`$i = 0; `$i -lt 80; `$i += 1) {
 }
 Start-Process `$url
 "@
+$EncodedOpenWhenReady = [Convert]::ToBase64String(
+  [Text.Encoding]::Unicode.GetBytes($OpenWhenReady)
+)
 
 Start-Process `
   -FilePath "powershell.exe" `
   -WindowStyle Hidden `
-  -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $OpenWhenReady)
+  -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $EncodedOpenWhenReady)
 
 Write-Host "Starting Zhihu Archive Kit local browser service..."
 Write-Host "The browser will open $Url after the service is ready."

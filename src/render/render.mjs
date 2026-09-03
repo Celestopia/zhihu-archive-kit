@@ -9,6 +9,7 @@ import {
   renderZhihuEmojiInMarkdown
 } from "./zhihu-emoji.mjs";
 import { defaultEmojiCacheDir } from "../local-data/paths.mjs";
+import { loadAppIconDataUri } from "./app-icon.mjs";
 
 const OUTPUT_FILE = "preview.html";
 
@@ -34,9 +35,11 @@ export async function renderSavedFolder(folderPath, { emojiCacheDir = defaultEmo
     questionDescriptionMarkdown,
     ...collectCommentMarkdown(comments)
   ], emojiCacheDir);
+  const iconHref = await loadAppIconDataUri();
 
   const html = renderHtmlDocument({
     title,
+    iconHref,
     cardHtml: renderContentCard({
       type,
       title,

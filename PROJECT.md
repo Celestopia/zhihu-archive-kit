@@ -7,6 +7,10 @@ Zhihu Archive Kit 由一个 Tampermonkey/油猴脚本和一组本地 CLI 工具�
 ## 目录结构
 
 ```text
+assets/
+  zhihu-archive-kit.ico
+  zhihu-archive-kit.svg
+
 src/save-core/
   build-zip.js
   comments.js
@@ -39,6 +43,7 @@ src/local-data/
   paths.mjs
 
 src/render/
+  app-icon.mjs
   card-template.mjs
   cli.mjs
   edit-api.mjs
@@ -56,6 +61,7 @@ src/shared/
   url.js
 
 test/
+  check-app-icon.mjs
   check-build.mjs
   check-extract.mjs
   check-local-data.mjs
@@ -68,6 +74,9 @@ test/
 
 userscripts/
   zhihu-archive-kit.user.js
+
+create-local-browser-shortcut.ps1
+start-local-browser.ps1
 ```
 
 ## 架构分层
@@ -94,7 +103,7 @@ userscripts/
 
 `src/local-data/` 是 Node 端本地数据基础层。`paths.mjs` 统一解析归档数据根目录、表情缓存目录和批量输出目录；`extract-zip.mjs` 校验并解压浏览器生成的内容 ZIP，供单页保存服务和批量服务共同使用。
 
-`src/render/` 包含静态 HTML 预览、导航页生成器、本地浏览服务和本地数据 API。渲染路径只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`edit-api.mjs` 服务 `render:serve` 和油猴脚本，负责单页内容写入、收藏夹元数据写入、收藏夹重命名、内容删除和内容移动。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。
+`src/render/` 包含静态 HTML 预览、导航页生成器、本地浏览服务和本地数据 API。渲染路径只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`edit-api.mjs` 服务 `render:serve` 和油猴脚本，负责单页内容写入、收藏夹元数据写入、收藏夹重命名、内容删除和内容移动。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。`app-icon.mjs` 读取安装目录中的 SVG，并以内嵌 data URI 形式提供给两种 HTML 页面。
 
 `src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数和常量。目前这里包含 URL 识别、清洗、目标文件夹命名和本地服务地址。
 
@@ -115,6 +124,16 @@ userscripts/
 所有无路径参数的 Node 命令通过 `src/local-data/paths.mjs` 解析这些位置；如果环境中没有 `LOCALAPPDATA`，命令会直接报错。显式传入的渲染根目录或批量配置 `output_dir` 仍作为本次命令的确定输入，表情缓存位置不随归档根目录改变。
 
 项目安装目录只保存源码、生成的油猴脚本和 Node 依赖，不保存归档内容、渲染产物、批量状态或 npm 缓存。
+
+## 应用图标与启动快捷方式
+
+`assets/zhihu-archive-kit.svg` 是应用图标的可编辑源文件。图形使用 64 × 64 的方形坐标系，由蓝色圆角底板、白色归档盒和路径绘制的字母 Z 组成，不依赖字体或外部资源。`assets/zhihu-archive-kit.ico` 是供 Windows Shell 使用的派生文件，包含 16、24、32、48、64、128 和 256 像素的 PNG 图层。
+
+导航页和单篇预览不会把图标复制到归档数据目录。渲染器通过 `loadAppIconDataUri()` 读取 SVG，将其编码为 `data:image/svg+xml;base64,...`，再写入页面 `<head>` 中的 favicon link。由此生成的 HTML 在本地服务和 `file://` 模式下都不依赖安装目录中的静态资源。
+
+`create-local-browser-shortcut.ps1` 使用 Windows Script Host 创建项目目录下的 `Zhihu Archive Kit.lnk`。快捷方式以当前 PowerShell 可执行文件为目标，用参数启动 `start-local-browser.ps1`，工作目录固定为项目目录，图标指向安装目录中的 ICO。`.lnk` 含有本机绝对路径，因此被 Git 忽略；项目移动后需要重新生成。
+
+`start-local-browser.ps1` 在前台运行本地服务，以便用户通过 Ctrl+C 停止。它同时启动一个隐藏的 PowerShell 就绪检查器；检查器使用 UTF-16LE `-EncodedCommand` 传递完整命令，轮询本地地址并在服务响应后调用系统默认浏览器。使用编码命令可以避免 `Start-Process -ArgumentList` 对多行命令和引号的再次解析。
 
 ## 构建与依赖
 

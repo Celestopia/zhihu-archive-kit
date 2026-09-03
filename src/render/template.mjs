@@ -1,5 +1,5 @@
 import { renderCardCss, renderCardScript } from "./card-template.mjs";
-import { escapeHtml } from "./html-utils.mjs";
+import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 
 export { escapeAttr, escapeHtml } from "./html-utils.mjs";
 
@@ -7,12 +7,13 @@ export { escapeAttr, escapeHtml } from "./html-utils.mjs";
  * Render the standalone preview page shell. The content itself is a shared
  * card, so preview pages and the navigation page keep the same structure.
  */
-export function renderHtmlDocument({ title, cardHtml }) {
+export function renderHtmlDocument({ title, cardHtml, iconHref }) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="${escapeAttr(iconHref)}">
   <title>${escapeHtml(title || "知乎内容预览")}</title>
   <style>
     :root {

@@ -10,6 +10,7 @@ import {
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { parseMarkdownDocument, renderSavedFolder } from "./render.mjs";
 import { defaultDataRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
+import { loadAppIconDataUri } from "./app-icon.mjs";
 
 const INDEX_FILE = "index.html";
 const COLLECTION_METADATA_FILE = "collection.json";
@@ -22,6 +23,7 @@ const INTERNAL_DIRECTORY_PREFIX = "_";
  */
 export async function renderOutputIndex(rootPath = defaultDataRoot(), { emojiCacheDir = defaultEmojiCacheDir() } = {}) {
   const root = path.resolve(rootPath);
+  const iconHref = await loadAppIconDataUri();
   await fs.mkdir(root, { recursive: true });
   const entries = await fs.readdir(root, { withFileTypes: true });
   const items = [];
@@ -107,7 +109,8 @@ export async function renderOutputIndex(rootPath = defaultDataRoot(), { emojiCac
   const outputPath = path.join(root, INDEX_FILE);
   await fs.writeFile(outputPath, renderIndexDocument({
     items,
-    collections
+    collections,
+    iconHref
   }), "utf8");
   return outputPath;
 }
@@ -147,7 +150,7 @@ export function compareSortableValues(leftRaw, rightRaw, descending) {
   return descending ? right - left : left - right;
 }
 
-function renderIndexDocument({ items, collections }) {
+function renderIndexDocument({ items, collections, iconHref }) {
   const answerCount = items.filter((item) => item.type === "answer").length;
   const articleCount = items.filter((item) => item.type === "article").length;
 
@@ -156,6 +159,7 @@ function renderIndexDocument({ items, collections }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="${escapeAttr(iconHref)}">
   <title>知乎保存导航</title>
   <style>
     :root {
