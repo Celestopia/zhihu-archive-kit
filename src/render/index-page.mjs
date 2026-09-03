@@ -9,6 +9,7 @@ import {
 } from "./card-template.mjs";
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { parseMarkdownDocument, renderSavedFolder } from "./render.mjs";
+import { defaultDataRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
 
 const INDEX_FILE = "index.html";
 const COLLECTION_METADATA_FILE = "collection.json";
@@ -19,8 +20,9 @@ const INTERNAL_DIRECTORY_PREFIX = "_";
 /**
  * Build a lightweight static navigation page for saved Zhihu content.
  */
-export async function renderOutputIndex(rootPath = "output") {
+export async function renderOutputIndex(rootPath = defaultDataRoot(), { emojiCacheDir = defaultEmojiCacheDir() } = {}) {
   const root = path.resolve(rootPath);
+  await fs.mkdir(root, { recursive: true });
   const entries = await fs.readdir(root, { withFileTypes: true });
   const items = [];
   const collections = [];
@@ -62,7 +64,7 @@ export async function renderOutputIndex(rootPath = "output") {
       const summary = parsed.metadata.content_excerpt
         ? { text: parsed.metadata.content_excerpt, truncated: parsed.metadata.content_excerpt.length >= 160 }
         : extractSummary(parsed.body);
-      const previewPath = await renderSavedFolder(folderPath);
+      const previewPath = await renderSavedFolder(folderPath, { emojiCacheDir });
       const type = requireSourceType(parsed.metadata.source_type);
 
       items.push({

@@ -10,9 +10,8 @@ import { renderSavedFolder } from "../src/render/render.mjs";
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-"));
 const assetsDir = path.join(root, "assets");
-const emojiDir = path.join(root, "_emoji");
+const emojiDir = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-emoji-cache-"));
 await fs.mkdir(assetsDir);
-await fs.mkdir(emojiDir);
 await fs.writeFile(path.join(assetsDir, "comment-image-001.png"), Buffer.from([1, 2, 3]));
 await fs.writeFile(path.join(emojiDir, "zhihu-v2-c71427010ca7866f9b08c37ec20672e0.png"), Buffer.from([4, 5, 6]));
 
@@ -90,7 +89,7 @@ await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
   ]
 }, null, 2));
 
-const outputPath = await renderSavedFolder(root);
+const outputPath = await renderSavedFolder(root, { emojiCacheDir: emojiDir });
 assert.equal(outputPath, path.join(root, "preview.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
@@ -130,7 +129,8 @@ assert.match(html, /<button class="question-description-toggle" type="button" da
 assert.doesNotMatch(html, /<div class="question-description-summary"[^>]*>[^<]*comment-image-001\.png/);
 assert.match(html, /<div class="question-description-body" data-question-description-body hidden>第一行问题描述/);
 assert.match(html, /class="zhihu-emoji"/);
-assert.match(html, /src="_emoji\/zhihu-v2-c71427010ca7866f9b08c37ec20672e0\.png"/);
+assert.match(html, /src="data:image\/png;base64,BAUG"/);
+assert.doesNotMatch(html, /_emoji/);
 assert.match(html, /alt="\[赞\]"/);
 assert.match(html, /第二行问题描述/);
 assert.match(html, /data-action="toggle-question-description" aria-expanded="true"><span data-label>收起<\/span>/);
@@ -202,7 +202,7 @@ await fs.writeFile(path.join(legacyRoot, "comments.json"), JSON.stringify({
   comments: []
 }, null, 2));
 
-const legacyOutputPath = await renderSavedFolder(legacyRoot);
+const legacyOutputPath = await renderSavedFolder(legacyRoot, { emojiCacheDir: emojiDir });
 const legacyHtml = await fs.readFile(legacyOutputPath, "utf8");
 assert.match(legacyHtml, /问题信息/);
 assert.match(legacyHtml, /创建时间/);

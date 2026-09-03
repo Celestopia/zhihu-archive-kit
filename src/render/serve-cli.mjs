@@ -1,4 +1,6 @@
 import { startRenderServer } from "./serve.mjs";
+import { defaultDataRoot } from "../local-data/paths.mjs";
+import { LOCAL_SERVICE_PORT } from "../shared/local-service.js";
 
 async function main() {
   const { rootPath, port } = parseArgs(process.argv.slice(2));
@@ -10,8 +12,8 @@ async function main() {
 }
 
 function parseArgs(args) {
-  let rootPath = "output";
-  let port = 17892;
+  let rootPath = defaultDataRoot();
+  let port = LOCAL_SERVICE_PORT;
   let rootSeen = false;
 
   for (let i = 0; i < args.length; i += 1) {

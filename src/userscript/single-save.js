@@ -1,11 +1,10 @@
-import { buildCurrentPageArtifact, buildCurrentPageZip } from "../save-core/build-zip.js";
+import { buildCurrentPageZip } from "../save-core/build-zip.js";
 import { CONTROL_CLASS } from "./constants.js";
 import {
-  changeExportRootDirectory,
   createCollection,
   listCollections,
-  writeArtifactToCollection
-} from "./directory-save.js";
+  saveZipToCollection
+} from "./local-save.js";
 import { setButtonState } from "./ui.js";
 
 /**
@@ -13,36 +12,14 @@ import { setButtonState } from "./ui.js";
  */
 
 export async function saveCurrentPage(button) {
-  await saveArtifactWithButton(button, buildCurrentPageArtifact);
+  await saveArchiveWithButton(button, buildCurrentPageZip);
 }
 
 export async function saveCurrentPageAsZip(button) {
   await saveZipWithButton(button, buildCurrentPageZip);
 }
 
-export async function changeDirectoryWithButton(button, refreshStatus) {
-  const originalText = button.textContent;
-  button.disabled = true;
-  setButtonState(button, "选择目录...", true);
-
-  try {
-    await changeExportRootDirectory();
-    setButtonState(button, "目录已更改", true);
-    resetButtonLater(button, originalText, 1600, refreshStatus);
-  } catch (error) {
-    console.error("[Zhihu Archive Kit] change directory failed:", error);
-    button.disabled = false;
-    if (error?.name === "AbortError") {
-      setButtonState(button, originalText, true);
-      return;
-    }
-    showUserError(error, "更改保存目录失败");
-    setButtonState(button, "更改失败", false);
-    resetButtonLater(button, originalText, 2200);
-  }
-}
-
-export async function saveArtifactWithButton(button, buildArtifact, refreshStatus) {
+export async function saveArchiveWithButton(button, buildZip, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   setButtonState(button, "载入收藏夹...", true);
@@ -51,7 +28,7 @@ export async function saveArtifactWithButton(button, buildArtifact, refreshStatu
     const collections = await listCollections();
     button.disabled = false;
     setButtonState(button, originalText, true);
-    showCollectionMenu(button, buildArtifact, collections, refreshStatus);
+    showCollectionMenu(button, buildZip, collections, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] collection menu failed:", error);
     button.disabled = false;
@@ -63,7 +40,7 @@ export async function saveArtifactWithButton(button, buildArtifact, refreshStatu
   }
 }
 
-function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
+function showCollectionMenu(button, buildZip, collections, refreshStatus) {
   const control = button.closest(`.${CONTROL_CLASS}`);
   if (!control) {
     throw new Error("找不到保存控件。");
@@ -96,7 +73,7 @@ function showCollectionMenu(button, buildArtifact, collections, refreshStatus) {
   saveButton.className = `${CONTROL_CLASS}__collection-save`;
   saveButton.textContent = "保存";
   saveButton.addEventListener("click", async () => {
-    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, select.value, menu, refreshStatus);
+    await saveZipToSelectedCollection(button, saveButton, buildZip, select.value, menu, refreshStatus);
   });
 
   const cancelButton = document.createElement("button");
@@ -152,7 +129,7 @@ async function createCollectionFromPrompt(select) {
   }
 }
 
-async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, collectionName, menu, refreshStatus) {
+async function saveZipToSelectedCollection(button, saveButton, buildZip, collectionName, menu, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   setButtonState(button, "保存中...", true);
@@ -160,15 +137,17 @@ async function saveArtifactToSelectedCollection(button, saveButton, buildArtifac
   saveButton.textContent = "保存中...";
 
   try {
-    const artifact = await buildArtifact({
+    const result = await buildZip({
       onProgress: (progress) => {
         if (progress.stage === "media") {
           setButtonState(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
+        } else if (progress.stage === "zip") {
+          setButtonState(button, `生成 ZIP ${progress.percent || 0}%`, true);
         }
       }
     });
     setButtonState(button, "写入收藏夹", true);
-    await writeArtifactToCollection(artifact, collectionName);
+    await saveZipToCollection(result.blob, collectionName);
 
     menu.remove();
     setButtonState(button, "保存成功", true);

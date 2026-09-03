@@ -1,5 +1,4 @@
-output/
 node_modules/
-.npm-cache/
 others/
 AGENTS.md
+LESSONS.md

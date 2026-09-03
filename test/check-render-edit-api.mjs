@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import JSZip from "jszip";
 import { EditApiError, handleEditApiRequest } from "../src/render/edit-api.mjs";
 
 /**
@@ -18,8 +19,8 @@ await writeCollection(defaultCollection, {
   description: ""
 });
 await writeContent(path.join(defaultCollection, answerFolder));
-await fs.mkdir(path.join(root, "_emoji"), { recursive: true });
-await fs.writeFile(path.join(root, "_emoji", "collection.json"), "{}\n");
+await fs.mkdir(path.join(root, "_internal"), { recursive: true });
+await fs.writeFile(path.join(root, "_internal", "collection.json"), "{}\n");
 
 let result = await api("GET", ["collections"]);
 assert.equal(result.status, 200);
@@ -34,6 +35,25 @@ const createdMetadata = await readCollectionMetadata(path.join(root, "技术收�
 
 await expectApiError(409, api("POST", ["collections"], { name: "技术收藏", description: "" }));
 await expectApiError(400, api("POST", ["collections"], { name: "_internal", description: "" }));
+
+result = await api("GET", ["saved", answerFolder]);
+assert.deepEqual(result.body.collections, ["默认收藏夹"]);
+
+const articleZip = new JSZip();
+articleZip.file("article-789/index.md", `---
+source_type: "article"
+title: "测试文章"
+---
+
+正文。
+`);
+articleZip.file("article-789/comments.json", "{\"schema_version\":1,\"comments\":[]}\n");
+const articleBuffer = await articleZip.generateAsync({ type: "nodebuffer" });
+result = await api("POST", ["collections", "技术收藏", "items"], articleBuffer);
+assert.equal(result.status, 201);
+assert.equal(result.body.item.folderName, "article-789");
+assert.equal(await exists(path.join(root, "技术收藏", "article-789", "index.md")), true);
+await expectApiError(409, api("POST", ["collections", "技术收藏", "items"], articleBuffer));
 
 result = await api("PATCH", ["collections", "技术收藏"], { description: "更新后的描述" });
 assert.equal(result.status, 200);
@@ -64,7 +84,7 @@ assert.equal(await exists(path.join(defaultCollection, answerFolder)), false);
 
 await fs.mkdir(path.join(defaultCollection, "not-content"));
 await expectApiError(400, api("DELETE", ["items", "默认收藏夹", "not-content"]));
-await expectApiError(400, api("DELETE", ["items", "_emoji", answerFolder]));
+await expectApiError(400, api("DELETE", ["items", "_internal", answerFolder]));
 
 console.log("HTML edit API checks passed.");
 

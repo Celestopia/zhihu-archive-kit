@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import JSZip from "jszip";
 import { startRenderServer, stopRenderServer } from "../src/render/serve.mjs";
 
 /**
@@ -9,6 +10,7 @@ import { startRenderServer, stopRenderServer } from "../src/render/serve.mjs";
  */
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-serve-"));
+const emojiDir = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-emoji-cache-"));
 const collectionDir = path.join(root, "默认收藏夹");
 const answerDir = path.join(collectionDir, "question-123-answer-456");
 await fs.mkdir(path.join(answerDir, "assets"), { recursive: true });
@@ -38,7 +40,7 @@ await fs.writeFile(path.join(answerDir, "comments.json"), JSON.stringify({
   comments: []
 }, null, 2));
 
-const handle = await startRenderServer({ rootPath: root, port: 0 });
+const handle = await startRenderServer({ rootPath: root, port: 0, emojiCacheDir: emojiDir });
 
 try {
   assert.equal(handle.server.address().address, "127.0.0.1");
@@ -59,6 +61,18 @@ try {
   assert.equal(collectionsResponse.status, 200);
   assert.deepEqual((await collectionsResponse.json()).collections.map((item) => item.name), ["默认收藏夹"]);
 
+  const preflightResponse = await fetch(`${handle.url}api/collections`, {
+    method: "OPTIONS",
+    headers: { origin: "https://www.zhihu.com" }
+  });
+  assert.equal(preflightResponse.status, 204);
+  assert.equal(preflightResponse.headers.get("access-control-allow-origin"), "https://www.zhihu.com");
+
+  const forbiddenResponse = await fetch(`${handle.url}api/collections`, {
+    headers: { origin: "https://example.com" }
+  });
+  assert.equal(forbiddenResponse.status, 403);
+
   const createResponse = await fetch(`${handle.url}api/collections`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -66,6 +80,27 @@ try {
   });
   assert.equal(createResponse.status, 201);
   assert.equal(await fileExists(path.join(root, "服务收藏夹", "collection.json")), true);
+
+  const uploadZip = new JSZip();
+  uploadZip.file("article-789/index.md", `---
+source_type: "article"
+title: "服务上传文章"
+---
+
+服务上传正文。
+`);
+  uploadZip.file("article-789/comments.json", "{\"schema_version\":1,\"comments\":[]}\n");
+  const uploadResponse = await fetch(`${handle.url}${encodeURI("api/collections/服务收藏夹/items")}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/zip",
+      origin: "https://zhuanlan.zhihu.com"
+    },
+    body: await uploadZip.generateAsync({ type: "nodebuffer" })
+  });
+  assert.equal(uploadResponse.status, 201);
+  assert.equal(uploadResponse.headers.get("access-control-allow-origin"), "https://zhuanlan.zhihu.com");
+  assert.equal(await fileExists(path.join(root, "服务收藏夹", "article-789", "index.md")), true);
 
   const refreshedIndexResponse = await fetch(handle.url);
   assert.equal(refreshedIndexResponse.status, 200);

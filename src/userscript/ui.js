@@ -102,16 +102,6 @@ export function ensureSaveControlStyle() {
       white-space: nowrap;
     }
 
-    .${CONTROL_CLASS}__directory {
-      display: block;
-      height: 32px;
-      margin-bottom: 6px;
-      padding: 0 12px;
-      background: #303846;
-      font-size: 13px;
-      white-space: nowrap;
-    }
-
     .${CONTROL_CLASS}__collection-menu {
       position: fixed;
       width: 188px;
@@ -167,7 +157,7 @@ export function ensureSaveControlStyle() {
   document.documentElement.append(style);
 }
 
-export function createSaveControl(onSave, onZip, onChangeDirectory) {
+export function createSaveControl(onSave, onZip) {
   const wrapper = document.createElement("div");
   wrapper.className = CONTROL_CLASS;
 
@@ -196,16 +186,6 @@ export function createSaveControl(onSave, onZip, onChangeDirectory) {
   const menu = document.createElement("div");
   menu.className = `${CONTROL_CLASS}__menu`;
 
-  const directoryButton = document.createElement("button");
-  directoryButton.type = "button";
-  directoryButton.className = `${CONTROL_CLASS}__directory`;
-  directoryButton.textContent = "更改保存目录";
-  directoryButton.title = "重新选择保存到本地的文件夹";
-  directoryButton.addEventListener("click", async (event) => {
-    event.stopPropagation();
-    await onChangeDirectory(directoryButton);
-  });
-
   const zipButton = document.createElement("button");
   zipButton.type = "button";
   zipButton.className = `${CONTROL_CLASS}__zip`;
@@ -216,7 +196,7 @@ export function createSaveControl(onSave, onZip, onChangeDirectory) {
     await onZip(zipButton);
   });
 
-  menu.append(directoryButton, zipButton);
+  menu.append(zipButton);
   inner.append(button, gear, menu);
   wrapper.append(inner);
   return wrapper;

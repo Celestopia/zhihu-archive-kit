@@ -3,13 +3,9 @@ import path from "node:path";
 import JSZip from "jszip";
 
 /**
- * Extracts a userscript-generated ZIP into the configured batch output folder.
- *
- * The archive must contain exactly one top-level directory. Existing target
- * directories are rejected to avoid overwriting a previous export.
+ * Extract a saved-content ZIP into one new content directory.
  */
-
-export async function extractSingleFolderZip(buffer, outputDir) {
+export async function extractContentZip(buffer, outputDir) {
   const zip = await JSZip.loadAsync(buffer);
   const entries = Object.values(zip.files);
   const rootNames = new Set();
@@ -24,11 +20,22 @@ export async function extractSingleFolderZip(buffer, outputDir) {
   }
 
   const folderName = Array.from(rootNames)[0];
+  if (!/^(?:question-\d+-answer-\d+|article-\d+)$/.test(folderName)) {
+    throw new Error("ZIP top-level folder does not match a saved-content name.");
+  }
+  const fileNames = new Set(normalizedEntries
+    .filter((item) => !item.entry.dir && item.parts.length > 1)
+    .map((item) => item.parts.slice(1).join("/")));
+  if (!fileNames.has("index.md") || !fileNames.has("comments.json")) {
+    throw new Error("ZIP must contain index.md and comments.json in its top-level folder.");
+  }
+
   const targetDir = path.join(outputDir, folderName);
   if (await pathExists(targetDir)) {
     throw new Error(`目标文件夹已存在：${folderName}`);
   }
 
+  await fs.mkdir(outputDir, { recursive: true });
   await fs.mkdir(targetDir, { recursive: false });
   for (const item of normalizedEntries) {
     if (item.entry.dir) {
@@ -38,8 +45,7 @@ export async function extractSingleFolderZip(buffer, outputDir) {
       throw new Error("ZIP files must be placed inside the top-level folder.");
     }
 
-    const relativeParts = item.parts.slice(1);
-    const outputPath = path.resolve(targetDir, ...relativeParts);
+    const outputPath = path.resolve(targetDir, ...item.parts.slice(1));
     if (!isInsideDirectory(outputPath, targetDir)) {
       throw new Error("ZIP entry resolves outside the target folder.");
     }

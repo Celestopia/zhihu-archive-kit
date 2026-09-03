@@ -3,16 +3,16 @@ import path from "node:path";
 import {
   DEFAULT_BATCH_PORT,
   DEFAULT_DELAY_MAX_SECONDS,
-  DEFAULT_DELAY_MIN_SECONDS,
-  DEFAULT_OUTPUT_DIR
+  DEFAULT_DELAY_MIN_SECONDS
 } from "./constants.js";
+import { defaultBatchOutputDir } from "../local-data/paths.mjs";
 import { detectSupportedTarget, targetKey } from "../shared/url.js";
 
 /**
  * CLI argument and JSON config parsing for batch mode.
  */
 
-export async function loadBatchConfig(argv, cwd = process.cwd()) {
+export async function loadBatchConfig(argv, cwd = process.cwd(), env = process.env) {
   const args = parseArgs(argv);
   if (!args.configPath) {
     throw new Error("Usage: npm run batch -- <urls.json> [--extract] [--browser default|chrome|edge|path] [--port 17891]");
@@ -25,7 +25,7 @@ export async function loadBatchConfig(argv, cwd = process.cwd()) {
   }
 
   const delay = normalizeDelay(json.delay);
-  const outputDir = path.resolve(path.dirname(rawPath), json.output_dir || DEFAULT_OUTPUT_DIR);
+  const outputDir = resolveOutputDir(json, rawPath, env);
   const jobs = normalizeJobs(json.urls);
 
   if (jobs.length === 0) {
@@ -41,6 +41,16 @@ export async function loadBatchConfig(argv, cwd = process.cwd()) {
     extract: args.extract,
     jobs
   };
+}
+
+function resolveOutputDir(json, configPath, env) {
+  if (!Object.hasOwn(json, "output_dir")) {
+    return defaultBatchOutputDir(env);
+  }
+  if (typeof json.output_dir !== "string" || !json.output_dir.trim()) {
+    throw new Error("output_dir must be a non-empty string when specified.");
+  }
+  return path.resolve(path.dirname(configPath), json.output_dir);
 }
 
 export function parseArgs(argv) {

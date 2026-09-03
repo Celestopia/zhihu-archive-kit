@@ -20,8 +20,8 @@ import {
 } from "../save-core/target.js";
 import { targetFolderName } from "../shared/url.js";
 import { getStagedCommentsForTarget, mountCommentStaging } from "./comment-staging.js";
-import { findSavedCollectionsForFolder } from "./directory-save.js";
-import { changeDirectoryWithButton, saveArtifactWithButton, saveZipWithButton } from "./single-save.js";
+import { findSavedCollectionsForFolder } from "./local-save.js";
+import { saveArchiveWithButton, saveZipWithButton } from "./single-save.js";
 import { createSaveControl, ensureSaveControlStyle, removeSaveControls, setSavedStatus } from "./ui.js";
 
 /**
@@ -109,7 +109,6 @@ function injectAnswerControls() {
       host,
       target,
       boundType: "answer",
-      buildArtifact: (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options)),
       buildZip: (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
     });
   }
@@ -135,23 +134,21 @@ function injectArticleControl() {
     host: articleRoot,
     target: articleTarget,
     boundType: "article",
-    buildArtifact: (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options)),
     buildZip: (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
   });
 }
 
-function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
+function mountSaveControl({ scope, host, target, boundType, buildZip }) {
   const folderName = targetFolderName(target);
   scope.classList.add(CONTROL_SCOPE_CLASS);
   host.classList.add(CONTROL_HOST_CLASS);
   const control = createSaveControl(
-    (button) => saveArtifactWithButton(
+    (button) => saveArchiveWithButton(
       button,
-      buildArtifact,
+      buildZip,
       () => refreshSaveStatus(control, folderName)
     ),
-    (button) => saveZipWithButton(button, buildZip),
-    (button) => changeDirectoryWithButton(button, () => refreshAllSaveStatuses())
+    (button) => saveZipWithButton(button, buildZip)
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
   host.prepend(control);
@@ -171,11 +168,6 @@ async function refreshSaveStatus(control, folderName) {
   } catch (error) {
     console.warn("[Zhihu Archive Kit] saved status check failed:", error);
   }
-}
-
-async function refreshAllSaveStatuses() {
-  await Promise.all(Array.from(document.querySelectorAll("[data-zhmd-folder-name]"))
-    .map((control) => refreshSaveStatus(control, control.getAttribute("data-zhmd-folder-name") || "")));
 }
 
 function withCommentProvider(options) {

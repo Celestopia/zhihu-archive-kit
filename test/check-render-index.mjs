@@ -9,6 +9,7 @@ import { compareSortableValues, renderOutputIndex } from "../src/render/index-pa
  */
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-index-"));
+const emojiDir = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-emoji-cache-"));
 const defaultCollectionDir = path.join(root, "默认收藏夹");
 const techCollectionDir = path.join(root, "技术收藏");
 const emptyCollectionDir = path.join(root, "空收藏夹");
@@ -28,16 +29,9 @@ assert.equal(compareSortableValues("", "invalid", false), 0);
 await fs.mkdir(path.join(answerDir, "assets"), { recursive: true });
 await fs.mkdir(path.join(articleDir, "assets"), { recursive: true });
 await fs.mkdir(path.join(rootDirectDir, "assets"), { recursive: true });
-await fs.mkdir(path.join(root, "_emoji"), { recursive: true });
 await fs.mkdir(skippedDir);
 await fs.mkdir(emptyCollectionDir);
-await fs.writeFile(path.join(root, "_emoji", "zhihu-v2-c71427010ca7866f9b08c37ec20672e0.png"), Buffer.from([7, 8, 9]));
-await fs.writeFile(path.join(root, "_emoji", "collection.json"), JSON.stringify({
-  schema_version: 1,
-  name: "_emoji",
-  time_created: "2026-06-12T15:00:00.000+08:00",
-  description: ""
-}, null, 2));
+await fs.writeFile(path.join(emojiDir, "zhihu-v2-c71427010ca7866f9b08c37ec20672e0.png"), Buffer.from([7, 8, 9]));
 
 await writeCollectionMetadata(defaultCollectionDir, {
   schema_version: 1,
@@ -189,7 +183,7 @@ await fs.writeFile(path.join(rootDirectDir, "comments.json"), JSON.stringify({
   comments: []
 }, null, 2));
 
-const outputPath = await renderOutputIndex(root);
+const outputPath = await renderOutputIndex(root, { emojiCacheDir: emojiDir });
 assert.equal(outputPath, path.join(root, "index.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
@@ -236,8 +230,6 @@ assert.match(html, /<span>所有<\/span><span class="collection-nav-count">23<\/
 assert.match(html, /data-collection-filter="默认收藏夹"/);
 assert.match(html, /data-collection-filter="技术收藏"/);
 assert.match(html, /data-collection-filter="空收藏夹"/);
-assert.doesNotMatch(html, /data-collection-filter="_emoji"/);
-assert.doesNotMatch(html, /<span>_emoji<\/span>/);
 assert.match(html, /<span>默认收藏夹<\/span><span class="collection-nav-count">22<\/span>/);
 assert.match(html, /<span>技术收藏<\/span><span class="collection-nav-count">1<\/span>/);
 assert.match(html, /title="技术类内容"/);
@@ -372,7 +364,8 @@ assert.doesNotMatch(html, /not-content/);
 const answerPreview = await fs.readFile(path.join(answerDir, "preview.html"), "utf8");
 assert.match(answerPreview, /FULL_BODY_ONLY_MARKER/);
 assert.match(answerPreview, /COMMENT_ONLY_MARKER/);
-assert.match(answerPreview, /src="\.\.\/\.\.\/_emoji\/zhihu-v2-c71427010ca7866f9b08c37ec20672e0\.png"/);
+assert.match(answerPreview, /src="data:image\/png;base64,BwgJ"/);
+assert.doesNotMatch(answerPreview, /_emoji/);
 assert.match(answerPreview, /class="zhihu-emoji"/);
 assert.match(answerPreview, /\.\/assets\/image-001\.jpg/);
 assert.match(answerPreview, /<section class="feed feed--preview">/);

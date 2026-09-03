@@ -1,21 +1,26 @@
 import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { EditApiError, handleEditApiRequest } from "./edit-api.mjs";
+import { EditApiError, ensureDefaultCollection, handleEditApiRequest } from "./edit-api.mjs";
 import { renderOutputIndex } from "./index-page.mjs";
+import { defaultDataRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
+import { LOCAL_SERVICE_HOST, LOCAL_SERVICE_PORT } from "../shared/local-service.js";
 
-const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PORT = 17892;
 
 /**
  * Render the navigation page and serve the output directory over localhost.
  */
-export async function startRenderServer({ rootPath = "output", port = DEFAULT_PORT } = {}) {
+export async function startRenderServer({
+  rootPath = defaultDataRoot(),
+  port = LOCAL_SERVICE_PORT,
+  emojiCacheDir = defaultEmojiCacheDir()
+} = {}) {
   const root = path.resolve(rootPath);
-  await renderOutputIndex(root);
+  await ensureDefaultCollection(root);
+  await renderOutputIndex(root, { emojiCacheDir });
 
   const server = http.createServer((request, response) => {
-    serveRequest({ request, response, root }).catch((error) => {
+    serveRequest({ request, response, root, emojiCacheDir }).catch((error) => {
       response.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       response.end(error.message);
     });
@@ -23,7 +28,7 @@ export async function startRenderServer({ rootPath = "output", port = DEFAULT_PO
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, DEFAULT_HOST, () => {
+    server.listen(port, LOCAL_SERVICE_HOST, () => {
       server.off("error", reject);
       resolve();
     });
@@ -33,7 +38,7 @@ export async function startRenderServer({ rootPath = "output", port = DEFAULT_PO
   return {
     root,
     server,
-    url: `http://${DEFAULT_HOST}:${address.port}/`
+    url: `http://${LOCAL_SERVICE_HOST}:${address.port}/`
   };
 }
 
@@ -49,10 +54,24 @@ export function stopRenderServer(handle) {
   });
 }
 
-async function serveRequest({ request, response, root }) {
-  const url = new URL(request.url || "/", `http://${request.headers.host || DEFAULT_HOST}`);
+async function serveRequest({ request, response, root, emojiCacheDir }) {
+  const url = new URL(request.url || "/", `http://${request.headers.host || LOCAL_SERVICE_HOST}`);
   if (url.pathname.startsWith("/api/")) {
-    await serveApiRequest({ request, response, root, url });
+    try {
+      prepareApiOrigin({ request, response, url });
+    } catch (error) {
+      if (error instanceof EditApiError) {
+        writeJson(response, error.status, { error: error.message });
+        return;
+      }
+      throw error;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    await serveApiRequest({ request, response, root, url, emojiCacheDir });
     return;
   }
 
@@ -103,12 +122,19 @@ async function serveRequest({ request, response, root }) {
   response.end(await fs.readFile(filePath));
 }
 
-async function serveApiRequest({ request, response, root, url }) {
+async function serveApiRequest({ request, response, root, url, emojiCacheDir }) {
   try {
     const segments = apiSegments(url.pathname);
+    const zipUpload = request.method === "POST"
+      && segments.length === 3
+      && segments[0] === "collections"
+      && segments[2] === "items";
+    if (zipUpload && request.headers["content-type"] !== "application/zip") {
+      throw new EditApiError(415, "Saved content uploads must use application/zip.");
+    }
     const body = request.method === "GET" || request.method === "HEAD"
       ? undefined
-      : await readJsonBody(request);
+      : zipUpload ? await readRequestBody(request) : await readJsonBody(request);
     const result = await handleEditApiRequest({
       root,
       method: request.method,
@@ -117,7 +143,7 @@ async function serveApiRequest({ request, response, root, url }) {
     });
 
     if (result.mutated) {
-      await renderOutputIndex(root);
+      await renderOutputIndex(root, { emojiCacheDir });
     }
 
     writeJson(response, result.status, result.body);
@@ -130,6 +156,23 @@ async function serveApiRequest({ request, response, root, url }) {
   }
 }
 
+function prepareApiOrigin({ request, response, url }) {
+  const origin = request.headers.origin;
+  if (!origin) {
+    return;
+  }
+
+  const allowed = origin === url.origin || ZHIHU_ORIGINS.has(origin);
+  if (!allowed) {
+    throw new EditApiError(403, "Request origin is not allowed.");
+  }
+
+  response.setHeader("access-control-allow-origin", origin);
+  response.setHeader("vary", "Origin");
+  response.setHeader("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
+  response.setHeader("access-control-allow-headers", "content-type");
+}
+
 function apiSegments(pathname) {
   return pathname
     .replace(/^\/api\/?/, "")
@@ -139,25 +182,29 @@ function apiSegments(pathname) {
 }
 
 async function readJsonBody(request) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > 64 * 1024) {
-      throw new EditApiError(413, "Request body is too large.");
-    }
-    chunks.push(chunk);
-  }
-
-  if (!chunks.length) {
+  const body = await readRequestBody(request, 64 * 1024);
+  if (!body.length) {
     return {};
   }
 
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(body.toString("utf8"));
   } catch {
     throw new EditApiError(400, "Request body must be valid JSON.");
   }
+}
+
+async function readRequestBody(request, limit = 1024 * 1024 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > limit) {
+      throw new EditApiError(413, "Request body is too large.");
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 function writeJson(response, status, body) {
@@ -198,3 +245,7 @@ function contentType(filePath) {
 }
 
 const INDEX_FILE = "index.html";
+const ZHIHU_ORIGINS = new Set([
+  "https://www.zhihu.com",
+  "https://zhuanlan.zhihu.com"
+]);

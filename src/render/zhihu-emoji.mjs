@@ -2,9 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { escapeAttr } from "./html-utils.mjs";
 
-const COLLECTION_METADATA_FILE = "collection.json";
-const EMOJI_CACHE_DIR = "_emoji";
-
 const ZHIHU_EMOJI = [
   ["[感谢]", "https://pic1.zhimg.com/v2-694cac2ec9f3c63f774e723f77d8c840.png"],
   ["[哇]", "https://picx.zhimg.com/v2-6a766571a6d6d3a4d8d16f433e5b284c.png"],
@@ -99,29 +96,7 @@ for (const [token, url] of ZHIHU_EMOJI) {
 }
 const EMOJI_PATTERN = new RegExp(Array.from(EMOJI_BY_TOKEN.keys()).map(escapeRegex).join("|"), "g");
 
-/**
- * Resolve the shared emoji cache for a saved content folder.
- *
- * Normal collection layout stores content under:
- * output/collection-name/content-folder/
- * so the shared cache lives at output/_emoji/.
- */
-export async function createEmojiContext(contentFolderPath) {
-  const contentRoot = path.resolve(contentFolderPath);
-  const collectionRoot = path.dirname(contentRoot);
-  const outputRoot = await hasCollectionMetadata(collectionRoot)
-    ? path.dirname(collectionRoot)
-    : contentRoot;
-  const cacheDir = path.join(outputRoot, EMOJI_CACHE_DIR);
-  const relativeCacheDir = toPosixPath(path.relative(contentRoot, cacheDir)) || ".";
-
-  return {
-    cacheDir,
-    relativeCacheDir
-  };
-}
-
-export async function ensureZhihuEmojiAssets(markdownValues, context) {
+export async function resolveZhihuEmojiSources(markdownValues, cacheDir) {
   const tokens = new Set();
   for (const value of markdownValues) {
     for (const token of findZhihuEmojiTokens(value || "")) {
@@ -130,39 +105,39 @@ export async function ensureZhihuEmojiAssets(markdownValues, context) {
   }
 
   if (!tokens.size) {
-    return new Set();
+    return new Map();
   }
 
-  await fs.mkdir(context.cacheDir, { recursive: true });
-  const available = new Set();
+  await fs.mkdir(cacheDir, { recursive: true });
+  const sources = new Map();
   for (const token of tokens) {
     const emoji = EMOJI_BY_TOKEN.get(token);
     if (!emoji) {
       continue;
     }
 
-    const filePath = path.join(context.cacheDir, emoji.fileName);
-    if (await isFile(filePath)) {
-      available.add(token);
-      continue;
+    const filePath = path.join(cacheDir, emoji.fileName);
+    if (!await isFile(filePath)) {
+      try {
+        await downloadEmoji(emoji.url, filePath);
+      } catch (error) {
+        console.warn(`[Zhihu Archive Kit] failed to download emoji ${token}: ${error.message}`);
+        continue;
+      }
     }
 
-    try {
-      await downloadEmoji(emoji.url, filePath);
-      available.add(token);
-    } catch (error) {
-      console.warn(`[Zhihu Archive Kit] failed to download emoji ${token}: ${error.message}`);
-    }
+    const data = await fs.readFile(filePath);
+    sources.set(token, `data:image/png;base64,${data.toString("base64")}`);
   }
-  return available;
+  return sources;
 }
 
-export function renderZhihuEmojiInMarkdown(markdown, context, availableTokens) {
-  if (!markdown || !availableTokens.size) {
+export function renderZhihuEmojiInMarkdown(markdown, sources) {
+  if (!markdown || !sources.size) {
     return markdown || "";
   }
 
-  return transformNonCodeMarkdown(markdown, (text) => replaceEmojiTokens(text, context, availableTokens));
+  return transformNonCodeMarkdown(markdown, (text) => replaceEmojiTokens(text, sources));
 }
 
 export function findZhihuEmojiTokens(value) {
@@ -173,13 +148,12 @@ export function findZhihuEmojiTokens(value) {
   return tokens;
 }
 
-function replaceEmojiTokens(text, context, availableTokens) {
+function replaceEmojiTokens(text, sources) {
   return text.replace(EMOJI_PATTERN, (token) => {
-    if (!availableTokens.has(token)) {
+    const src = sources.get(token);
+    if (!src) {
       return token;
     }
-    const emoji = EMOJI_BY_TOKEN.get(token);
-    const src = `${context.relativeCacheDir}/${emoji.fileName}`;
     return `<img class="zhihu-emoji" src="${escapeAttr(src)}" alt="${escapeAttr(token)}" title="${escapeAttr(token)}">`;
   });
 }
@@ -224,10 +198,6 @@ async function downloadEmoji(url, filePath) {
   await fs.writeFile(filePath, buffer);
 }
 
-async function hasCollectionMetadata(folderPath) {
-  return isFile(path.join(folderPath, COLLECTION_METADATA_FILE));
-}
-
 async function isFile(filePath) {
   try {
     const stat = await fs.stat(filePath);
@@ -242,8 +212,4 @@ async function isFile(filePath) {
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function toPosixPath(value) {
-  return value.split(path.sep).join("/");
 }

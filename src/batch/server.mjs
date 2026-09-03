@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { DEFAULT_MAX_CONSECUTIVE_FAILURES, JOB_STATUS } from "./constants.js";
-import { extractSingleFolderZip } from "./extract-zip.mjs";
+import { extractContentZip } from "../local-data/extract-zip.mjs";
 import { formatIsoNow, randomDelaySeconds } from "./time.js";
 
 /**
@@ -143,7 +143,7 @@ async function handleZipUpload(req, res, config, state, lifecycle, jobId) {
   let outputPath = "";
   try {
     if (config.extract) {
-      outputPath = (await extractSingleFolderZip(body, config.outputDir)).outputPath;
+      outputPath = (await extractContentZip(body, config.outputDir)).outputPath;
     } else {
       const filename = zipFileNameFromRequest(req);
       outputPath = path.join(config.outputDir, filename);
