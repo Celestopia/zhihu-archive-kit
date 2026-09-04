@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import JSZip from "jszip";
 import { EditApiError, handleEditApiRequest } from "../src/render/edit-api.mjs";
 
 /**
@@ -36,24 +35,8 @@ const createdMetadata = await readCollectionMetadata(path.join(root, "技术收�
 await expectApiError(409, api("POST", ["collections"], { name: "技术收藏", description: "" }));
 await expectApiError(400, api("POST", ["collections"], { name: "_internal", description: "" }));
 
-result = await api("GET", ["saved", answerFolder]);
-assert.deepEqual(result.body.collections, ["默认收藏夹"]);
-
-const articleZip = new JSZip();
-articleZip.file("article-789/index.md", `---
-source_type: "article"
-title: "测试文章"
----
-
-正文。
-`);
-articleZip.file("article-789/comments.json", "{\"schema_version\":1,\"comments\":[]}\n");
-const articleBuffer = await articleZip.generateAsync({ type: "nodebuffer" });
-result = await api("POST", ["collections", "技术收藏", "items"], articleBuffer);
-assert.equal(result.status, 201);
-assert.equal(result.body.item.folderName, "article-789");
-assert.equal(await exists(path.join(root, "技术收藏", "article-789", "index.md")), true);
-await expectApiError(409, api("POST", ["collections", "技术收藏", "items"], articleBuffer));
+await expectApiError(404, api("GET", ["saved", answerFolder]));
+await expectApiError(404, api("POST", ["collections", "技术收藏", "items"], {}));
 
 result = await api("PATCH", ["collections", "技术收藏"], { description: "更新后的描述" });
 assert.equal(result.status, 200);

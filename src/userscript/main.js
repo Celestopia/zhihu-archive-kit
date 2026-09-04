@@ -20,7 +20,7 @@ import {
 } from "../save-core/target.js";
 import { targetFolderName } from "../shared/url.js";
 import { getStagedCommentsForTarget, mountCommentStaging } from "./comment-staging.js";
-import { findSavedCollectionsForFolder } from "./local-save.js";
+import { changeArchiveRoot, findSavedCollectionsForFolder } from "./directory-save.js";
 import { saveArchiveWithButton, saveZipWithButton } from "./single-save.js";
 import { createSaveControl, ensureSaveControlStyle, removeSaveControls, setSavedStatus } from "./ui.js";
 
@@ -109,6 +109,7 @@ function injectAnswerControls() {
       host,
       target,
       boundType: "answer",
+      buildArtifact: (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options)),
       buildZip: (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
     });
   }
@@ -134,21 +135,33 @@ function injectArticleControl() {
     host: articleRoot,
     target: articleTarget,
     boundType: "article",
+    buildArtifact: (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options)),
     buildZip: (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
   });
 }
 
-function mountSaveControl({ scope, host, target, boundType, buildZip }) {
+function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
   const folderName = targetFolderName(target);
   scope.classList.add(CONTROL_SCOPE_CLASS);
   host.classList.add(CONTROL_HOST_CLASS);
   const control = createSaveControl(
     (button) => saveArchiveWithButton(
       button,
-      buildZip,
+      buildArtifact,
       () => refreshSaveStatus(control, folderName)
     ),
-    (button) => saveZipWithButton(button, buildZip)
+    (button) => saveZipWithButton(button, buildZip),
+    async () => {
+      try {
+        await changeArchiveRoot();
+        document.querySelectorAll(".zhmd-save-control__collection-menu").forEach((menu) => menu.remove());
+        for (const item of document.querySelectorAll("[data-zhmd-folder-name]")) {
+          await refreshSaveStatus(item, item.getAttribute("data-zhmd-folder-name"));
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") window.alert(`更改保存文件夹失败：${error.message}`);
+      }
+    }
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
   host.prepend(control);

@@ -2307,28 +2307,6 @@ function parseCount(value) {
 
 /***/ },
 
-/***/ "./src/shared/local-service.js"
-/*!*************************************!*\
-  !*** ./src/shared/local-service.js ***!
-  \*************************************/
-(__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
-
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   LOCAL_SERVICE_HOST: () => (/* binding */ LOCAL_SERVICE_HOST),
-/* harmony export */   LOCAL_SERVICE_PORT: () => (/* binding */ LOCAL_SERVICE_PORT),
-/* harmony export */   localServiceBaseUrl: () => (/* binding */ localServiceBaseUrl)
-/* harmony export */ });
-const LOCAL_SERVICE_HOST = "127.0.0.1";
-const LOCAL_SERVICE_PORT = 17892;
-
-function localServiceBaseUrl() {
-  return `http://${LOCAL_SERVICE_HOST}:${LOCAL_SERVICE_PORT}`;
-}
-
-
-/***/ },
-
 /***/ "./src/shared/url.js"
 /*!***************************!*\
   !*** ./src/shared/url.js ***!
@@ -2767,82 +2745,192 @@ const BATCH_STATUS_ID = "zhmd-batch-status";
 
 /***/ },
 
-/***/ "./src/userscript/local-save.js"
-/*!**************************************!*\
-  !*** ./src/userscript/local-save.js ***!
-  \**************************************/
+/***/ "./src/userscript/directory-save.js"
+/*!******************************************!*\
+  !*** ./src/userscript/directory-save.js ***!
+  \******************************************/
 (__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   changeArchiveRoot: () => (/* binding */ changeArchiveRoot),
 /* harmony export */   createCollection: () => (/* binding */ createCollection),
 /* harmony export */   findSavedCollectionsForFolder: () => (/* binding */ findSavedCollectionsForFolder),
+/* harmony export */   getArchiveRoot: () => (/* binding */ getArchiveRoot),
 /* harmony export */   listCollections: () => (/* binding */ listCollections),
-/* harmony export */   saveZipToCollection: () => (/* binding */ saveZipToCollection)
+/* harmony export */   writeArtifactToCollection: () => (/* binding */ writeArtifactToCollection)
 /* harmony export */ });
-/* harmony import */ var _shared_local_service_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../shared/local-service.js */ "./src/shared/local-service.js");
+const DB_NAME = "zhihu-archive-kit";
+const STORE_NAME = "settings";
+const ROOT_KEY = "archive-root";
+const DEFAULT_COLLECTION = "默认收藏夹";
+const METADATA_FILE = "collection.json";
 
-
-/**
- * Browser client for the local archive service.
- */
-async function listCollections() {
-  const result = await requestJson("/api/collections");
-  return result.collections;
+async function getArchiveRoot() {
+  assertDirectoryPicker();
+  const root = await readStoredRoot();
+  if (!root) return changeArchiveRoot();
+  if (await root.queryPermission({ mode: "readwrite" }) !== "granted"
+    && await root.requestPermission({ mode: "readwrite" }) !== "granted") {
+    throw new Error("未获得目录写入权限，请授权或通过齿轮菜单更改保存文件夹。");
+  }
+  await ensureDefaultCollection(root);
+  return root;
 }
 
-async function createCollection(name, description) {
-  const result = await requestJson("/api/collections", {
-    method: "POST",
-    body: { name, description }
+async function changeArchiveRoot() {
+  assertDirectoryPicker();
+  const root = await window.showDirectoryPicker({ id: "zhihu-archive-kit", mode: "readwrite" });
+  await ensureDefaultCollection(root);
+  await storeRoot(root);
+  return root;
+}
+
+async function listCollections(root) {
+  const collections = [];
+  for await (const [name, handle] of root.entries()) {
+    if (handle.kind !== "directory" || name.startsWith("_")) continue;
+    if (!await fileExists(handle, METADATA_FILE) || await fileExists(handle, "index.md")) continue;
+    const metadata = await readMetadata(handle);
+    collections.push({ name, description: metadata.description });
+  }
+  return collections.sort((a, b) => {
+    if (a.name === DEFAULT_COLLECTION) return -1;
+    if (b.name === DEFAULT_COLLECTION) return 1;
+    return a.name.localeCompare(b.name, "zh-Hans-CN");
   });
-  return result.collection;
+}
+
+async function createCollection(root, name, description) {
+  const collectionName = validateCollectionName(name);
+  if (await entryExists(root, collectionName)) throw new Error(`收藏夹已存在：${collectionName}`);
+  const collection = await root.getDirectoryHandle(collectionName, { create: true });
+  const metadata = { schema_version: 1, name: collectionName, description, time_created: new Date().toISOString() };
+  await writeFile(collection, METADATA_FILE, JSON.stringify(metadata, null, 2) + "\n");
+  return metadata;
+}
+
+async function writeArtifactToCollection(root, artifact, collectionName) {
+  validateCollectionName(collectionName);
+  if (!/^(?:question-\d+-answer-\d+|article-\d+)$/.test(artifact.folderName)) {
+    throw new Error("内容目录名无效。");
+  }
+  const collection = await root.getDirectoryHandle(collectionName);
+  await readMetadata(collection);
+  if (await entryExists(collection, artifact.folderName)) {
+    throw new Error(`目标文件夹已存在：${collectionName}/${artifact.folderName}`);
+  }
+  const folder = await collection.getDirectoryHandle(artifact.folderName, { create: true });
+  const assets = await folder.getDirectoryHandle("assets", { create: true });
+  for (const asset of artifact.assets) await writeFile(assets, asset.fileName, asset.data);
+  await writeFile(folder, "comments.json", artifact.commentsJson);
+  await writeFile(folder, "index.md", artifact.indexMarkdown);
 }
 
 async function findSavedCollectionsForFolder(folderName) {
-  const result = await requestJson(`/api/saved/${encodeURIComponent(folderName)}`);
-  return result.collections;
+  if (typeof window.showDirectoryPicker !== "function") return [];
+  const root = await readStoredRoot();
+  if (!root || await root.queryPermission({ mode: "readwrite" }) !== "granted") return [];
+  const matches = [];
+  for (const collection of await listCollections(root)) {
+    const handle = await root.getDirectoryHandle(collection.name);
+    try {
+      const item = await handle.getDirectoryHandle(folderName);
+      if (await fileExists(item, "index.md") && await fileExists(item, "comments.json")) matches.push(collection.name);
+    } catch (error) {
+      if (error.name !== "NotFoundError") throw error;
+    }
+  }
+  return matches;
 }
 
-async function saveZipToCollection(zipBlob, collectionName) {
-  let response;
+function assertDirectoryPicker() {
+  if (typeof window.showDirectoryPicker !== "function") {
+    throw new Error("当前浏览器不支持保存到文件夹，请使用 Chrome/Edge，或下载为 ZIP。");
+  }
+}
+
+async function ensureDefaultCollection(root) {
+  const collection = await root.getDirectoryHandle(DEFAULT_COLLECTION, { create: true });
+  if (await fileExists(collection, "index.md")) throw new Error("默认收藏夹不能是内容目录。");
+  if (!await fileExists(collection, METADATA_FILE)) {
+    await writeFile(collection, METADATA_FILE, JSON.stringify({
+      schema_version: 1, name: DEFAULT_COLLECTION, description: "", time_created: new Date().toISOString()
+    }, null, 2) + "\n");
+  }
+}
+
+function validateCollectionName(name) {
+  const value = name.trim();
+  if (!value || value === "." || value === ".." || value.startsWith("_")
+    || /[<>:"/\\|?*\x00-\x1f]/.test(value) || /[. ]$/.test(value)
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(value)) {
+    throw new Error("收藏夹名称无效：不能使用路径分隔符、Windows 保留名称或以下划线开头。");
+  }
+  return value;
+}
+
+async function readMetadata(collection) {
+  const handle = await collection.getFileHandle(METADATA_FILE);
+  return JSON.parse(await (await handle.getFile()).text());
+}
+
+async function fileExists(directory, name) {
   try {
-    response = await fetch(`${(0,_shared_local_service_js__WEBPACK_IMPORTED_MODULE_0__.localServiceBaseUrl)()}/api/collections/${encodeURIComponent(collectionName)}/items`, {
-      method: "POST",
-      headers: { "content-type": "application/zip" },
-      body: zipBlob
-    });
-  } catch {
-    throw serviceUnavailableError();
+    await directory.getFileHandle(name);
+    return true;
+  } catch (error) {
+    if (error.name === "NotFoundError") return false;
+    throw error;
   }
-  return readResponse(response);
 }
 
-async function requestJson(path, options = {}) {
-  let response;
+async function entryExists(directory, name) {
+  for await (const entryName of directory.keys()) {
+    if (entryName.toLowerCase() === name.toLowerCase()) return true;
+  }
+  return false;
+}
+
+async function writeFile(directory, name, data) {
+  const handle = await directory.getFileHandle(name, { create: true });
+  const stream = await handle.createWritable();
   try {
-    response = await fetch(`${(0,_shared_local_service_js__WEBPACK_IMPORTED_MODULE_0__.localServiceBaseUrl)()}${path}`, {
-      method: options.method || "GET",
-      headers: options.body ? { "content-type": "application/json" } : undefined,
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
-  } catch {
-    throw serviceUnavailableError();
+    await stream.write(data);
+    await stream.close();
+  } catch (error) {
+    await stream.abort();
+    throw error;
   }
-  return readResponse(response);
 }
 
-function serviceUnavailableError() {
-  return new Error("本地归档服务未运行，请先启动 Zhihu Archive Kit 本地浏览服务。");
+async function openDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 }
 
-async function readResponse(response) {
-  const text = await response.text();
-  const result = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(result.error || "本地归档服务请求失败。");
-  }
-  return result;
+async function readStoredRoot() {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const request = transaction.objectStore(STORE_NAME).get(ROOT_KEY);
+    transaction.oncomplete = () => { db.close(); resolve(request.result); };
+    transaction.onabort = () => { db.close(); reject(transaction.error); };
+  });
+}
+
+async function storeRoot(root) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).put(root, ROOT_KEY);
+    transaction.oncomplete = () => { db.close(); resolve(); };
+    transaction.onabort = () => { db.close(); reject(transaction.error); };
+  });
 }
 
 
@@ -2863,7 +2951,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
 /* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./constants.js */ "./src/userscript/constants.js");
-/* harmony import */ var _local_save_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./local-save.js */ "./src/userscript/local-save.js");
+/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
 /* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
 
 
@@ -2875,23 +2963,24 @@ __webpack_require__.r(__webpack_exports__);
  */
 
 async function saveCurrentPage(button) {
-  await saveArchiveWithButton(button, _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageZip);
+  await saveArchiveWithButton(button, _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageArtifact);
 }
 
 async function saveCurrentPageAsZip(button) {
   await saveZipWithButton(button, _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_0__.buildCurrentPageZip);
 }
 
-async function saveArchiveWithButton(button, buildZip, refreshStatus) {
+async function saveArchiveWithButton(button, buildArtifact, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "载入收藏夹...", true);
 
   try {
-    const collections = await (0,_local_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)();
+    const root = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.getArchiveRoot)();
+    const collections = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)(root);
     button.disabled = false;
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, originalText, true);
-    showCollectionMenu(button, buildZip, collections, refreshStatus);
+    showCollectionMenu(button, buildArtifact, root, collections, refreshStatus);
   } catch (error) {
     console.error("[Zhihu Archive Kit] collection menu failed:", error);
     button.disabled = false;
@@ -2903,7 +2992,7 @@ async function saveArchiveWithButton(button, buildZip, refreshStatus) {
   }
 }
 
-function showCollectionMenu(button, buildZip, collections, refreshStatus) {
+function showCollectionMenu(button, buildArtifact, root, collections, refreshStatus) {
   const control = button.closest(`.${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}`);
   if (!control) {
     throw new Error("找不到保存控件。");
@@ -2928,7 +3017,7 @@ function showCollectionMenu(button, buildZip, collections, refreshStatus) {
   newButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-secondary`;
   newButton.textContent = "新建收藏夹";
   newButton.addEventListener("click", async () => {
-    await createCollectionFromPrompt(select);
+    await createCollectionFromPrompt(root, select);
   });
 
   const saveButton = document.createElement("button");
@@ -2936,7 +3025,7 @@ function showCollectionMenu(button, buildZip, collections, refreshStatus) {
   saveButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_1__.CONTROL_CLASS}__collection-save`;
   saveButton.textContent = "保存";
   saveButton.addEventListener("click", async () => {
-    await saveZipToSelectedCollection(button, saveButton, buildZip, select.value, menu, refreshStatus);
+    await saveArtifactToSelectedCollection(button, saveButton, buildArtifact, root, select.value, menu, refreshStatus);
   });
 
   const cancelButton = document.createElement("button");
@@ -2975,7 +3064,7 @@ function fillCollectionSelect(select, collections, selectedName = "") {
   }
 }
 
-async function createCollectionFromPrompt(select) {
+async function createCollectionFromPrompt(root, select) {
   const name = window.prompt("请输入收藏夹名称：", "");
   if (name === null) {
     return;
@@ -2983,8 +3072,8 @@ async function createCollectionFromPrompt(select) {
 
   const description = window.prompt("请输入收藏夹描述（可留空）：", "");
   try {
-    const created = await (0,_local_save_js__WEBPACK_IMPORTED_MODULE_2__.createCollection)(name, description === null ? "" : description);
-    const collections = await (0,_local_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)();
+    const created = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.createCollection)(root, name, description === null ? "" : description);
+    const collections = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.listCollections)(root);
     fillCollectionSelect(select, collections, created.name);
   } catch (error) {
     console.error("[Zhihu Archive Kit] create collection failed:", error);
@@ -2992,7 +3081,7 @@ async function createCollectionFromPrompt(select) {
   }
 }
 
-async function saveZipToSelectedCollection(button, saveButton, buildZip, collectionName, menu, refreshStatus) {
+async function saveArtifactToSelectedCollection(button, saveButton, buildArtifact, root, collectionName, menu, refreshStatus) {
   const originalText = button.textContent;
   button.disabled = true;
   (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存中...", true);
@@ -3000,17 +3089,15 @@ async function saveZipToSelectedCollection(button, saveButton, buildZip, collect
   saveButton.textContent = "保存中...";
 
   try {
-    const result = await buildZip({
+    const artifact = await buildArtifact({
       onProgress: (progress) => {
         if (progress.stage === "media") {
           (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, `下载媒体 ${progress.completed}/${progress.total}`, true);
-        } else if (progress.stage === "zip") {
-          (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, `生成 ZIP ${progress.percent || 0}%`, true);
         }
       }
     });
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "写入收藏夹", true);
-    await (0,_local_save_js__WEBPACK_IMPORTED_MODULE_2__.saveZipToCollection)(result.blob, collectionName);
+    await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_2__.writeArtifactToCollection)(root, artifact, collectionName);
 
     menu.remove();
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_3__.setButtonState)(button, "保存成功", true);
@@ -3206,6 +3293,9 @@ function ensureSaveControlStyle() {
     }
 
     .${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__zip {
+      display: block;
+      width: 100%;
+      margin: 3px 0;
       height: 32px;
       padding: 0 12px;
       background: #303846;
@@ -3268,7 +3358,7 @@ function ensureSaveControlStyle() {
   document.documentElement.append(style);
 }
 
-function createSaveControl(onSave, onZip) {
+function createSaveControl(onSave, onZip, onChangeFolder) {
   const wrapper = document.createElement("div");
   wrapper.className = _constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS;
 
@@ -3307,7 +3397,15 @@ function createSaveControl(onSave, onZip) {
     await onZip(zipButton);
   });
 
-  menu.append(zipButton);
+  const folderButton = document.createElement("button");
+  folderButton.type = "button";
+  folderButton.className = `${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}__zip`;
+  folderButton.textContent = "更改保存文件夹";
+  folderButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await onChangeFolder();
+  });
+  menu.append(zipButton, folderButton);
   inner.append(button, gear, menu);
   wrapper.append(inner);
   return wrapper;
@@ -3419,7 +3517,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../save-core/target.js */ "./src/save-core/target.js");
 /* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
 /* harmony import */ var _comment_staging_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./comment-staging.js */ "./src/userscript/comment-staging.js");
-/* harmony import */ var _local_save_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./local-save.js */ "./src/userscript/local-save.js");
+/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
 /* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
 /* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
 
@@ -3518,6 +3616,7 @@ function injectAnswerControls() {
       host,
       target,
       boundType: "answer",
+      buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options)),
       buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
     });
   }
@@ -3543,21 +3642,33 @@ function injectArticleControl() {
     host: articleRoot,
     target: articleTarget,
     boundType: "article",
+    buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options)),
     buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
   });
 }
 
-function mountSaveControl({ scope, host, target, boundType, buildZip }) {
+function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
   const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(target);
   scope.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_SCOPE_CLASS);
   host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
   const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
     (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArchiveWithButton)(
       button,
-      buildZip,
+      buildArtifact,
       () => refreshSaveStatus(control, folderName)
     ),
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(button, buildZip)
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(button, buildZip),
+    async () => {
+      try {
+        await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_7__.changeArchiveRoot)();
+        document.querySelectorAll(".zhmd-save-control__collection-menu").forEach((menu) => menu.remove());
+        for (const item of document.querySelectorAll("[data-zhmd-folder-name]")) {
+          await refreshSaveStatus(item, item.getAttribute("data-zhmd-folder-name"));
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") window.alert(`更改保存文件夹失败：${error.message}`);
+      }
+    }
   );
   control.setAttribute("data-zhmd-folder-name", folderName);
   host.prepend(control);
@@ -3572,7 +3683,7 @@ async function refreshSaveStatus(control, folderName) {
   }
 
   try {
-    const collectionNames = await (0,_local_save_js__WEBPACK_IMPORTED_MODULE_7__.findSavedCollectionsForFolder)(folderName);
+    const collectionNames = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_7__.findSavedCollectionsForFolder)(folderName);
     (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.setSavedStatus)(button, collectionNames);
   } catch (error) {
     console.warn("[Zhihu Archive Kit] saved status check failed:", error);

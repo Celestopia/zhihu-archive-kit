@@ -3,31 +3,36 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadBatchConfig } from "../src/batch/config.mjs";
-import { defaultBatchOutputDir, defaultDataRoot, defaultEmojiCacheDir } from "../src/local-data/paths.mjs";
+import { applicationSettingsPath, resolveArchiveRoot, defaultEmojiCacheDir } from "../src/local-data/paths.mjs";
 
-const localAppData = path.join(os.tmpdir(), "zhmd-local-app-data");
-const env = { LOCALAPPDATA: localAppData };
-const expectedRoot = path.resolve(localAppData, "Zhihu Archive Kit", "data");
+const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-paths-"));
+const env = { APPDATA: path.join(temporary, "roaming") };
+const settingsPath = applicationSettingsPath(env);
+const archive = path.join(temporary, "User archive");
+await fs.mkdir(archive);
+assert.equal(settingsPath, path.join(env.APPDATA, "Zhihu Archive Kit", "settings.json"));
+assert.equal(defaultEmojiCacheDir(env), path.join(env.APPDATA, "Zhihu Archive Kit", "cache", "emoji"));
+assert.throws(() => defaultEmojiCacheDir({}), /APPDATA is required/);
+await assert.rejects(resolveArchiveRoot(undefined, env), /No archive folder is selected/);
+assert.equal(await resolveArchiveRoot(archive, {}), archive);
 
-assert.equal(defaultDataRoot(env), expectedRoot);
-assert.equal(defaultBatchOutputDir(env), path.join(expectedRoot, "_batch"));
-assert.equal(defaultEmojiCacheDir(env), path.resolve(localAppData, "Zhihu Archive Kit", "cache", "emoji"));
-assert.throws(() => defaultDataRoot({}), /LOCALAPPDATA is required/);
+await fs.mkdir(path.dirname(settingsPath), { recursive: true });
+await fs.writeFile(settingsPath, JSON.stringify({ archiveRoot: archive }));
+assert.equal(await resolveArchiveRoot(undefined, env), archive);
+const otherArchive = path.join(temporary, "Other archive");
+await fs.mkdir(otherArchive);
+assert.equal(await resolveArchiveRoot(otherArchive, env), otherArchive);
+assert.equal(JSON.parse(await fs.readFile(settingsPath)).archiveRoot, archive);
+await assert.rejects(resolveArchiveRoot(path.join(temporary, "missing"), env), /ENOENT/);
+await assert.rejects(resolveArchiveRoot("", env), /non-empty path/);
+await fs.writeFile(settingsPath, JSON.stringify({ archiveRoot: "relative" }));
+await assert.rejects(resolveArchiveRoot(undefined, env), /absolute archiveRoot/);
+await fs.writeFile(settingsPath, "{broken");
+await assert.rejects(resolveArchiveRoot(undefined, env), SyntaxError);
 
-const configDir = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-config-"));
-const defaultConfigPath = path.join(configDir, "default.json");
-await fs.writeFile(defaultConfigPath, JSON.stringify({
-  urls: ["https://zhuanlan.zhihu.com/p/789"]
-}));
-const defaultConfig = await loadBatchConfig([defaultConfigPath], process.cwd(), env);
-assert.equal(defaultConfig.outputDir, path.join(expectedRoot, "_batch"));
-
-const explicitConfigPath = path.join(configDir, "explicit.json");
-await fs.writeFile(explicitConfigPath, JSON.stringify({
-  output_dir: "saved",
-  urls: ["https://zhuanlan.zhihu.com/p/789"]
-}));
-const explicitConfig = await loadBatchConfig([explicitConfigPath], process.cwd(), env);
-assert.equal(explicitConfig.outputDir, path.join(configDir, "saved"));
-
-console.log("Local data path checks passed.");
+const configPath = path.join(temporary, "batch.json");
+await fs.writeFile(configPath, JSON.stringify({ urls: ["https://zhuanlan.zhihu.com/p/789"] }));
+await assert.rejects(loadBatchConfig([configPath]), /output_dir is required/);
+await fs.writeFile(configPath, JSON.stringify({ output_dir: "saved", urls: ["https://zhuanlan.zhihu.com/p/789"] }));
+assert.equal((await loadBatchConfig([configPath])).outputDir, path.join(temporary, "saved"));
+console.log("Archive path and application settings checks passed.");

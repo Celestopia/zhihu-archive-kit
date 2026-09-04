@@ -1,5 +1,4 @@
 import { renderOutputIndex } from "./index-page.mjs";
-import { defaultDataRoot } from "../local-data/paths.mjs";
 
 async function main() {
   const args = process.argv.slice(2);
@@ -7,7 +6,7 @@ async function main() {
     throw new Error("Usage: npm run render:index -- [output-root]");
   }
 
-  const outputPath = await renderOutputIndex(args[0] || defaultDataRoot());
+  const outputPath = await renderOutputIndex(args[0]);
   console.log(`HTML navigation written to ${outputPath}`);
 }
 

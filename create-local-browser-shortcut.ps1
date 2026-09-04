@@ -15,7 +15,7 @@ foreach ($RequiredPath in @($LauncherPath, $IconPath, $PowerShellPath)) {
 $Shell = New-Object -ComObject WScript.Shell
 $Shortcut = $Shell.CreateShortcut($ShortcutPath)
 $Shortcut.TargetPath = $PowerShellPath
-$Shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$LauncherPath`""
+$Shortcut.Arguments = "-NoProfile -STA -ExecutionPolicy Bypass -File `"$LauncherPath`""
 $Shortcut.WorkingDirectory = $ProjectRoot
 $Shortcut.IconLocation = "$IconPath,0"
 $Shortcut.Description = "Start the Zhihu Archive Kit local browser service"

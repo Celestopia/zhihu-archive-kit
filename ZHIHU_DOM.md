@@ -433,7 +433,7 @@ IP 属地        -> .css-ntkn7q
 - `img.sticker` 使用 `alt` 文本；
 - `.comment_img` 不写入正文，图片下载成功后 `image_url` 指向 `./assets/comment-image-001.ext`，下载失败时保留远程 URL。
 
-本地 HTML 渲染会把已知知乎表情转写文本重新渲染为图片。渲染映射来自知乎页面加载的 `@cfe/emoticon` 表情包中的 `placeholder` 和 `static_image_url`；图片缓存到保存根目录 `_emoji/`。这一步只影响 HTML 预览和导航页展示，不改变 `index.md` 或 `comments.json` 中的表情文本。
+本地 HTML 渲染会把已知知乎表情转写文本重新渲染为图片。渲染映射来自知乎页面加载的 `@cfe/emoticon` 表情包中的 `placeholder` 和 `static_image_url`。这一步只影响 HTML 预览和导航页展示，不改变 `index.md` 或 `comments.json` 中的表情文本；缓存位置见 `PROJECT.md`。
 
 二级评论优先通过嵌套的 `[data-id]` 关系判断父评论；弹窗回复结构按参考项目的 `.css-1kwt8l8`、`.css-16zdamy` 和 `.css-tpyajk` 逻辑处理。导出时一级评论位于 `comments[]`，二级评论位于父评论的 `children[]`。
 

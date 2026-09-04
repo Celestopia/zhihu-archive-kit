@@ -1,30 +1,41 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 
-const APPLICATION_DIRECTORY = "Zhihu Archive Kit";
-const DATA_DIRECTORY = "data";
-const BATCH_DIRECTORY = "_batch";
-const CACHE_DIRECTORY = "cache";
-const EMOJI_DIRECTORY = "emoji";
-
-/**
- * Resolve the application-owned archive root.
- */
-export function defaultDataRoot(env = process.env) {
-  return path.join(defaultApplicationRoot(env), DATA_DIRECTORY);
-}
-
-export function defaultBatchOutputDir(env = process.env) {
-  return path.join(defaultDataRoot(env), BATCH_DIRECTORY);
+export function applicationSettingsPath(env = process.env) {
+  return path.join(applicationRoot(env), "settings.json");
 }
 
 export function defaultEmojiCacheDir(env = process.env) {
-  return path.join(defaultApplicationRoot(env), CACHE_DIRECTORY, EMOJI_DIRECTORY);
+  return path.join(applicationRoot(env), "cache", "emoji");
 }
 
-function defaultApplicationRoot(env) {
-  const localAppData = env.LOCALAPPDATA;
-  if (typeof localAppData !== "string" || !localAppData.trim()) {
-    throw new Error("LOCALAPPDATA is required when no application path is specified.");
+export async function resolveArchiveRoot(explicitRoot, env = process.env) {
+  let root;
+  if (explicitRoot !== undefined) {
+    if (typeof explicitRoot !== "string" || !explicitRoot.trim()) throw new Error("Archive root must be a non-empty path.");
+    root = path.resolve(explicitRoot);
+  } else {
+    let settings;
+    try {
+      settings = JSON.parse(await fs.readFile(applicationSettingsPath(env), "utf8"));
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        throw new Error("No archive folder is selected. Run start-local-browser.ps1 or pass an archive root explicitly.");
+      }
+      throw error;
+    }
+    if (!settings || typeof settings.archiveRoot !== "string" || !path.isAbsolute(settings.archiveRoot)) {
+      throw new Error("settings.json must contain an absolute archiveRoot path.");
+    }
+    root = settings.archiveRoot;
   }
-  return path.resolve(localAppData, APPLICATION_DIRECTORY);
+  if (!(await fs.stat(root)).isDirectory()) throw new Error(`Archive root is not a directory: ${root}`);
+  return root;
+}
+
+function applicationRoot(env) {
+  if (typeof env.APPDATA !== "string" || !env.APPDATA.trim()) {
+    throw new Error("APPDATA is required for application settings and emoji caching.");
+  }
+  return path.resolve(env.APPDATA, "Zhihu Archive Kit");
 }

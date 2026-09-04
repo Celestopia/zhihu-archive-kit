@@ -9,7 +9,7 @@ import {
 } from "./card-template.mjs";
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { parseMarkdownDocument, renderSavedFolder } from "./render.mjs";
-import { defaultDataRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
+import { resolveArchiveRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
 import { loadAppIconDataUri } from "./app-icon.mjs";
 
 const INDEX_FILE = "index.html";
@@ -21,10 +21,9 @@ const INTERNAL_DIRECTORY_PREFIX = "_";
 /**
  * Build a lightweight static navigation page for saved Zhihu content.
  */
-export async function renderOutputIndex(rootPath = defaultDataRoot(), { emojiCacheDir = defaultEmojiCacheDir() } = {}) {
-  const root = path.resolve(rootPath);
+export async function renderOutputIndex(rootPath, { emojiCacheDir = defaultEmojiCacheDir() } = {}) {
+  const root = await resolveArchiveRoot(rootPath);
   const iconHref = await loadAppIconDataUri();
-  await fs.mkdir(root, { recursive: true });
   const entries = await fs.readdir(root, { withFileTypes: true });
   const items = [];
   const collections = [];
@@ -548,6 +547,7 @@ function renderIndexDocument({ items, collections, iconHref }) {
       <div class="header-menu-wrap">
         <button class="header-menu-button" type="button" id="header-menu-button" aria-expanded="false" aria-label="收藏夹操作菜单">...</button>
         <div class="header-menu" id="header-menu" hidden>
+          <button type="button" data-edit-action="refresh-archive">刷新归档</button>
           <button type="button" data-edit-action="rename-collection">修改收藏夹名称</button>
           <button type="button" data-edit-action="edit-collection-description">修改收藏夹描述</button>
           <button type="button" data-edit-action="create-collection">新建收藏夹</button>
@@ -873,6 +873,16 @@ ${compareSortableValues.toString()}
 
     async function handleEditAction(button) {
       const action = button.dataset.editAction;
+      if (action === "refresh-archive") {
+        button.disabled = true;
+        try {
+          await apiRequest("/api/refresh", { method: "POST" });
+          location.reload();
+        } finally {
+          button.disabled = false;
+        }
+        return;
+      }
       if (action === "create-collection") {
         await createCollection();
         return;

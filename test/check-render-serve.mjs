@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import JSZip from "jszip";
 import { startRenderServer, stopRenderServer } from "../src/render/serve.mjs";
 
 /**
@@ -63,13 +62,13 @@ try {
 
   const preflightResponse = await fetch(`${handle.url}api/collections`, {
     method: "OPTIONS",
-    headers: { origin: "https://www.zhihu.com" }
+    headers: { origin: new URL(handle.url).origin }
   });
   assert.equal(preflightResponse.status, 204);
-  assert.equal(preflightResponse.headers.get("access-control-allow-origin"), "https://www.zhihu.com");
+  assert.equal(preflightResponse.headers.get("access-control-allow-origin"), new URL(handle.url).origin);
 
   const forbiddenResponse = await fetch(`${handle.url}api/collections`, {
-    headers: { origin: "https://example.com" }
+    headers: { origin: "https://www.zhihu.com" }
   });
   assert.equal(forbiddenResponse.status, 403);
 
@@ -81,30 +80,30 @@ try {
   assert.equal(createResponse.status, 201);
   assert.equal(await fileExists(path.join(root, "服务收藏夹", "collection.json")), true);
 
-  const uploadZip = new JSZip();
-  uploadZip.file("article-789/index.md", `---
+  const articleDir = path.join(root, "服务收藏夹", "article-789");
+  await fs.mkdir(articleDir);
+  await fs.writeFile(path.join(articleDir, "index.md"), `---
 source_type: "article"
 title: "服务上传文章"
 ---
 
 服务上传正文。
 `);
-  uploadZip.file("article-789/comments.json", "{\"schema_version\":1,\"comments\":[]}\n");
+  await fs.writeFile(path.join(articleDir, "comments.json"), "{\"schema_version\":1,\"comments\":[]}\n");
   const uploadResponse = await fetch(`${handle.url}${encodeURI("api/collections/服务收藏夹/items")}`, {
     method: "POST",
-    headers: {
-      "content-type": "application/zip",
-      origin: "https://zhuanlan.zhihu.com"
-    },
-    body: await uploadZip.generateAsync({ type: "nodebuffer" })
+    headers: { "content-type": "application/json" },
+    body: "{}"
   });
-  assert.equal(uploadResponse.status, 201);
-  assert.equal(uploadResponse.headers.get("access-control-allow-origin"), "https://zhuanlan.zhihu.com");
-  assert.equal(await fileExists(path.join(root, "服务收藏夹", "article-789", "index.md")), true);
+  assert.equal(uploadResponse.status, 404);
+  const refreshResponse = await fetch(`${handle.url}api/refresh`, { method: "POST" });
+  assert.equal(refreshResponse.status, 200);
+  assert.equal(await fileExists(path.join(articleDir, "preview.html")), true);
 
   const refreshedIndexResponse = await fetch(handle.url);
   assert.equal(refreshedIndexResponse.status, 200);
-  assert.match(await refreshedIndexResponse.text(), /服务收藏夹/);
+  assert.match(await refreshedIndexResponse.text(), /服务上传文章/);
+  assert.equal(refreshedIndexResponse.headers.get("cache-control"), "no-store");
 } finally {
   await stopRenderServer(handle);
 }

@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { extractContentZip } from "../local-data/extract-zip.mjs";
 
 const COLLECTION_METADATA_FILE = "collection.json";
 const INTERNAL_DIRECTORY_PREFIX = "_";
@@ -29,22 +28,6 @@ export async function handleEditApiRequest({ root, method, segments, body }) {
     return {
       status: 200,
       body: { collection: await updateCollection(root, segments[1], body) },
-      mutated: true
-    };
-  }
-
-  if (segments.length === 2 && segments[0] === "saved" && method === "GET") {
-    return {
-      status: 200,
-      body: { collections: await findCollectionsContaining(root, segments[1]) },
-      mutated: false
-    };
-  }
-
-  if (segments.length === 3 && segments[0] === "collections" && segments[2] === "items" && method === "POST") {
-    return {
-      status: 201,
-      body: { item: await saveContentZip(root, segments[1], body) },
       mutated: true
     };
   }
@@ -122,34 +105,6 @@ export async function createCollection(root, payload) {
   };
   await writeCollectionMetadata(collectionPath, metadata);
   return { ...metadata, count: 0 };
-}
-
-export async function findCollectionsContaining(root, folderName) {
-  const cleanFolderName = validateName(folderName, "内容目录名");
-  const collections = await listCollections(root);
-  const matches = [];
-  for (const collection of collections) {
-    const collectionPath = rootChildPath(root, collection.name);
-    if (await isContentDirectory(collectionChildPath(collectionPath, cleanFolderName, "内容目录名"))) {
-      matches.push(collection.name);
-    }
-  }
-  return matches;
-}
-
-export async function saveContentZip(root, collectionName, buffer) {
-  if (!Buffer.isBuffer(buffer)) {
-    throw new EditApiError(400, "Saved content must be uploaded as a ZIP file.");
-  }
-
-  const collectionPath = await requireCollectionPath(root, collectionName);
-  try {
-    const result = await extractContentZip(buffer, collectionPath);
-    return { folderName: result.folderName, collectionName };
-  } catch (error) {
-    const status = String(error.message || "").includes("目标文件夹已存在") ? 409 : 400;
-    throw new EditApiError(status, error.message);
-  }
 }
 
 export async function updateCollection(root, currentName, payload) {

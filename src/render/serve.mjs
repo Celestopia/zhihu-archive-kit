@@ -3,19 +3,19 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { EditApiError, ensureDefaultCollection, handleEditApiRequest } from "./edit-api.mjs";
 import { renderOutputIndex } from "./index-page.mjs";
-import { defaultDataRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
-import { LOCAL_SERVICE_HOST, LOCAL_SERVICE_PORT } from "../shared/local-service.js";
+import { resolveArchiveRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
+import { LOCAL_SERVICE_HOST, LOCAL_SERVICE_PORT } from "./service-address.mjs";
 
 
 /**
  * Render the navigation page and serve the output directory over localhost.
  */
 export async function startRenderServer({
-  rootPath = defaultDataRoot(),
+  rootPath,
   port = LOCAL_SERVICE_PORT,
   emojiCacheDir = defaultEmojiCacheDir()
 } = {}) {
-  const root = path.resolve(rootPath);
+  const root = await resolveArchiveRoot(rootPath);
   await ensureDefaultCollection(root);
   await renderOutputIndex(root, { emojiCacheDir });
 
@@ -111,6 +111,7 @@ async function serveRequest({ request, response, root, emojiCacheDir }) {
 
   response.writeHead(200, {
     "content-type": contentType(filePath),
+    "cache-control": "no-store",
     "content-length": stat.size
   });
 
@@ -125,16 +126,14 @@ async function serveRequest({ request, response, root, emojiCacheDir }) {
 async function serveApiRequest({ request, response, root, url, emojiCacheDir }) {
   try {
     const segments = apiSegments(url.pathname);
-    const zipUpload = request.method === "POST"
-      && segments.length === 3
-      && segments[0] === "collections"
-      && segments[2] === "items";
-    if (zipUpload && request.headers["content-type"] !== "application/zip") {
-      throw new EditApiError(415, "Saved content uploads must use application/zip.");
+    if (request.method === "POST" && segments.length === 1 && segments[0] === "refresh") {
+      await renderOutputIndex(root, { emojiCacheDir });
+      writeJson(response, 200, { ok: true });
+      return;
     }
     const body = request.method === "GET" || request.method === "HEAD"
       ? undefined
-      : zipUpload ? await readRequestBody(request) : await readJsonBody(request);
+      : await readJsonBody(request);
     const result = await handleEditApiRequest({
       root,
       method: request.method,
@@ -162,7 +161,7 @@ function prepareApiOrigin({ request, response, url }) {
     return;
   }
 
-  const allowed = origin === url.origin || ZHIHU_ORIGINS.has(origin);
+  const allowed = origin === url.origin;
   if (!allowed) {
     throw new EditApiError(403, "Request origin is not allowed.");
   }
@@ -194,7 +193,7 @@ async function readJsonBody(request) {
   }
 }
 
-async function readRequestBody(request, limit = 1024 * 1024 * 1024) {
+async function readRequestBody(request, limit) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
@@ -245,7 +244,3 @@ function contentType(filePath) {
 }
 
 const INDEX_FILE = "index.html";
-const ZHIHU_ORIGINS = new Set([
-  "https://www.zhihu.com",
-  "https://zhuanlan.zhihu.com"
-]);

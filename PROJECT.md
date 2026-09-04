@@ -24,7 +24,7 @@ src/save-core/
 src/userscript/
   comment-staging.js
   constants.js
-  local-save.js
+  directory-save.js
   main.js
   single-save.js
   ui.js
@@ -53,16 +53,17 @@ src/render/
   render.mjs
   serve-cli.mjs
   serve.mjs
+  service-address.mjs
   template.mjs
   zhihu-emoji.mjs
 
 src/shared/
-  local-service.js
   url.js
 
 test/
   check-app-icon.mjs
   check-build.mjs
+  check-directory-save.mjs
   check-extract.mjs
   check-local-data.mjs
   check-markdown.mjs
@@ -97,33 +98,33 @@ start-local-browser.ps1
 
 `buildCurrentPageArtifact()` 使用当前 URL 构建产物，供批量模式使用。`buildAnswerItemArtifact()` 和 `buildArticleRootArtifact()` 使用明确传入的 DOM 节点构建产物，供网页端手动保存使用。回答元数据还会合并所属问题的 `question_*` 字段；文章不包含这些字段。对应的 ZIP 函数基于同一产物生成 ZIP Blob。
 
-`src/userscript/` 是油猴脚本入口和单页保存界面。它把保存控件注入到回答卡片或文章正文区域；主按钮生成 ZIP 并上传到本地浏览服务，由服务写入应用数据目录；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。评论暂存按钮也在这一层注入，暂存数据只保存在当前页面内存中。
+`src/userscript/` 是油猴脚本入口和单页保存界面。它把保存控件注入到回答卡片或文章正文区域；主按钮通过 File System Access API 把 artifact 写入用户授权的归档根目录，不请求预览服务；齿轮菜单中的“下载为 ZIP”调用 FileSaver 下载 ZIP。评论暂存按钮也在这一层注入，暂存数据只保存在当前页面内存中。
 
 `src/batch/` 包含命令行批量调度、本地 HTTP 服务和浏览器端批量客户端。批量客户端运行在真实知乎页面中，生成 ZIP 后上传给本地服务。本地服务根据配置保存 ZIP 或解压为文件夹。
 
-`src/local-data/` 是 Node 端本地数据基础层。`paths.mjs` 统一解析归档数据根目录、表情缓存目录和批量输出目录；`extract-zip.mjs` 校验并解压浏览器生成的内容 ZIP，供单页保存服务和批量服务共同使用。
+`src/local-data/` 是 Node 端本地数据基础层。`paths.mjs` 解析显式或已记住的预览根目录以及 Roaming 设置/缓存路径；`extract-zip.mjs` 校验并解压批量客户端生成的内容 ZIP。
 
-`src/render/` 包含静态 HTML 预览、导航页生成器、本地浏览服务和本地数据 API。渲染路径只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`edit-api.mjs` 服务 `render:serve` 和油猴脚本，负责单页内容写入、收藏夹元数据写入、收藏夹重命名、内容删除和内容移动。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。`app-icon.mjs` 读取安装目录中的 SVG，并以内嵌 data URI 形式提供给两种 HTML 页面。
+`src/render/` 包含静态 HTML 预览、导航页生成器、本地浏览服务和本地数据 API。渲染路径只读取已保存内容文件夹中的 `index.md`、`comments.json` 和 `assets/`，生成内容目录内的 `preview.html` 或保存根目录下的 `index.html`，不读取知乎页面 DOM。`edit-api.mjs` 只服务预览页面，负责收藏夹元数据写入、收藏夹重命名、内容删除和内容移动。`zhihu-emoji.mjs` 在渲染阶段把已知知乎表情转写文本替换为本地缓存图片。`app-icon.mjs` 读取安装目录中的 SVG，并以内嵌 data URI 形式提供给两种 HTML 页面。
 
-`src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数和常量。目前这里包含 URL 识别、清洗、目标文件夹命名和本地服务地址。
+`src/shared/` 只存放浏览器端和 Node 端都使用的纯工具函数和常量。目前这里包含 URL 识别、清洗、目标文件夹命名。预览服务地址属于 `src/render/service-address.mjs`。
 
 ## 本地数据目录
 
-默认数据根目录固定为：
+归档根目录由用户选择，不使用 AppData 下的隐式归档位置。收藏夹及其 `index.md`、`comments.json`、`assets/` 位于所选根目录；渲染生成的 `index.html` 和各内容目录中的 `preview.html` 也保留在归档内。
+
+Node 端应用级数据使用 Roaming：
 
 ```text
-%LOCALAPPDATA%/Zhihu Archive Kit/data/
+%APPDATA%/Zhihu Archive Kit/
+  settings.json
+  cache/emoji/
 ```
 
-收藏夹目录和导航页 `index.html` 位于该目录，批量模式的默认输出位于其内部目录 `_batch/`。应用管理的知乎表情缓存独立位于：
+`settings.json` 的契约是 `{ "archiveRoot": "<absolute directory path>" }`，由预览启动器写入。显式 CLI 路径只作用于本次命令，不修改设置。无路径的 `render:index` 和 `render:serve` 使用已记住的目录；缺少设置、无效设置或目录不可访问时直接报错，不创建替代目录。表情缓存不随归档根目录变化。批量配置必须提供 `output_dir`，批量状态和日志与该次输出放在一起。
 
-```text
-%LOCALAPPDATA%/Zhihu Archive Kit/cache/emoji/
-```
+浏览器目录句柄存储在各知乎 origin 的 IndexedDB 中，数据库为 `zhihu-archive-kit`，store 为 `settings`，key 为 `archive-root`。它不存入 Roaming，也不与 Node 的预览目录自动同步。浏览器权限可能需要更新，两个知乎 origin 分别授权。批量端口保存在浏览器 localStorage，暂存评论只在页面内存中。
 
-所有无路径参数的 Node 命令通过 `src/local-data/paths.mjs` 解析这些位置；如果环境中没有 `LOCALAPPDATA`，命令会直接报错。显式传入的渲染根目录或批量配置 `output_dir` 仍作为本次命令的确定输入，表情缓存位置不随归档根目录改变。
-
-项目安装目录只保存源码、生成的油猴脚本和 Node 依赖，不保存归档内容、渲染产物、批量状态或 npm 缓存。
+项目安装目录只保存源码、应用图标、生成的油猴脚本、启动器和 Node 依赖，不保存归档内容、渲染产物或批量状态。
 
 ## 应用图标与启动快捷方式
 
@@ -133,7 +134,7 @@ start-local-browser.ps1
 
 `create-local-browser-shortcut.ps1` 使用 Windows Script Host 创建项目目录下的 `Zhihu Archive Kit.lnk`。快捷方式以当前 PowerShell 可执行文件为目标，用参数启动 `start-local-browser.ps1`，工作目录固定为项目目录，图标指向安装目录中的 ICO。`.lnk` 含有本机绝对路径，因此被 Git 忽略；项目移动后需要重新生成。
 
-`start-local-browser.ps1` 在前台运行本地服务，以便用户通过 Ctrl+C 停止。它同时启动一个隐藏的 PowerShell 就绪检查器；检查器使用 UTF-16LE `-EncodedCommand` 传递完整命令，轮询本地地址并在服务响应后调用系统默认浏览器。使用编码命令可以避免 `Start-Process -ArgumentList` 对多行命令和引号的再次解析。
+`start-local-browser.ps1` 在首次使用、指定 `-ChooseFolder` 或已记住的目录不存在时显示 Windows 文件夹选择器，取消时退出。选择后写入 Roaming 设置并把明确路径传给 Node。在前台运行本地服务，以便用户通过 Ctrl+C 停止。它同时启动一个隐藏的 PowerShell 就绪检查器；检查器使用 UTF-16LE `-EncodedCommand` 传递完整命令，轮询本地地址并在服务响应后调用系统默认浏览器。使用编码命令可以避免 `Start-Process -ArgumentList` 对多行命令和引号的再次解析。
 
 ## 构建与依赖
 
@@ -184,13 +185,15 @@ article-<article_id>
 1. `main.js` 监听知乎 SPA 页面变化。
 2. 问题页或回答详情页中，脚本扫描 `.AnswerItem`，为每个有效回答卡片注入一次保存控件。
 3. 专栏文章页中，脚本为文章正文区域注入一次保存控件。
-4. 用户点击某个控件的“保存”后，`single-save.js` 通过本地浏览服务读取收藏夹并打开选择菜单。
-5. 用户选择已有收藏夹，或通过服务创建带名称和可选描述的新收藏夹。
-6. 用户点击菜单中的“保存”后，`save-core` 只从绑定的回答卡片或文章区域生成 Markdown、下载媒体并构建 ZIP。
-7. `local-save.js` 以 `application/zip` 把 ZIP 上传到所选收藏夹的写入接口。
-8. 服务端验证请求来源、收藏夹、ZIP 路径和内容结构。
-9. 如果所选收藏夹中的目标内容文件夹已存在，服务返回冲突错误并停止写入。
-10. 写入成功后，服务重新生成内容预览和导航页。
+4. 用户点击某个控件的“保存”后，`directory-save.js` 读取已保存的句柄并检查读写权限；首次使用调用文件夹选择器，权限被拒绝时停止操作。
+5. 确保所选根目录中的默认收藏夹存在，然后直接枚举收藏夹并打开选择菜单。
+6. 用户选择已有收藏夹，或在所选根目录中创建带名称和描述的新收藏夹。
+7. 用户确认保存后，`save-core` 从绑定的 DOM 节点生成 artifact；不为文件夹保存构建 ZIP。
+8. `writeArtifactToCollection(root, artifact, collectionName)` 使用菜单打开时捕获的根句柄写入，切换保存文件夹不会改变正在执行的保存目标。
+9. 目标内容目录存在时拒绝覆盖；写入顺序是媒体、评论、Markdown，避免媒体写入失败后被识别为完整内容。失败可能留下不完整目录，不自动覆盖或删除。
+10. 保存成功后重新检查已保存状态。此流程不生成 HTML，也不访问本地预览服务。启动预览或点击“刷新归档”时再生成预览。
+
+齿轮菜单的“更改保存文件夹”会重新选择并授权当前 origin 的目录；取消选择保留原授权。被动的已保存状态检查不弹出权限请求。
 
 收藏夹是保存根目录下的一级子目录，每个收藏夹目录都包含：
 
@@ -205,7 +208,7 @@ article-<article_id>
 
 `render:serve` 启动时确保真实的 `默认收藏夹` 及其元数据存在。`默认收藏夹` 是目录名，不是根目录别名。
 
-保存根目录下以下划线开头的一级目录保留给项目内部资源，不作为收藏夹展示，也不能由用户创建为收藏夹。批量保存目录 `_batch/` 使用这个规则；表情缓存不属于归档数据根目录。
+保存根目录下以下划线开头的一级目录保留给项目内部资源，不作为收藏夹展示，也不能由用户创建为收藏夹。显式配置的批量输出可使用 `_batch/` 目录；表情缓存不属于归档数据根目录。
 
 齿轮菜单中的“下载为 ZIP”流程调用绑定 DOM 对应的 ZIP 构建函数，再通过 FileSaver 交给浏览器下载。
 
@@ -237,7 +240,7 @@ article-<article_id>
 ## 批量保存流程
 
 1. 用户运行 `npm run batch -- urls.json` 或 `npm run batch -- urls.json --extract`。
-2. `config.mjs` 读取 JSON、填充默认值、过滤并去重 URL。
+2. `config.mjs` 读取 JSON，要求显式 `output_dir`，填充延时默认值、过滤并去重 URL。
 3. `server.mjs` 在 `127.0.0.1` 启动本地 API 服务。
 4. `browser-open.mjs` 用默认浏览器或指定浏览器打开第一个任务 URL。
 5. 油猴脚本中的 `client.js` 探测本地服务并请求当前任务。
@@ -253,7 +256,7 @@ article-<article_id>
 ZIP 模式输出：
 
 ```text
-%LOCALAPPDATA%/Zhihu Archive Kit/data/_batch/
+<output_dir>/
   question-123-answer-456.zip
   article-789.zip
   batch-state.json
@@ -263,7 +266,7 @@ ZIP 模式输出：
 `--extract` 模式输出：
 
 ```text
-%LOCALAPPDATA%/Zhihu Archive Kit/data/_batch/
+<output_dir>/
   question-123-answer-456/
     index.md
     comments.json
@@ -292,7 +295,7 @@ npm run render -- <content-folder>
 
 `render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。回答详情预览页会展示 `question_*` 问题元信息；导航页列表保持轻量，不展示这些问题字段。
 
-渲染前会扫描正文、问题描述和评论正文中的知乎表情 token，例如 `[赞]`、`[感谢]`。已知 token 来自 `zhihu-emoji.mjs` 维护的映射表，图片下载到应用缓存目录 `%LOCALAPPDATA%/Zhihu Archive Kit/cache/emoji/`。渲染器读取缓存文件并把图片以 data URI 写入 `<img class="zhihu-emoji">`，使生成的 HTML 不依赖归档目录之外的文件。缓存文件已存在时直接复用；下载失败时保留原始 token 并输出 warning。Markdown 和 `comments.json` 不会因为本地表情渲染而被改写。行内代码和代码块中的 token 不替换。
+渲染前会扫描正文、问题描述和评论正文中的知乎表情 token，例如 `[赞]`、`[感谢]`。已知 token 来自 `zhihu-emoji.mjs` 维护的映射表，图片下载到应用缓存目录 `%APPDATA%/Zhihu Archive Kit/cache/emoji/`。渲染器读取缓存文件并把图片以 data URI 写入 `<img class="zhihu-emoji">`，使生成的 HTML 不依赖归档目录之外的文件。缓存文件已存在时直接复用；下载失败时保留原始 token 并输出 warning。Markdown 和 `comments.json` 不会因为本地表情渲染而被改写。行内代码和代码块中的 token 不替换。
 
 输出固定为：
 
@@ -311,7 +314,7 @@ npm run render:index
 npm run render:index -- D:\path\to\archive
 ```
 
-`index-cli.mjs` 默认扫描应用数据根目录，也可以接收一个明确的保存根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过无元数据目录和以下划线开头的内部目录。
+`index-cli.mjs` 使用显式传入的根目录；未传入时读取预览启动器记住的根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过无元数据目录和以下划线开头的内部目录。
 
 每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和摘要，按 `time_exported` 倒序生成初始页面：
 
@@ -391,15 +394,14 @@ GET  /api/state
 GET    /api/collections
 POST   /api/collections
 PATCH  /api/collections/:name
-GET    /api/saved/:folder
-POST   /api/collections/:name/items
+POST   /api/refresh
 DELETE /api/items/:collection/:folder
 POST   /api/items/:collection/:folder/move
 ```
 
-`GET /api/collections` 返回当前收藏夹、描述和内容数量。`POST /api/collections` 创建收藏夹并写入 `collection.json`。`PATCH /api/collections/:name` 修改收藏夹名称或描述；名称变化时重命名收藏夹目录，并保留 `time_created`。`GET /api/saved/:folder` 返回包含指定内容目录的收藏夹。`POST /api/collections/:name/items` 接收 `application/zip` 内容并写入指定收藏夹。`DELETE /api/items/:collection/:folder` 永久删除内容目录。`POST /api/items/:collection/:folder/move` 把内容目录移动到目标收藏夹。浏览服务 API 写入成功后会重新运行导航页生成流程，使 `index.html` 和相关 `preview.html` 与文件系统保持一致。
+`GET /api/collections` 返回当前收藏夹、描述和内容数量。`POST /api/collections` 创建收藏夹并写入 `collection.json`。`PATCH /api/collections/:name` 修改收藏夹名称或描述；名称变化时重命名收藏夹目录，并保留 `time_created`。`POST /api/refresh` 重新扫描浏览器直接保存的内容，刷新全部预览和导航页。`DELETE /api/items/:collection/:folder` 永久删除内容目录。`POST /api/items/:collection/:folder/move` 把内容目录移动到目标收藏夹。浏览服务 API 写入成功后会重新运行导航页生成流程，使 `index.html` 和相关 `preview.html` 与文件系统保持一致。
 
-本地导航页以同源方式访问 API。来自知乎页面的保存请求只允许 `https://www.zhihu.com` 和 `https://zhuanlan.zhihu.com` 两个来源；其它带 `Origin` 的跨域请求返回 `403`。ZIP 上传使用非简单请求触发浏览器预检。
+本地导航页以同源方式访问 API；带不同 `Origin` 的请求返回 `403`，知乎页面不使用该服务。静态响应设置 `Cache-Control: no-store`，确保显式刷新后加载新生成的预览。顶部菜单的“刷新归档”调用 `POST /api/refresh`，成功后重新载入页面；普通页面重载只读取已生成文件。
 
 ## Markdown 渲染
 
@@ -522,10 +524,11 @@ npm test
 - Webpack 能否成功构建油猴脚本。
 - 源码模块和构建产物能否通过 `node --check`。
 - 构建后的油猴脚本是否包含预期 metadata、保存入口、评论暂存入口、批量 API 标记和 frontmatter 字段。
-- LocalAppData 默认路径和批量内部目录是否正确解析。
+- Roaming 设置/表情缓存路径、显式归档路径优先级、缺失配置错误和批量必填输出目录。
+- 使用模拟目录句柄和 IndexedDB 验证无网络手动保存、权限拒绝、文件夹切换、取消选择及重复内容保护。
 - ZIP 解压是否要求完整内容结构、拒绝路径逃逸，并在目标文件夹已存在时失败。
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
 - HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录，并生成带筛选、排序和分页行为的轻量 `index.html`。
-- 本地浏览服务能否只绑定 `127.0.0.1`，正确处理单页保存、来源限制、导航页、单篇预览页和 404。
+- 本地浏览服务能否只绑定 `127.0.0.1`，正确处理归档刷新、同源限制、导航页、单篇预览页和 404。
 
-真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、油猴脚本与本地服务通信和 Tampermonkey 行为需要手动验收。
+真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、浏览器文件夹授权、批量服务通信和 Tampermonkey 行为需要手动验收。

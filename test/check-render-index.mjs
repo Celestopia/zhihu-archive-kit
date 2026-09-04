@@ -188,6 +188,8 @@ assert.equal(outputPath, path.join(root, "index.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
 assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,/);
+assert.match(html, /data-edit-action="refresh-archive">刷新归档/);
+assert.match(html, /apiRequest\("\/api\/refresh", \{ method: "POST" \}\)/);
 assert.match(html, /知乎保存导航/);
 assert.match(html, /总数：<strong>23<\/strong>/);
 assert.match(html, /回答：<strong>22<\/strong>/);

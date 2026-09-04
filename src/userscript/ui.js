@@ -95,6 +95,9 @@ export function ensureSaveControlStyle() {
     }
 
     .${CONTROL_CLASS}__zip {
+      display: block;
+      width: 100%;
+      margin: 3px 0;
       height: 32px;
       padding: 0 12px;
       background: #303846;
@@ -157,7 +160,7 @@ export function ensureSaveControlStyle() {
   document.documentElement.append(style);
 }
 
-export function createSaveControl(onSave, onZip) {
+export function createSaveControl(onSave, onZip, onChangeFolder) {
   const wrapper = document.createElement("div");
   wrapper.className = CONTROL_CLASS;
 
@@ -196,7 +199,15 @@ export function createSaveControl(onSave, onZip) {
     await onZip(zipButton);
   });
 
-  menu.append(zipButton);
+  const folderButton = document.createElement("button");
+  folderButton.type = "button";
+  folderButton.className = `${CONTROL_CLASS}__zip`;
+  folderButton.textContent = "更改保存文件夹";
+  folderButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await onChangeFolder();
+  });
+  menu.append(zipButton, folderButton);
   inner.append(button, gear, menu);
   wrapper.append(inner);
   return wrapper;

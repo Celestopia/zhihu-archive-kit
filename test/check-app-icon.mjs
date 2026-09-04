@@ -47,5 +47,9 @@ const launcherScript = await fs.readFile(launcherScriptPath, "utf8");
 assert.match(launcherScript, /\[Text\.Encoding\]::Unicode\.GetBytes\(\$OpenWhenReady\)/);
 assert.match(launcherScript, /"-EncodedCommand", \$EncodedOpenWhenReady/);
 assert.doesNotMatch(launcherScript, /"-Command", \$OpenWhenReady/);
+assert.match(launcherScript, /param\(\[switch\]\$ChooseFolder\)/);
+assert.match(launcherScript, /FolderBrowserDialog/);
+assert.match(launcherScript, /\$env:APPDATA/);
+assert.match(launcherScript, /node src\/render\/serve-cli\.mjs \$ArchiveRoot/);
 
 console.log("Application icon checks passed.");
