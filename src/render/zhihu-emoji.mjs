@@ -132,12 +132,8 @@ export async function resolveZhihuEmojiSources(markdownValues, cacheDir) {
   return sources;
 }
 
-export function renderZhihuEmojiInMarkdown(markdown, sources) {
-  if (!markdown || !sources.size) {
-    return markdown || "";
-  }
-
-  return transformNonCodeMarkdown(markdown, (text) => replaceEmojiTokens(text, sources));
+export function renderZhihuEmojiInText(text, sources) {
+  return sources.size ? replaceEmojiTokens(text, sources) : text;
 }
 
 export function findZhihuEmojiTokens(value) {
@@ -156,37 +152,6 @@ function replaceEmojiTokens(text, sources) {
     }
     return `<img class="zhihu-emoji" src="${escapeAttr(src)}" alt="${escapeAttr(token)}" title="${escapeAttr(token)}">`;
   });
-}
-
-function transformNonCodeMarkdown(markdown, transformText) {
-  let result = "";
-  let index = 0;
-
-  while (index < markdown.length) {
-    const fence = markdown.indexOf("```", index);
-    const segmentEnd = fence === -1 ? markdown.length : fence;
-    result += transformInlineCode(markdown.slice(index, segmentEnd), transformText);
-
-    if (fence === -1) {
-      break;
-    }
-
-    const fenceEnd = markdown.indexOf("```", fence + 3);
-    if (fenceEnd === -1) {
-      result += markdown.slice(fence);
-      break;
-    }
-    result += markdown.slice(fence, fenceEnd + 3);
-    index = fenceEnd + 3;
-  }
-
-  return result;
-}
-
-function transformInlineCode(text, transformText) {
-  return text.split(/(`[^`\n]*`)/g)
-    .map((part) => part.startsWith("`") && part.endsWith("`") ? part : transformText(part))
-    .join("");
 }
 
 async function downloadEmoji(url, filePath) {

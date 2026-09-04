@@ -50,6 +50,8 @@ src/render/
   html-utils.mjs
   index-cli.mjs
   index-page.mjs
+  markdown.mjs
+  math.mjs
   render.mjs
   serve-cli.mjs
   serve.mjs
@@ -70,6 +72,7 @@ test/
   check-markdown.mjs
   check-question-metadata.mjs
   check-render.mjs
+  check-render-markdown.mjs
   check-render-edit-api.mjs
   check-render-index.mjs
   check-render-serve.mjs
@@ -296,7 +299,15 @@ ZIP 解压只接受单个顶层目录，且该目录必须包含 `index.md` 和 
 npm run render -- <content-folder>
 ```
 
-`render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，用 `marked` 渲染正文和评论正文，再由 `template.mjs` 生成单文件 HTML。回答详情预览页会展示 `question_*` 问题元信息；导航页列表保持轻量，不展示这些问题字段。
+`render/cli.mjs` 要求传入一个内容文件夹路径。`render.mjs` 读取 `index.md` 和 `comments.json`，解析 Markdown frontmatter，通过 `markdown.mjs` 的异步渲染入口处理正文、问题描述和评论，再由 `template.mjs` 生成单文件 HTML。回答详情预览页会展示 `question_*` 问题元信息；导航页列表保持轻量，不展示这些问题字段。
+
+`markdown.mjs` 为每次调用创建独立的 Marked 实例。公式使用专用 block/inline token，在 Markdown 反斜杠、强调和表情处理之前保留原始 TeX。句中的 `$...$` 是行内公式；独占一行的 `$...$` 以及 `$$...$$` 使用 display 模式。单美元公式不跨行，不接受紧邻分隔符的内部空白或结束分隔符后的数字，减少金额误判；字面美元符号使用 `\$`。代码块、行内代码、HTML code/pre 区域、链接地址和图片属性不进行公式或表情替换。问题描述保留 inline Markdown 解析方式，使用 `$$...$$` 可明确指定 display 模式。
+
+中文加粗扩展只处理包含汉字、内容以标点结束且结束 `**` 紧邻后续汉字的单行片段，例如 `**说明：**正文`。内部内容继续按 inline Markdown 解析，其余强调语法使用 Marked 默认规则。表情也是独立 inline token，不再对整段 Markdown 进行字符串预替换。
+
+`math.mjs` 使用固定版本的 `@mathjax/src`，在 Node 中把 TeX 转为 SVG；字体数据按需从本地 npm 包加载。启用的 TeX 包为 base、ams、newcommand、mathtools、braket、cancel、cases、boldsymbol、bbox、mhchem、physics、textmacros。不加载 require、autoload 或 HTML 注入扩展。每个表达式使用新的 TeX 实例，宏和标签不会跨表达式共享，因此不支持跨公式的宏定义或引用；输入缓冲和宏展开次数设有上限。共享 SVG 输出器的转换顺序串行化，避免并发请求交叉修改渲染状态。
+
+SVG 使用 `fontCache: "none"`，每个字形包含显式路径，不引用其它公式或页面级 defs。原始 TeX 保留在 `data-tex` 和可访问性标签中。`renderCardCss()` 为单篇与导航页同时嵌入 MathJax 样式，动态导入正文/评论时无需再次排版，也不依赖预览页的 head、外部字体或 CDN。display 公式居中并允许横向滚动。SVG 路径不能像普通文字一样直接选中复制；原始公式仍在归档 Markdown 中。无效或不支持的 TeX 显示转义后的源码和错误提示，并输出 warning；模块或资源加载错误仍会使渲染失败。
 
 渲染前会扫描正文、问题描述和评论正文中的知乎表情 token，例如 `[赞]`、`[感谢]`。已知 token 来自 `zhihu-emoji.mjs` 维护的映射表，图片下载到应用缓存目录 `%APPDATA%/Zhihu Archive Kit/cache/emoji/`。渲染器读取缓存文件并把图片以 data URI 写入 `<img class="zhihu-emoji">`，使生成的 HTML 不依赖归档目录之外的文件。缓存文件已存在时直接复用；下载失败时保留原始 token 并输出 warning。Markdown 和 `comments.json` 不会因为本地表情渲染而被改写。行内代码和代码块中的 token 不替换。
 
@@ -532,6 +543,7 @@ npm test
 - 使用最小 DOM 模型验证保存控件的 class 修复、节点移除、host 更换、重复清理、文章容器修复，以及 observer 过滤和修复后的收敛。
 - ZIP 解压是否要求完整内容结构、拒绝路径逃逸，并在目标文件夹已存在时失败。
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
+- MathJax 公式的行内/display 布局、集合转义、代码与链接保护、中文标点加粗、表情隔离、错误转义、宏隔离和并发渲染；集成检查覆盖正文、问题描述、嵌套评论与导航页的数学样式，且验证源数据不被改写。
 - HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录，并生成带筛选、排序和分页行为的轻量 `index.html`。
 - 本地浏览服务能否只绑定 `127.0.0.1`，正确处理归档刷新、同源限制、导航页、单篇预览页和 404。
 

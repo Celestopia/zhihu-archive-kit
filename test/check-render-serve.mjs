@@ -29,6 +29,8 @@ time_exported: "2026-06-11T00:00:00.000Z"
 ---
 
 服务测试正文。
+
+$x^2$
 `);
 
 await fs.writeFile(path.join(answerDir, "comments.json"), JSON.stringify({
@@ -51,7 +53,9 @@ try {
 
   const previewResponse = await fetch(`${handle.url}${encodeURI("默认收藏夹/question-123-answer-456/preview.html")}`);
   assert.equal(previewResponse.status, 200);
-  assert.match(await previewResponse.text(), /服务测试正文/);
+  const previewHtml = await previewResponse.text();
+  assert.match(previewHtml, /服务测试正文/);
+  assert.match(previewHtml, /data-tex="x\^2"/);
 
   const missingResponse = await fetch(`${handle.url}missing.html`);
   assert.equal(missingResponse.status, 404);

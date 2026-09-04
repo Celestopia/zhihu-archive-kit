@@ -87,6 +87,8 @@ content_excerpt: "来自 frontmatter 的固定摘要"
 
 FULL_BODY_ONLY_MARKER 只应出现在单篇预览页里。
 
+$x_1 + x_2$
+
 ![正文图](./assets/image-001.jpg)
 `);
 
@@ -365,6 +367,10 @@ assert.doesNotMatch(html, /ROOT_DIRECT_MARKER/);
 assert.doesNotMatch(html, /not-content/);
 
 const answerPreview = await fs.readFile(path.join(answerDir, "preview.html"), "utf8");
+assert.match(html, /mjx-container\[display\]/);
+assert.match(answerPreview, /data-tex="x_1 \+ x_2"/);
+assert.match(answerPreview, /<path data-c=/);
+assert.doesNotMatch(answerPreview, /<use\b/);
 assert.match(answerPreview, /FULL_BODY_ONLY_MARKER/);
 assert.match(answerPreview, /COMMENT_ONLY_MARKER/);
 assert.match(answerPreview, /src="data:image\/png;base64,BwgJ"/);

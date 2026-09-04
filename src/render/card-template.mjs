@@ -1,4 +1,5 @@
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
+import { renderMathCss } from "./math.mjs";
 
 const SUMMARY_LIMIT = 160;
 const QUESTION_DESCRIPTION_SUMMARY_LIMIT = 80;
@@ -9,6 +10,7 @@ const QUESTION_DESCRIPTION_SUMMARY_LIMIT = 80;
  */
 export function renderCardCss() {
   return `
+    ${renderMathCss()}
     .feed {
       background: var(--panel);
       border: 1px solid var(--border);

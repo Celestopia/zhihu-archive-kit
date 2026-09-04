@@ -1,13 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { marked } from "marked";
+import { renderMarkdown } from "./markdown.mjs";
 import { extractQuestionDescriptionSummary, renderContentCard } from "./card-template.mjs";
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
 import { renderHtmlDocument } from "./template.mjs";
-import {
-  resolveZhihuEmojiSources,
-  renderZhihuEmojiInMarkdown
-} from "./zhihu-emoji.mjs";
+import { resolveZhihuEmojiSources } from "./zhihu-emoji.mjs";
 import { defaultEmojiCacheDir } from "../local-data/paths.mjs";
 import { loadAppIconDataUri } from "./app-icon.mjs";
 
@@ -50,7 +47,7 @@ export async function renderSavedFolder(folderPath, { emojiCacheDir = defaultEmo
       timeModified: parsed.metadata.time_modified || "",
       timeExported: parsed.metadata.time_exported || commentsJson.time_exported || "",
       questionTitle: parsed.metadata.question_title || "",
-      questionDescriptionHtml: marked.parseInline(renderMarkdownWithEmoji(questionDescriptionMarkdown, emojiSources)),
+      questionDescriptionHtml: await renderMarkdown(questionDescriptionMarkdown, emojiSources, { inline: true }),
       questionDescriptionSummary: questionDescriptionSummary.text,
       questionDescriptionExpandable: questionDescriptionSummary.truncated || questionDescriptionSummary.hasImage,
       questionUrl: parsed.metadata.question_url || "",
@@ -64,9 +61,9 @@ export async function renderSavedFolder(folderPath, { emojiCacheDir = defaultEmo
       commentCount: parsed.metadata.comment_count,
       likeCount: parsed.metadata.like_count,
       favoriteCount: parsed.metadata.favorite_count,
-      bodyHtml: marked.parse(renderMarkdownWithEmoji(parsed.body, emojiSources)),
+      bodyHtml: await renderMarkdown(parsed.body, emojiSources),
       storedCommentCount: countStoredComments(comments),
-      commentsHtml: renderComments(comments, emojiSources)
+      commentsHtml: await renderComments(comments, emojiSources)
     }, { mode: "preview" })
   });
 
@@ -141,12 +138,12 @@ function parseFrontmatterValue(value) {
   return trimmed;
 }
 
-function renderComments(comments, emojiSources) {
+async function renderComments(comments, emojiSources) {
   if (!comments.length) {
     return `<div class="empty">暂无暂存评论。</div>`;
   }
 
-  return `<div class="comment-list">${comments.map((comment) => renderComment(comment, 0, emojiSources)).join("")}</div>`;
+  return `<div class="comment-list">${(await Promise.all(comments.map((comment) => renderComment(comment, 0, emojiSources)))).join("")}</div>`;
 }
 
 function countStoredComments(comments) {
@@ -156,7 +153,7 @@ function countStoredComments(comments) {
   }, 0);
 }
 
-function renderComment(comment, level, emojiSources) {
+async function renderComment(comment, level, emojiSources) {
   const classes = ["comment-card"];
   if (level > 0) {
     classes.push("comment-card--child");
@@ -177,13 +174,13 @@ function renderComment(comment, level, emojiSources) {
       <div class="comment-head">
         <div class="comment-author">${author}${replyTo}</div>
       </div>
-      <div class="comment-body">${marked.parse(renderMarkdownWithEmoji(comment.content || "", emojiSources))}</div>
+      <div class="comment-body">${await renderMarkdown(comment.content || "", emojiSources)}</div>
       ${comment.image_url ? `<img class="comment-image" src="${escapeAttr(comment.image_url)}" alt="评论图片">` : ""}
       <div class="comment-foot">
         <div class="comment-info">${renderCommentInfo(comment)}</div>
         <div class="comment-like">${heartIcon()}<span>${escapeHtml(Number(comment.like_count || 0))}</span></div>
       </div>
-      ${children.length ? renderReplies(children, level + 1, emojiSources) : ""}
+      ${children.length ? await renderReplies(children, level + 1, emojiSources) : ""}
     </section>
   `;
 }
@@ -203,17 +200,13 @@ function replyIcon() {
   return `<span class="comment-reply-icon" role="img" aria-label="回复" title="回复"></span>`;
 }
 
-function renderReplies(children, level, emojiSources) {
+async function renderReplies(children, level, emojiSources) {
   return `
     <details class="comment-replies">
       <summary>${children.length} 条回复</summary>
-      ${children.map((child) => renderComment(child, level, emojiSources)).join("")}
+      ${(await Promise.all(children.map((child) => renderComment(child, level, emojiSources)))).join("")}
     </details>
   `;
-}
-
-function renderMarkdownWithEmoji(markdown, emojiSources) {
-  return renderZhihuEmojiInMarkdown(markdown, emojiSources);
 }
 
 function collectCommentMarkdown(comments) {

@@ -63,7 +63,7 @@ await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
       id: "c1",
       author: "评论者",
       author_url: "https://www.zhihu.com/people/commenter",
-      content: "一级评论 [赞] [链接](https://example.com)",
+      content: "一级评论 [赞] [链接](https://example.com) $c_1$",
       time_created: "2026-06-10",
       like_count: 5,
       ip_location: "北京",
@@ -75,7 +75,7 @@ await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
           id: "c2",
           author: "回复者",
           author_url: "",
-          content: "二级评论 [赞]",
+          content: "二级评论 [赞] $c_2$",
           time_created: "2026-06-10 12:00:00",
           like_count: 1,
           ip_location: "上海",
@@ -89,10 +89,21 @@ await fs.writeFile(path.join(root, "comments.json"), JSON.stringify({
   ]
 }, null, 2));
 
+await fs.appendFile(path.join(root, "index.md"), '\n$\\frac{1}{P(x)}$\n\n集合 $A = \\{x\\}$。**思路是“造零件”：**定义。\n');
+const markdownSource = (await fs.readFile(path.join(root, "index.md"), "utf8")).replace('![](./assets/comment-image-001.png)', '$Q$ ![](./assets/comment-image-001.png)');
+await fs.writeFile(path.join(root, "index.md"), markdownSource);
+const commentsSource = await fs.readFile(path.join(root, "comments.json"), "utf8");
 const outputPath = await renderSavedFolder(root, { emojiCacheDir: emojiDir });
 assert.equal(outputPath, path.join(root, "preview.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
+for (const formula of ["Q", "c_1", "c_2", "\\frac{1}{P(x)}", "A = \\{x\\}"]) {
+  assert.ok(html.includes(`data-tex="${formula}"`));
+}
+assert.match(html, /<strong>思路是“造零件”：<\/strong>定义/);
+assert.match(html, /mjx-container\[display\]/);
+assert.equal(await fs.readFile(path.join(root, "index.md"), "utf8"), markdownSource);
+assert.equal(await fs.readFile(path.join(root, "comments.json"), "utf8"), commentsSource);
 assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,/);
 assert.match(html, /测试问题标题/);
 assert.match(html, /<section class="feed feed--preview">/);
