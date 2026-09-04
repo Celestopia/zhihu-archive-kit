@@ -415,7 +415,9 @@ POST   /api/items/:collection/:folder/move
 
 `GET /api/collections` 返回当前收藏夹、描述和内容数量。`POST /api/collections` 创建收藏夹并写入 `collection.json`。`PATCH /api/collections/:name` 修改收藏夹名称或描述；名称变化时重命名收藏夹目录，并保留 `time_created`。`POST /api/refresh` 重新扫描浏览器直接保存的内容，刷新全部预览和导航页。`DELETE /api/items/:collection/:folder` 永久删除内容目录。`POST /api/items/:collection/:folder/move` 把内容目录移动到目标收藏夹。浏览服务 API 写入成功后会重新运行导航页生成流程，使 `index.html` 和相关 `preview.html` 与文件系统保持一致。
 
-本地导航页以同源方式访问 API；带不同 `Origin` 的请求返回 `403`，知乎页面不使用该服务。静态响应设置 `Cache-Control: no-store`，确保显式刷新后加载新生成的预览。顶部菜单的“刷新归档”调用 `POST /api/refresh`，成功后重新载入页面；普通页面重载只读取已生成文件。
+本地导航页以同源方式访问 API；带不同 `Origin` 的请求返回 `403`，知乎页面不使用该服务。静态响应设置 `Cache-Control: no-store`，确保显式刷新后加载新生成的预览。标题卡片右上角的独立 SVG 环形箭头按钮调用 `POST /api/refresh`；收藏夹管理菜单不包含刷新入口。普通页面重载只读取已生成文件。
+
+`index-page.mjs` 的 `initializeArchiveRefresh()` 序列化到页面脚本中管理刷新交互。请求期间按钮禁用、设置 `aria-busy` 并旋转图标（尊重 reduced-motion）；成功后在当前标签页的 `sessionStorage` 写入 `zhihu-archive-kit:refresh-success`，再重载页面。新页面消费并立即清除标记，在视口顶部居中显示 4 秒的小型悬浮成功提示；普通重载不重复提示。提示使用 fixed 定位，不占据布局空间；宽度随内容收缩，最大为 420px 且保留窄屏两侧边距。失败时不重载，恢复按钮并通过 `textContent` 显示错误消息；错误提示保持到手动关闭或再次刷新。两种提示均支持关闭，分别使用 status/polite 和 alert/assertive 提供可访问性通知。
 
 ## Markdown 渲染
 
@@ -545,6 +547,7 @@ npm test
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
 - MathJax 公式的行内/display 布局、集合转义、代码与链接保护、中文标点加粗、表情隔离、错误转义、宏隔离和并发渲染；集成检查覆盖正文、问题描述、嵌套评论与导航页的数学样式，且验证源数据不被改写。
 - HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录，并生成带筛选、排序和分页行为的轻量 `index.html`。
+- 独立刷新按钮的生成、序列化脚本语法、请求期间防重复提交、重载后的单次成功提示、定时/手动关闭和失败后重试。
 - 本地浏览服务能否只绑定 `127.0.0.1`，正确处理归档刷新、同源限制、导航页、单篇预览页和 404。
 
 真实知乎页面中的 DOM、登录状态、媒体 CDN 响应、浏览器文件夹授权、批量服务通信和 Tampermonkey 行为需要手动验收。

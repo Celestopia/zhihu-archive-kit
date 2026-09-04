@@ -333,6 +333,63 @@ function renderIndexDocument({ items, collections, iconHref }) {
       right: 24px;
       bottom: 22px;
     }
+    .archive-refresh {
+      position: absolute;
+      top: 22px;
+      right: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      padding: 6px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: #8492a6;
+      cursor: pointer;
+    }
+    .archive-refresh:hover { background: var(--accent-soft); color: var(--accent); }
+    .archive-refresh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .archive-refresh:disabled { cursor: wait; color: var(--accent); }
+    .archive-refresh svg { width: 22px; height: 22px; }
+    .archive-refresh[aria-busy="true"] svg { animation: archive-refresh-spin 1s linear infinite; }
+    @keyframes archive-refresh-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .archive-refresh[aria-busy="true"] svg { animation: none; }
+    }
+    .archive-notice {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      width: max-content;
+      max-width: min(420px, calc(100vw - 32px));
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid #abefc6;
+      border-radius: 8px;
+      background: #ecfdf3;
+      color: #067647;
+      font-size: 14px;
+      box-shadow: 0 4px 16px rgba(16, 24, 40, .12);
+    }
+    .archive-notice[hidden] { display: none; }
+    .archive-notice[data-kind="error"] { background: #fef3f2; border-color: #fecdca; color: #b42318; }
+    .archive-notice-message { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .archive-notice-close {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      font-size: 20px;
+      padding: 0 6px;
+    }
     .header-menu-button {
       align-items: center;
       border: 0;
@@ -532,6 +589,9 @@ function renderIndexDocument({ items, collections, iconHref }) {
   <main>
     <header class="header">
       <h1>知乎保存导航</h1>
+      <button class="archive-refresh" type="button" id="archive-refresh" title="刷新归档" aria-label="刷新归档" aria-busy="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5"/><path d="M20 12a8 8 0 1 0-2.34 5.66"/></svg>
+      </button>
       <div class="summary">
         <p class="summary-row">
           <span>总数：<strong>${items.length}</strong></span>
@@ -547,13 +607,16 @@ function renderIndexDocument({ items, collections, iconHref }) {
       <div class="header-menu-wrap">
         <button class="header-menu-button" type="button" id="header-menu-button" aria-expanded="false" aria-label="收藏夹操作菜单">...</button>
         <div class="header-menu" id="header-menu" hidden>
-          <button type="button" data-edit-action="refresh-archive">刷新归档</button>
           <button type="button" data-edit-action="rename-collection">修改收藏夹名称</button>
           <button type="button" data-edit-action="edit-collection-description">修改收藏夹描述</button>
           <button type="button" data-edit-action="create-collection">新建收藏夹</button>
         </div>
       </div>
     </header>
+    <div class="archive-notice" id="archive-notice" hidden>
+      <span class="archive-notice-message" id="archive-notice-message" role="status" aria-live="polite" aria-atomic="true"></span>
+      <button class="archive-notice-close" id="archive-notice-close" type="button" aria-label="关闭刷新提示">×</button>
+    </div>
     <section class="toolbar" aria-label="筛选和排序">
       <input id="search" class="search" type="search" placeholder="搜索标题、作者或摘要">
       <div class="sort-controls">
@@ -584,6 +647,8 @@ function renderIndexDocument({ items, collections, iconHref }) {
 ${renderCardScript()}
 
 ${compareSortableValues.toString()}
+
+${initializeArchiveRefresh.toString()}
 
     const PAGE_SIZE = ${PAGE_SIZE};
     const searchInput = document.getElementById("search");
@@ -873,16 +938,6 @@ ${compareSortableValues.toString()}
 
     async function handleEditAction(button) {
       const action = button.dataset.editAction;
-      if (action === "refresh-archive") {
-        button.disabled = true;
-        try {
-          await apiRequest("/api/refresh", { method: "POST" });
-          location.reload();
-        } finally {
-          button.disabled = false;
-        }
-        return;
-      }
       if (action === "create-collection") {
         await createCollection();
         return;
@@ -1030,11 +1085,63 @@ ${compareSortableValues.toString()}
       return data;
     }
 
+    initializeArchiveRefresh(document, window, apiRequest);
     applyFilters();
   </script>
 </body>
 </html>
 `;
+}
+
+export function initializeArchiveRefresh(document, window, apiRequest) {
+  const button = document.getElementById("archive-refresh");
+  const banner = document.getElementById("archive-notice");
+  const message = document.getElementById("archive-notice-message");
+  const close = document.getElementById("archive-notice-close");
+  const successKey = "zhihu-archive-kit:refresh-success";
+  let dismissTimer;
+
+  function dismiss() {
+    window.clearTimeout(dismissTimer);
+    banner.hidden = true;
+    message.textContent = "";
+  }
+
+  function showNotice(text, kind) {
+    dismiss();
+    banner.dataset.kind = kind;
+    message.setAttribute("role", kind === "error" ? "alert" : "status");
+    message.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
+    banner.hidden = false;
+    message.textContent = text;
+    if (kind === "success") dismissTimer = window.setTimeout(dismiss, 4000);
+  }
+
+  close.addEventListener("click", dismiss);
+  if (window.location.protocol !== "file:" && window.sessionStorage.getItem(successKey) === "1") {
+    window.sessionStorage.removeItem(successKey);
+    showNotice("归档已刷新，页面内容已更新。", "success");
+  }
+
+  button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    dismiss();
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.setAttribute("aria-label", "正在刷新归档…");
+    button.title = "正在刷新归档…";
+    try {
+      await apiRequest("/api/refresh", { method: "POST" });
+      window.sessionStorage.setItem(successKey, "1");
+      window.location.reload();
+    } catch (error) {
+      showNotice("刷新归档失败：" + error.message, "error");
+      button.disabled = false;
+      button.setAttribute("aria-busy", "false");
+      button.setAttribute("aria-label", "刷新归档");
+      button.title = "刷新归档";
+    }
+  });
 }
 
 function renderCollectionNav({ collections, totalCount }) {

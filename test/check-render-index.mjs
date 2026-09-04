@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { compareSortableValues, renderOutputIndex } from "../src/render/index-page.mjs";
+import { compareSortableValues, initializeArchiveRefresh, renderOutputIndex } from "../src/render/index-page.mjs";
 
 /**
  * Focused checks for output-level HTML navigation generation.
@@ -190,7 +190,14 @@ assert.equal(outputPath, path.join(root, "index.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
 assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,/);
-assert.match(html, /data-edit-action="refresh-archive">刷新归档/);
+assert.match(html, /id="archive-refresh" title="刷新归档" aria-label="刷新归档" aria-busy="false">\s*<svg/);
+assert.doesNotMatch(html, /data-edit-action="refresh-archive"/);
+assert.match(html, /<\/header>\s*<div class="archive-notice" id="archive-notice" hidden>/);
+assert.match(html, /\.archive-notice \{[^}]*position: fixed;[^}]*top: 16px;[^}]*left: 50%;[^}]*transform: translateX\(-50%\);/);
+assert.match(html, /\.archive-notice \{[^}]*width: max-content;[^}]*max-width: min\(420px, calc\(100vw - 32px\)\);/);
+assert.match(html, /\.archive-refresh \{[^}]*top: 22px;[^}]*right: 24px;/);
+assert.match(html, /prefers-reduced-motion: reduce/);
+for (const script of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(script[1]);
 assert.match(html, /apiRequest\("\/api\/refresh", \{ method: "POST" \}\)/);
 assert.match(html, /知乎保存导航/);
 assert.match(html, /总数：<strong>23<\/strong>/);
@@ -402,7 +409,98 @@ assert.doesNotMatch(answerPreview, /data-edit-action="delete-item"/);
 const articlePreview = await fs.readFile(path.join(articleDir, "preview.html"), "utf8");
 assert.match(articlePreview, /<span class="comments-count">（已存 0 条）<\/span>/);
 
+await checkArchiveRefresh();
 console.log("HTML navigation checks passed.");
+
+async function checkArchiveRefresh() {
+  const storage = new Map();
+  const successKey = "zhihu-archive-kit:refresh-success";
+  let finishRequest;
+  let requests = 0;
+  const first = setup(async (url, options) => {
+    assert.equal(url, "/api/refresh");
+    assert.deepEqual(options, { method: "POST" });
+    requests++;
+    await new Promise((resolve) => { finishRequest = resolve; });
+  });
+  assert.equal(first.banner.hidden, true);
+  const pending = first.button.click();
+  assert.equal(first.button.disabled, true);
+  assert.equal(first.button.attributes["aria-busy"], "true");
+  assert.equal(first.button.title, "正在刷新归档…");
+  await first.button.click();
+  assert.equal(requests, 1);
+  assert.equal(storage.size, 0);
+  finishRequest();
+  await pending;
+  assert.equal(first.reloads, 1);
+  assert.equal(first.button.disabled, true);
+  assert.equal(storage.get(successKey), "1");
+
+  const reloaded = setup();
+  assert.equal(reloaded.banner.hidden, false);
+  assert.equal(reloaded.banner.dataset.kind, "success");
+  assert.equal(reloaded.message.textContent, "归档已刷新，页面内容已更新。");
+  assert.equal(reloaded.message.attributes.role, "status");
+  assert.equal(storage.size, 0);
+  assert.equal(reloaded.timers.size, 1);
+  const timeout = [...reloaded.timers.values()][0];
+  assert.equal(timeout.delay, 4000);
+  timeout.callback();
+  assert.equal(reloaded.banner.hidden, true);
+  assert.equal(setup().banner.hidden, true);
+
+  storage.set(successKey, "1");
+  const dismissible = setup();
+  dismissible.close.click();
+  assert.equal(dismissible.banner.hidden, true);
+  assert.equal(dismissible.timers.size, 0);
+
+  let attempts = 0;
+  const failed = setup(async () => {
+    if (++attempts === 1) throw new Error("服务未运行 <test>");
+  });
+  await failed.button.click();
+  assert.equal(failed.reloads, 0);
+  assert.equal(storage.size, 0);
+  assert.equal(failed.banner.hidden, false);
+  assert.equal(failed.banner.dataset.kind, "error");
+  assert.equal(failed.message.attributes.role, "alert");
+  assert.equal(failed.message.textContent, "刷新归档失败：服务未运行 <test>");
+  assert.equal(failed.timers.size, 0);
+  assert.equal(failed.button.disabled, false);
+  assert.equal(failed.button.attributes["aria-busy"], "false");
+  assert.equal(failed.button.title, "刷新归档");
+  await failed.button.click();
+  assert.equal(attempts, 2);
+  assert.equal(failed.banner.hidden, true);
+  assert.equal(failed.reloads, 1);
+
+  function setup(request = async () => {}) {
+    function element() {
+      return {
+        hidden: true, disabled: false, dataset: {}, attributes: {}, textContent: "",
+        setAttribute(name, value) { this.attributes[name] = value; },
+        addEventListener(name, callback) { this[name] = callback; }
+      };
+    }
+    const state = { button: element(), banner: element(), message: element(), close: element(), timers: new Map(), reloads: 0 };
+    const nodes = { "archive-refresh": state.button, "archive-notice": state.banner, "archive-notice-message": state.message, "archive-notice-close": state.close };
+    let timerId = 0;
+    // Execute the serialized browser function to catch accidental module-scope dependencies.
+    new Function("document", "window", "apiRequest", `(${initializeArchiveRefresh.toString()})(document, window, apiRequest)`)(
+      { getElementById: (id) => nodes[id] },
+      {
+        location: { protocol: "http:", reload() { state.reloads++; } },
+        sessionStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
+        setTimeout(callback, delay) { state.timers.set(++timerId, { callback, delay }); return timerId; },
+        clearTimeout(id) { state.timers.delete(id); }
+      },
+      request
+    );
+    return state;
+  }
+}
 
 async function writeCollectionMetadata(collectionDir, metadata) {
   await fs.mkdir(collectionDir, { recursive: true });
