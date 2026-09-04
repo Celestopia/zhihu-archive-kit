@@ -3,6 +3,39 @@ import { CONTROL_CLASS, CONTROL_HOST_CLASS, CONTROL_SCOPE_CLASS, CONTROL_STYLE_I
 const DEFAULT_SAVE_BUTTON_TEXT = "保存";
 const DEFAULT_SAVE_BUTTON_TITLE = "选择收藏夹后保存当前知乎回答/文章到本地目录";
 
+export function observeSaveControlChanges(onChange) {
+  const observer = new MutationObserver((records) => {
+    if (records.some((record) => record.type === "childList"
+      || record.target.matches(".AnswerItem, .RichContent, .Post-Main, .Post-RichTextContainer, .Post-content"))) {
+      onChange();
+    }
+  });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+  return observer;
+}
+
+export function repairSaveControl(scope, host, folderName) {
+  // Only write missing classes so observing our own repairs settles after one scan.
+  if (!scope.classList.contains(CONTROL_SCOPE_CLASS)) scope.classList.add(CONTROL_SCOPE_CLASS);
+  if (!host.classList.contains(CONTROL_HOST_CLASS)) host.classList.add(CONTROL_HOST_CLASS);
+
+  let existingControl = null;
+  for (const control of scope.querySelectorAll(`.${CONTROL_CLASS}`)) {
+    if (!existingControl && control.parentElement === host
+      && control.getAttribute("data-zhmd-folder-name") === folderName) {
+      existingControl = control;
+    } else {
+      control.remove();
+    }
+  }
+  return existingControl;
+}
+
 /**
  * UI helpers for content-bound save controls.
  *

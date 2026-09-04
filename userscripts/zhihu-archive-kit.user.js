@@ -2729,7 +2729,6 @@ function ensureCommentStagingStyle() {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   BATCH_STATUS_ID: () => (/* binding */ BATCH_STATUS_ID),
-/* harmony export */   CONTROL_BOUND_ATTR: () => (/* binding */ CONTROL_BOUND_ATTR),
 /* harmony export */   CONTROL_CLASS: () => (/* binding */ CONTROL_CLASS),
 /* harmony export */   CONTROL_HOST_CLASS: () => (/* binding */ CONTROL_HOST_CLASS),
 /* harmony export */   CONTROL_SCOPE_CLASS: () => (/* binding */ CONTROL_SCOPE_CLASS),
@@ -2739,7 +2738,6 @@ const CONTROL_CLASS = "zhmd-save-control";
 const CONTROL_HOST_CLASS = "zhmd-save-control-host";
 const CONTROL_SCOPE_CLASS = "zhmd-save-control-scope";
 const CONTROL_STYLE_ID = "zhmd-save-control-style";
-const CONTROL_BOUND_ATTR = "data-zhmd-save-bound";
 const BATCH_STATUS_ID = "zhmd-batch-status";
 
 
@@ -3190,7 +3188,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   createSaveControl: () => (/* binding */ createSaveControl),
 /* harmony export */   ensureSaveControlStyle: () => (/* binding */ ensureSaveControlStyle),
+/* harmony export */   observeSaveControlChanges: () => (/* binding */ observeSaveControlChanges),
 /* harmony export */   removeSaveControls: () => (/* binding */ removeSaveControls),
+/* harmony export */   repairSaveControl: () => (/* binding */ repairSaveControl),
 /* harmony export */   setButtonState: () => (/* binding */ setButtonState),
 /* harmony export */   setSavedStatus: () => (/* binding */ setSavedStatus),
 /* harmony export */   setUnsavedStatus: () => (/* binding */ setUnsavedStatus)
@@ -3200,6 +3200,39 @@ __webpack_require__.r(__webpack_exports__);
 
 const DEFAULT_SAVE_BUTTON_TEXT = "保存";
 const DEFAULT_SAVE_BUTTON_TITLE = "选择收藏夹后保存当前知乎回答/文章到本地目录";
+
+function observeSaveControlChanges(onChange) {
+  const observer = new MutationObserver((records) => {
+    if (records.some((record) => record.type === "childList"
+      || record.target.matches(".AnswerItem, .RichContent, .Post-Main, .Post-RichTextContainer, .Post-content"))) {
+      onChange();
+    }
+  });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+  return observer;
+}
+
+function repairSaveControl(scope, host, folderName) {
+  // Only write missing classes so observing our own repairs settles after one scan.
+  if (!scope.classList.contains(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_SCOPE_CLASS)) scope.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_SCOPE_CLASS);
+  if (!host.classList.contains(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS)) host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
+
+  let existingControl = null;
+  for (const control of scope.querySelectorAll(`.${_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_CLASS}`)) {
+    if (!existingControl && control.parentElement === host
+      && control.getAttribute("data-zhmd-folder-name") === folderName) {
+      existingControl = control;
+    } else {
+      control.remove();
+    }
+  }
+  return existingControl;
+}
 
 /**
  * UI helpers for content-bound save controls.
@@ -3510,17 +3543,15 @@ var __webpack_exports__ = {};
   !*** ./src/userscript/main.js ***!
   \********************************/
 __webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./constants.js */ "./src/userscript/constants.js");
-/* harmony import */ var _batch_client_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../batch/client.js */ "./src/batch/client.js");
-/* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
-/* harmony import */ var _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../save-core/markdown.js */ "./src/save-core/markdown.js");
-/* harmony import */ var _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../save-core/target.js */ "./src/save-core/target.js");
-/* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
-/* harmony import */ var _comment_staging_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./comment-staging.js */ "./src/userscript/comment-staging.js");
-/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
-/* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
-/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
-
+/* harmony import */ var _batch_client_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../batch/client.js */ "./src/batch/client.js");
+/* harmony import */ var _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../save-core/build-zip.js */ "./src/save-core/build-zip.js");
+/* harmony import */ var _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../save-core/markdown.js */ "./src/save-core/markdown.js");
+/* harmony import */ var _save_core_target_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../save-core/target.js */ "./src/save-core/target.js");
+/* harmony import */ var _shared_url_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../shared/url.js */ "./src/shared/url.js");
+/* harmony import */ var _comment_staging_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./comment-staging.js */ "./src/userscript/comment-staging.js");
+/* harmony import */ var _directory_save_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./directory-save.js */ "./src/userscript/directory-save.js");
+/* harmony import */ var _single_save_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./single-save.js */ "./src/userscript/single-save.js");
+/* harmony import */ var _ui_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./ui.js */ "./src/userscript/ui.js");
 
 
 
@@ -3545,15 +3576,11 @@ boot();
 
 function boot() {
   exposeTestApi();
-  (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_6__.mountCommentStaging)();
-  (0,_batch_client_js__WEBPACK_IMPORTED_MODULE_1__.startBatchClient)();
+  (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_5__.mountCommentStaging)();
+  (0,_batch_client_js__WEBPACK_IMPORTED_MODULE_0__.startBatchClient)();
   scheduleInject();
 
-  const observer = new MutationObserver(scheduleInject);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_8__.observeSaveControlChanges)(scheduleInject);
 
   window.setInterval(() => {
     if (lastHref !== location.href) {
@@ -3565,16 +3592,16 @@ function boot() {
 
 function exposeTestApi() {
   window.zhihuMarkdownSaverTest = {
-    applyMediaReplacements: _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__.applyMediaReplacements,
-    buildAnswerItemArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact,
-    buildAnswerItemZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip,
-    buildArticleRootArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact,
-    buildArticleRootZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip,
-    buildCurrentPageArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildCurrentPageArtifact,
-    buildCurrentPageZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildCurrentPageZip,
-    detectTarget: _save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget,
-    extractCurrentPage: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.extractCurrentPage,
-    renderDocument: _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_3__.renderDocument
+    applyMediaReplacements: _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_2__.applyMediaReplacements,
+    buildAnswerItemArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildAnswerItemArtifact,
+    buildAnswerItemZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildAnswerItemZip,
+    buildArticleRootArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildArticleRootArtifact,
+    buildArticleRootZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildArticleRootZip,
+    buildCurrentPageArtifact: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildCurrentPageArtifact,
+    buildCurrentPageZip: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildCurrentPageZip,
+    detectTarget: _save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.detectTarget,
+    extractCurrentPage: _save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.extractCurrentPage,
+    renderDocument: _save_core_markdown_js__WEBPACK_IMPORTED_MODULE_2__.renderDocument
   };
 }
 
@@ -3585,27 +3612,24 @@ function scheduleInject() {
 
 function injectControls() {
   if (!isManualSavePage()) {
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.removeSaveControls)();
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_8__.removeSaveControls)();
     return;
   }
 
-  (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.ensureSaveControlStyle)();
+  (0,_ui_js__WEBPACK_IMPORTED_MODULE_8__.ensureSaveControlStyle)();
   injectAnswerControls();
   injectArticleControl();
 }
 
 function injectAnswerControls() {
   for (const answerItem of Array.from(document.querySelectorAll(".AnswerItem"))) {
-    if (answerItem.getAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR) === "answer") {
-      continue;
-    }
-    if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findAnswerContentRoot)(answerItem)) {
+    if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.findAnswerContentRoot)(answerItem)) {
       continue;
     }
 
     let target;
     try {
-      target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractAnswerTarget)(answerItem);
+      target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.extractAnswerTarget)(answerItem);
     } catch {
       continue;
     }
@@ -3615,52 +3639,51 @@ function injectAnswerControls() {
       scope: answerItem,
       host,
       target,
-      boundType: "answer",
-      buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options)),
-      buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
+      buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildAnswerItemArtifact)(answerItem, withCommentProvider(options)),
+      buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildAnswerItemZip)(answerItem, withCommentProvider(options))
     });
   }
 }
 
 function injectArticleControl() {
-  const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget)(location.href);
+  const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.detectTarget)(location.href);
   if (target?.type !== "article") {
     return;
   }
 
-  const articleRoot = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findArticleRoot)();
-  if (!articleRoot || articleRoot.getAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR) === "article") {
+  const articleRoot = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.findArticleRoot)();
+  if (!articleRoot) {
     return;
   }
-  if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.findArticleContentRoot)(articleRoot)) {
+  if (!(0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.findArticleContentRoot)(articleRoot)) {
     return;
   }
 
-  const articleTarget = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.extractArticleTarget)(articleRoot);
+  const articleTarget = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.extractArticleTarget)(articleRoot);
   mountSaveControl({
     scope: articleRoot,
     host: articleRoot,
     target: articleTarget,
-    boundType: "article",
-    buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options)),
-    buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_2__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
+    buildArtifact: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildArticleRootArtifact)(articleRoot, withCommentProvider(options)),
+    buildZip: (options) => (0,_save_core_build_zip_js__WEBPACK_IMPORTED_MODULE_1__.buildArticleRootZip)(articleRoot, withCommentProvider(options))
   });
 }
 
-function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
-  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_5__.targetFolderName)(target);
-  scope.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_SCOPE_CLASS);
-  host.classList.add(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_HOST_CLASS);
-  const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.createSaveControl)(
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveArchiveWithButton)(
+function mountSaveControl({ scope, host, target, buildArtifact, buildZip }) {
+  const folderName = (0,_shared_url_js__WEBPACK_IMPORTED_MODULE_4__.targetFolderName)(target);
+  if ((0,_ui_js__WEBPACK_IMPORTED_MODULE_8__.repairSaveControl)(scope, host, folderName)) {
+    return;
+  }
+  const control = (0,_ui_js__WEBPACK_IMPORTED_MODULE_8__.createSaveControl)(
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_7__.saveArchiveWithButton)(
       button,
       buildArtifact,
       () => refreshSaveStatus(control, folderName)
     ),
-    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_8__.saveZipWithButton)(button, buildZip),
+    (button) => (0,_single_save_js__WEBPACK_IMPORTED_MODULE_7__.saveZipWithButton)(button, buildZip),
     async () => {
       try {
-        await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_7__.changeArchiveRoot)();
+        await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_6__.changeArchiveRoot)();
         document.querySelectorAll(".zhmd-save-control__collection-menu").forEach((menu) => menu.remove());
         for (const item of document.querySelectorAll("[data-zhmd-folder-name]")) {
           await refreshSaveStatus(item, item.getAttribute("data-zhmd-folder-name"));
@@ -3673,7 +3696,6 @@ function mountSaveControl({ scope, host, target, boundType, buildArtifact, build
   control.setAttribute("data-zhmd-folder-name", folderName);
   host.prepend(control);
   refreshSaveStatus(control, folderName);
-  scope.setAttribute(_constants_js__WEBPACK_IMPORTED_MODULE_0__.CONTROL_BOUND_ATTR, boundType);
 }
 
 async function refreshSaveStatus(control, folderName) {
@@ -3683,8 +3705,8 @@ async function refreshSaveStatus(control, folderName) {
   }
 
   try {
-    const collectionNames = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_7__.findSavedCollectionsForFolder)(folderName);
-    (0,_ui_js__WEBPACK_IMPORTED_MODULE_9__.setSavedStatus)(button, collectionNames);
+    const collectionNames = await (0,_directory_save_js__WEBPACK_IMPORTED_MODULE_6__.findSavedCollectionsForFolder)(folderName);
+    (0,_ui_js__WEBPACK_IMPORTED_MODULE_8__.setSavedStatus)(button, collectionNames);
   } catch (error) {
     console.warn("[Zhihu Archive Kit] saved status check failed:", error);
   }
@@ -3693,12 +3715,12 @@ async function refreshSaveStatus(control, folderName) {
 function withCommentProvider(options) {
   return {
     ...options,
-    commentsProvider: ({ target }) => (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_6__.getStagedCommentsForTarget)(target)
+    commentsProvider: ({ target }) => (0,_comment_staging_js__WEBPACK_IMPORTED_MODULE_5__.getStagedCommentsForTarget)(target)
   };
 }
 
 function isManualSavePage() {
-  const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_4__.detectTarget)(location.href);
+  const target = (0,_save_core_target_js__WEBPACK_IMPORTED_MODULE_3__.detectTarget)(location.href);
   if (target?.type === "answer" || target?.type === "article") {
     return true;
   }

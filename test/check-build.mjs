@@ -49,8 +49,11 @@ assert.match(content, /127\.0\.0\.1/);
 assert.match(content, /buildAnswerItemArtifact/);
 assert.match(content, /buildArticleRootArtifact/);
 assert.match(mainSource, /function mountSaveControl/);
-assert.match(mainSource, /scope\.classList\.add\(CONTROL_SCOPE_CLASS\)/);
-assert.match(mainSource, /host\.classList\.add\(CONTROL_HOST_CLASS\)/);
+assert.match(mainSource, /if \(repairSaveControl\(scope, host, folderName\)\)/);
+assert.match(mainSource, /observeSaveControlChanges\(scheduleInject\)/);
+assert.match(uiSource, /scope\.classList\.add\(CONTROL_SCOPE_CLASS\)/);
+assert.match(uiSource, /host\.classList\.add\(CONTROL_HOST_CLASS\)/);
+assert.doesNotMatch(content, /data-zhmd-save-bound/);
 assert.match(mainSource, /host\.prepend\(control\)/);
 assert.doesNotMatch(content, /Post-Row-Content-left/);
 assert.match(

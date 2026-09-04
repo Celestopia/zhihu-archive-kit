@@ -64,6 +64,7 @@ test/
   check-app-icon.mjs
   check-build.mjs
   check-directory-save.mjs
+  check-save-controls.mjs
   check-extract.mjs
   check-local-data.mjs
   check-markdown.mjs
@@ -182,9 +183,9 @@ article-<article_id>
 
 ## 单页保存流程
 
-1. `main.js` 监听知乎 SPA 页面变化。
-2. 问题页或回答详情页中，脚本扫描 `.AnswerItem`，为每个有效回答卡片注入一次保存控件。
-3. 专栏文章页中，脚本为文章正文区域注入一次保存控件。
+1. `main.js` 监听知乎 SPA 页面变化；`ui.js` 的 observer 监听子节点变化及回答、正文和文章容器的 class 变化，以 250 ms 防抖触发扫描。
+2. 问题页或回答详情页中，脚本扫描 `.AnswerItem`，为每个有效回答卡片维护一个保存控件。
+3. 专栏文章页中，脚本为文章正文区域维护一个保存控件。
 4. 用户点击某个控件的“保存”后，`directory-save.js` 读取已保存的句柄并检查读写权限；首次使用调用文件夹选择器，权限被拒绝时停止操作。
 5. 确保所选根目录中的默认收藏夹存在，然后直接枚举收藏夹并打开选择菜单。
 6. 用户选择已有收藏夹，或在所选根目录中创建带名称和描述的新收藏夹。
@@ -192,6 +193,8 @@ article-<article_id>
 8. `writeArtifactToCollection(root, artifact, collectionName)` 使用菜单打开时捕获的根句柄写入，切换保存文件夹不会改变正在执行的保存目标。
 9. 目标内容目录存在时拒绝覆盖；写入顺序是媒体、评论、Markdown，避免媒体写入失败后被识别为完整内容。失败可能留下不完整目录，不自动覆盖或删除。
 10. 保存成功后重新检查已保存状态。此流程不生成 HTML，也不访问本地预览服务。启动预览或点击“刷新归档”时再生成预览。
+
+每次扫描先补回缺失的 scope 和 host class，保持悬浮控件的 hover 与定位规则。`repairSaveControl()` 只复用属于当前 host、且 `data-zhmd-folder-name` 与当前内容一致的真实控件；缺失时重新挂载，重复或失效控件会被移除。修复 class 时保留已有控件及其状态，只写入缺失的 class，避免 observer 自身触发无限扫描。
 
 齿轮菜单的“更改保存文件夹”会重新选择并授权当前 origin 的目录；取消选择保留原授权。被动的已保存状态检查不弹出权限请求。
 
@@ -526,6 +529,7 @@ npm test
 - 构建后的油猴脚本是否包含预期 metadata、保存入口、评论暂存入口、批量 API 标记和 frontmatter 字段。
 - Roaming 设置/表情缓存路径、显式归档路径优先级、缺失配置错误和批量必填输出目录。
 - 使用模拟目录句柄和 IndexedDB 验证无网络手动保存、权限拒绝、文件夹切换、取消选择及重复内容保护。
+- 使用最小 DOM 模型验证保存控件的 class 修复、节点移除、host 更换、重复清理、文章容器修复，以及 observer 过滤和修复后的收敛。
 - ZIP 解压是否要求完整内容结构、拒绝路径逃逸，并在目标文件夹已存在时失败。
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
 - HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录，并生成带筛选、排序和分页行为的轻量 `index.html`。

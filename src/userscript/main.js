@@ -1,4 +1,3 @@
-import { CONTROL_BOUND_ATTR, CONTROL_HOST_CLASS, CONTROL_SCOPE_CLASS } from "./constants.js";
 import { startBatchClient } from "../batch/client.js";
 import {
   buildAnswerItemArtifact,
@@ -22,7 +21,7 @@ import { targetFolderName } from "../shared/url.js";
 import { getStagedCommentsForTarget, mountCommentStaging } from "./comment-staging.js";
 import { changeArchiveRoot, findSavedCollectionsForFolder } from "./directory-save.js";
 import { saveArchiveWithButton, saveZipWithButton } from "./single-save.js";
-import { createSaveControl, ensureSaveControlStyle, removeSaveControls, setSavedStatus } from "./ui.js";
+import { createSaveControl, ensureSaveControlStyle, observeSaveControlChanges, repairSaveControl, removeSaveControls, setSavedStatus } from "./ui.js";
 
 /**
  * Tampermonkey entry point.
@@ -42,11 +41,7 @@ function boot() {
   startBatchClient();
   scheduleInject();
 
-  const observer = new MutationObserver(scheduleInject);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
+  observeSaveControlChanges(scheduleInject);
 
   window.setInterval(() => {
     if (lastHref !== location.href) {
@@ -89,9 +84,6 @@ function injectControls() {
 
 function injectAnswerControls() {
   for (const answerItem of Array.from(document.querySelectorAll(".AnswerItem"))) {
-    if (answerItem.getAttribute(CONTROL_BOUND_ATTR) === "answer") {
-      continue;
-    }
     if (!findAnswerContentRoot(answerItem)) {
       continue;
     }
@@ -108,7 +100,6 @@ function injectAnswerControls() {
       scope: answerItem,
       host,
       target,
-      boundType: "answer",
       buildArtifact: (options) => buildAnswerItemArtifact(answerItem, withCommentProvider(options)),
       buildZip: (options) => buildAnswerItemZip(answerItem, withCommentProvider(options))
     });
@@ -122,7 +113,7 @@ function injectArticleControl() {
   }
 
   const articleRoot = findArticleRoot();
-  if (!articleRoot || articleRoot.getAttribute(CONTROL_BOUND_ATTR) === "article") {
+  if (!articleRoot) {
     return;
   }
   if (!findArticleContentRoot(articleRoot)) {
@@ -134,16 +125,16 @@ function injectArticleControl() {
     scope: articleRoot,
     host: articleRoot,
     target: articleTarget,
-    boundType: "article",
     buildArtifact: (options) => buildArticleRootArtifact(articleRoot, withCommentProvider(options)),
     buildZip: (options) => buildArticleRootZip(articleRoot, withCommentProvider(options))
   });
 }
 
-function mountSaveControl({ scope, host, target, boundType, buildArtifact, buildZip }) {
+function mountSaveControl({ scope, host, target, buildArtifact, buildZip }) {
   const folderName = targetFolderName(target);
-  scope.classList.add(CONTROL_SCOPE_CLASS);
-  host.classList.add(CONTROL_HOST_CLASS);
+  if (repairSaveControl(scope, host, folderName)) {
+    return;
+  }
   const control = createSaveControl(
     (button) => saveArchiveWithButton(
       button,
@@ -166,7 +157,6 @@ function mountSaveControl({ scope, host, target, boundType, buildArtifact, build
   control.setAttribute("data-zhmd-folder-name", folderName);
   host.prepend(control);
   refreshSaveStatus(control, folderName);
-  scope.setAttribute(CONTROL_BOUND_ATTR, boundType);
 }
 
 async function refreshSaveStatus(control, folderName) {
