@@ -217,6 +217,7 @@ export function renderCardCss() {
       border: 0;
       background: transparent;
       color: var(--accent);
+      cursor: pointer;
       display: inline;
       font: inherit;
       margin-left: 4px;
@@ -421,6 +422,27 @@ export function renderCardCss() {
     }
     .comment-list {
       padding: 0 20px 20px;
+    }
+    .comment-replies > summary {
+      width: fit-content;
+      margin-top: 10px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #f3f4f6;
+      box-shadow: 0 1px 2px rgba(23, 25, 31, .08);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .comment-replies > summary:hover {
+      background: #e9edf2;
+      color: var(--text);
+    }
+    .read-more:focus-visible,
+    .comment-replies > summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     .comment-card {
       border-top: 1px solid var(--border);
