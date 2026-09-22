@@ -453,10 +453,25 @@ function renderIndexDocument({ items, collections, iconHref }) {
       top: 0;
       z-index: 1;
     }
+    .search-controls {
+      display: flex;
+      min-width: 0;
+    }
+    .search-mode {
+      border: 1px solid var(--border);
+      border-right: 0;
+      border-radius: 6px 0 0 6px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      padding: 8px;
+    }
     .search {
       width: 100%;
+      min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 0 6px 6px 0;
       font: inherit;
       padding: 8px 10px;
       background: #fff;
@@ -618,7 +633,13 @@ function renderIndexDocument({ items, collections, iconHref }) {
       <button class="archive-notice-close" id="archive-notice-close" type="button" aria-label="关闭刷新提示">×</button>
     </div>
     <section class="toolbar" aria-label="筛选和排序">
-      <input id="search" class="search" type="search" placeholder="搜索标题、作者或摘要">
+      <div class="search-controls">
+        <select id="search-mode" class="search-mode" aria-label="搜索范围">
+          <option value="title">标题</option>
+          <option value="author">作者</option>
+        </select>
+        <input id="search" class="search" type="search" placeholder="搜索标题…" aria-label="搜索标题">
+      </div>
       <div class="sort-controls">
         <label for="sort-field">排序</label>
         <select id="sort-field" class="sort-select">
@@ -652,6 +673,7 @@ ${initializeArchiveRefresh.toString()}
 
     const PAGE_SIZE = ${PAGE_SIZE};
     const searchInput = document.getElementById("search");
+    const searchMode = document.getElementById("search-mode");
     const visibleCount = document.getElementById("visible-count");
     const currentCollection = document.getElementById("current-collection");
     const currentCollectionDescription = document.getElementById("current-collection-description");
@@ -685,7 +707,8 @@ ${initializeArchiveRefresh.toString()}
       const matchedCards = cards.filter((card) => {
         const matchesType = activeFilter === "all" || card.dataset.type === activeFilter;
         const matchesCollection = activeCollection === "all" || card.dataset.collection === activeCollection;
-        const matchesQuery = !query || card.textContent.toLowerCase().includes(query);
+        const searchValue = searchMode.value === "title" ? card.dataset.searchTitle : card.dataset.searchAuthor;
+        const matchesQuery = searchValue.toLowerCase().includes(query);
         return matchesType && matchesCollection && matchesQuery;
       }).sort(compareCards);
 
@@ -816,6 +839,13 @@ ${initializeArchiveRefresh.toString()}
     }
 
     searchInput.addEventListener("input", () => {
+      resetToFirstPage();
+      applyFilters();
+    });
+    searchMode.addEventListener("change", () => {
+      const label = searchMode.value === "title" ? "搜索标题" : "搜索作者";
+      searchInput.placeholder = label + "…";
+      searchInput.setAttribute("aria-label", label);
       resetToFirstPage();
       applyFilters();
     });

@@ -189,6 +189,10 @@ const outputPath = await renderOutputIndex(root, { emojiCacheDir: emojiDir });
 assert.equal(outputPath, path.join(root, "index.html"));
 
 const html = await fs.readFile(outputPath, "utf8");
+assert.match(html, /id="search-mode"[^>]*aria-label="搜索范围"/);
+assert.match(html, /data-search-title="[^"]+" data-search-author="[^"]*"/);
+assert.doesNotMatch(html, /搜索标题、作者或摘要/);
+checkSearchBehavior(html);
 assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,/);
 assert.match(html, /id="archive-refresh" title="刷新归档" aria-label="刷新归档" aria-busy="false">\s*<svg/);
 assert.doesNotMatch(html, /data-edit-action="refresh-archive"/);
@@ -505,4 +509,67 @@ async function checkArchiveRefresh() {
 async function writeCollectionMetadata(collectionDir, metadata) {
   await fs.mkdir(collectionDir, { recursive: true });
   await fs.writeFile(path.join(collectionDir, "collection.json"), `${JSON.stringify(metadata, null, 2)}\n`);
+}
+
+function checkSearchBehavior(html) {
+  const filterSource = html.match(/    function applyFilters\(\) \{[\s\S]*?(?=    function compareCards)/)[0];
+  const modeListener = html.match(/    searchMode.addEventListener\("change", \(\) => \{[\s\S]*?\n    \}\);/)[0];
+  const inputListener = html.match(/    searchInput.addEventListener\("input", \(\) => \{[\s\S]*?\n    \}\);/)[0];
+  const run = new Function("state", `
+    const { cards, searchInput, searchMode } = state;
+    const PAGE_SIZE = 20;
+    let currentPage = 2;
+    let activeFilter = "all", activeCollection = "all";
+    const visibleCount = {}, currentCollection = {}, currentCollectionDescription = {};
+    const contentList = { append() {} };
+    const compareCards = () => 0;
+    const activeCollectionDescription = () => "";
+    const syncHeaderMenu = () => {};
+    const renderPagination = () => {};
+    const resetToFirstPage = () => { currentPage = 1; };
+    ${filterSource}
+    ${modeListener}
+    ${inputListener}
+    return {
+      filter(type, collection) { activeFilter = type; activeCollection = collection; applyFilters(); },
+      goToPage(page) { currentPage = page; },
+      page: () => currentPage
+    };
+  `);
+  const cards = [
+    { searchTitle: "Alpha title", searchAuthor: "Beta", type: "answer", collection: "A" },
+    { searchTitle: "Beta title", searchAuthor: "Alpha", type: "article", collection: "B" },
+    { searchTitle: "Other", searchAuthor: "", type: "answer", collection: "A" }
+  ].map(dataset => ({ dataset, textContent: "summary-only expanded-body-only", querySelector: () => null }));
+  const searchInput = { value: " ALPHA ", addEventListener(event, callback) { this[event] = callback; }, setAttribute(name, value) { this[name] = value; } };
+  const searchMode = { value: "title", addEventListener(event, callback) { this[event] = callback; } };
+  const controller = run({ cards, searchInput, searchMode });
+  const visible = () => cards.filter(card => !card.hidden).map(card => card.dataset.searchTitle);
+  searchInput.input();
+  assert.deepEqual(visible(), ["Alpha title"]);
+  assert.equal(controller.page(), 1);
+  controller.goToPage(2);
+  searchMode.value = "author";
+  searchMode.change();
+  assert.equal(controller.page(), 1);
+  assert.equal(searchInput.value, " ALPHA ");
+  assert.equal(searchInput.placeholder, "搜索作者…");
+  assert.equal(searchInput["aria-label"], "搜索作者");
+  assert.deepEqual(visible(), ["Beta title"]);
+  controller.filter("answer", "all");
+  assert.deepEqual(visible(), []);
+  controller.filter("all", "A");
+  assert.deepEqual(visible(), []);
+  controller.filter("all", "all");
+  for (const mode of ["title", "author"]) {
+    searchMode.value = mode;
+    for (const query of ["summary-only", "expanded-body-only"]) {
+      searchInput.value = query;
+      searchInput.input();
+      assert.deepEqual(visible(), []);
+    }
+  }
+  searchInput.value = "";
+  searchInput.input();
+  assert.equal(visible().length, 3);
 }

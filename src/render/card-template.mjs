@@ -568,10 +568,11 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
   const collectionAttrs = item.collectionName ? ` data-collection="${escapeAttr(item.collectionName)}"` : "";
   const folderAttrs = item.folderName ? ` data-folder="${escapeAttr(item.folderName)}"` : "";
   const sortAttrs = isPreview ? "" : renderSortAttributes(item);
+  const searchAttrs = isPreview ? "" : ` data-search-title="${escapeAttr(title)}" data-search-author="${escapeAttr(item.author || "")}"`;
   const summaryText = item.summaryText || "暂无摘要。";
 
   return `
-    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}${folderAttrs}${sortAttrs}>
+    <article class="item" data-type="${escapeAttr(item.type)}"${previewAttrs}${collectionAttrs}${folderAttrs}${sortAttrs}${searchAttrs}>
       <div class="item-head">
         ${titleHtml}
         <div class="item-badges">
