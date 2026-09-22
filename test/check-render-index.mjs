@@ -293,7 +293,8 @@ assert.match(html, /paginationButton\("下一页", currentPage \+ 1, currentPage
 assert.match(html, /button\.setAttribute\("aria-current", "page"\)/);
 assert.match(html, /items\.push\("ellipsis"\)/);
 assert.match(html, /function resetToFirstPage\(\) \{\s*currentPage = 1;\s*\}/);
-assert.match(html, /searchInput\.addEventListener\("input", \(\) => \{\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
+assert.doesNotMatch(html, /searchInput\.addEventListener\("input"/);
+assert.match(html, /id="search-button" class="search-button" type="button">搜索/);
 assert.match(html, /sortFieldSelect\.addEventListener\("change", \(\) => \{\s*activeSortField = sortFieldSelect\.value;\s*sortDescending = true;\s*syncSortDirectionButton\(\);\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
 assert.match(html, /sortDirectionButton\.addEventListener\("click", \(\) => \{\s*sortDescending = !sortDescending;\s*syncSortDirectionButton\(\);\s*resetToFirstPage\(\);\s*applyFilters\(\);/);
 assert.doesNotMatch(html, /localStorage/);
@@ -514,9 +515,11 @@ async function writeCollectionMetadata(collectionDir, metadata) {
 function checkSearchBehavior(html) {
   const filterSource = html.match(/    function applyFilters\(\) \{[\s\S]*?(?=    function compareCards)/)[0];
   const modeListener = html.match(/    searchMode.addEventListener\("change", \(\) => \{[\s\S]*?\n    \}\);/)[0];
-  const inputListener = html.match(/    searchInput.addEventListener\("input", \(\) => \{[\s\S]*?\n    \}\);/)[0];
+  const clickListener = html.match(/    searchButton.addEventListener\("click", \(\) => \{[\s\S]*?\n    \}\);/)[0];
+  const keyListener = html.match(/    searchInput.addEventListener\("keydown", \(event\) => \{[\s\S]*?\n    \}\);/)[0];
   const run = new Function("state", `
-    const { cards, searchInput, searchMode } = state;
+    const { cards, searchInput, searchMode, searchButton } = state;
+    let appliedSearchMode = "title", appliedSearchQuery = "";
     const PAGE_SIZE = 20;
     let currentPage = 2;
     let activeFilter = "all", activeCollection = "all";
@@ -529,7 +532,8 @@ function checkSearchBehavior(html) {
     const resetToFirstPage = () => { currentPage = 1; };
     ${filterSource}
     ${modeListener}
-    ${inputListener}
+    ${clickListener}
+    ${keyListener}
     return {
       filter(type, collection) { activeFilter = type; activeCollection = collection; applyFilters(); },
       goToPage(page) { currentPage = page; },
@@ -543,14 +547,20 @@ function checkSearchBehavior(html) {
   ].map(dataset => ({ dataset, textContent: "summary-only expanded-body-only", querySelector: () => null }));
   const searchInput = { value: " ALPHA ", addEventListener(event, callback) { this[event] = callback; }, setAttribute(name, value) { this[name] = value; } };
   const searchMode = { value: "title", addEventListener(event, callback) { this[event] = callback; } };
-  const controller = run({ cards, searchInput, searchMode });
+  const searchButton = { addEventListener(event, callback) { this[event] = callback; } };
+  const controller = run({ cards, searchInput, searchMode, searchButton });
   const visible = () => cards.filter(card => !card.hidden).map(card => card.dataset.searchTitle);
-  searchInput.input();
+  searchButton.click();
   assert.deepEqual(visible(), ["Alpha title"]);
   assert.equal(controller.page(), 1);
   controller.goToPage(2);
   searchMode.value = "author";
   searchMode.change();
+  assert.equal(controller.page(), 2);
+  assert.deepEqual(visible(), ["Alpha title"]);
+  controller.filter("all", "all");
+  assert.deepEqual(visible(), ["Alpha title"]);
+  searchButton.click();
   assert.equal(controller.page(), 1);
   assert.equal(searchInput.value, " ALPHA ");
   assert.equal(searchInput.placeholder, "搜索作者…");
@@ -565,11 +575,27 @@ function checkSearchBehavior(html) {
     searchMode.value = mode;
     for (const query of ["summary-only", "expanded-body-only"]) {
       searchInput.value = query;
-      searchInput.input();
+      searchButton.click();
       assert.deepEqual(visible(), []);
     }
   }
   searchInput.value = "";
-  searchInput.input();
+  controller.filter("all", "all");
+  assert.deepEqual(visible(), []);
+  searchButton.click();
   assert.equal(visible().length, 3);
+  searchMode.value = "title";
+  searchInput.value = "Alpha";
+  let prevented = false;
+  const keyEvent = { key: "Enter", isComposing: true, preventDefault() { prevented = true; } };
+  searchInput.keydown(keyEvent);
+  assert.equal(visible().length, 3);
+  assert.equal(prevented, false);
+  searchInput.keydown({ ...keyEvent, key: "a", isComposing: false });
+  assert.equal(visible().length, 3);
+  controller.goToPage(2);
+  searchInput.keydown({ ...keyEvent, isComposing: false });
+  assert.equal(prevented, true);
+  assert.deepEqual(visible(), ["Alpha title"]);
+  assert.equal(controller.page(), 1);
 }

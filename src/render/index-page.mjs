@@ -471,11 +471,23 @@ function renderIndexDocument({ items, collections, iconHref }) {
       width: 100%;
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 0 6px 6px 0;
+      border-radius: 0;
       font: inherit;
       padding: 8px 10px;
       background: #fff;
     }
+    .search-button {
+      flex-shrink: 0;
+      border: 1px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+      background: var(--accent-soft);
+      color: var(--accent);
+      cursor: pointer;
+      font: inherit;
+      padding: 8px 12px;
+    }
+    .search-button:hover { background: #dceaff; }
+    .search-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .sort-controls {
       align-items: center;
       display: flex;
@@ -639,6 +651,7 @@ function renderIndexDocument({ items, collections, iconHref }) {
           <option value="author">作者</option>
         </select>
         <input id="search" class="search" type="search" placeholder="搜索标题…" aria-label="搜索标题">
+        <button id="search-button" class="search-button" type="button">搜索</button>
       </div>
       <div class="sort-controls">
         <label for="sort-field">排序</label>
@@ -674,6 +687,7 @@ ${initializeArchiveRefresh.toString()}
     const PAGE_SIZE = ${PAGE_SIZE};
     const searchInput = document.getElementById("search");
     const searchMode = document.getElementById("search-mode");
+    const searchButton = document.getElementById("search-button");
     const visibleCount = document.getElementById("visible-count");
     const currentCollection = document.getElementById("current-collection");
     const currentCollectionDescription = document.getElementById("current-collection-description");
@@ -701,14 +715,15 @@ ${initializeArchiveRefresh.toString()}
     let activeSortField = "exported";
     let sortDescending = true;
     let currentPage = 1;
+    let appliedSearchMode = "title";
+    let appliedSearchQuery = "";
 
     function applyFilters() {
-      const query = searchInput.value.trim().toLowerCase();
       const matchedCards = cards.filter((card) => {
         const matchesType = activeFilter === "all" || card.dataset.type === activeFilter;
         const matchesCollection = activeCollection === "all" || card.dataset.collection === activeCollection;
-        const searchValue = searchMode.value === "title" ? card.dataset.searchTitle : card.dataset.searchAuthor;
-        const matchesQuery = searchValue.toLowerCase().includes(query);
+        const searchValue = appliedSearchMode === "title" ? card.dataset.searchTitle : card.dataset.searchAuthor;
+        const matchesQuery = searchValue.toLowerCase().includes(appliedSearchQuery);
         return matchesType && matchesCollection && matchesQuery;
       }).sort(compareCards);
 
@@ -838,16 +853,22 @@ ${initializeArchiveRefresh.toString()}
       return span;
     }
 
-    searchInput.addEventListener("input", () => {
+    searchButton.addEventListener("click", () => {
+      appliedSearchMode = searchMode.value;
+      appliedSearchQuery = searchInput.value.trim().toLowerCase();
       resetToFirstPage();
       applyFilters();
+    });
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        searchButton.click();
+      }
     });
     searchMode.addEventListener("change", () => {
       const label = searchMode.value === "title" ? "搜索标题" : "搜索作者";
       searchInput.placeholder = label + "…";
       searchInput.setAttribute("aria-label", label);
-      resetToFirstPage();
-      applyFilters();
     });
     sortFieldSelect.addEventListener("change", () => {
       activeSortField = sortFieldSelect.value;
