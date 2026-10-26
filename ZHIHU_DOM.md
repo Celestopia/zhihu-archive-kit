@@ -799,9 +799,11 @@ data-zhmd-save-bound="article"
 ```text
 .zhmd-save-control-scope:hover .zhmd-save-control
 .zhmd-save-control:hover
+.zhmd-save-control:focus-within
 ```
 
 按钮位于内容左侧，内部使用 sticky 定位，使长回答滚动时按钮仍可见。
+定位容器始终使用 `pointer-events: none`，只有可见的保存按钮、齿轮按钮和选项菜单接收鼠标事件，避免拦截左侧目录。齿轮悬浮或获得焦点时显示选项菜单，菜单自身悬浮或包含焦点时保持显示。
 收藏夹选择菜单打开后挂载到 `document.body`，使用视口坐标对齐保存按钮，避免受到回答或文章正文层叠上下文的遮挡。
 
 代码依赖：

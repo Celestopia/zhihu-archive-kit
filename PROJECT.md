@@ -201,6 +201,8 @@ article-<article_id>
 
 每次扫描先补回缺失的 scope 和 host class，保持悬浮控件的 hover 与定位规则。`repairSaveControl()` 只复用属于当前 host、且 `data-zhmd-folder-name` 与当前内容一致的真实控件；缺失时重新挂载，重复或失效控件会被移除。修复 class 时保留已有控件及其状态，只写入缺失的 class，避免 observer 自身触发无限扫描。
 
+保存控件的绝对定位容器始终使用 `pointer-events: none`，只有可见的保存按钮、齿轮和菜单接收指针事件。隐藏状态使用 `visibility: hidden`，离开内容和控件后延迟 180 ms 开始淡出，300 ms 后完全隐藏，以便跨越间隙。齿轮 hover 或 focus 打开选项菜单，菜单 hover 或 focus-within 保持打开；空白边栏不会打开菜单或拦截目录点击。
+
 齿轮菜单的“更改保存文件夹”会重新选择并授权当前 origin 的目录；取消选择保留原授权。被动的已保存状态检查不弹出权限请求。
 
 收藏夹是保存根目录下的一级子目录，每个收藏夹目录都包含：

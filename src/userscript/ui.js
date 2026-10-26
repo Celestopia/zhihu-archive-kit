@@ -57,6 +57,7 @@ export function ensureSaveControlStyle() {
 
     .${CONTROL_CLASS} {
       opacity: 0;
+      visibility: hidden;
       pointer-events: none;
       position: absolute;
       left: -240px;
@@ -65,7 +66,7 @@ export function ensureSaveControlStyle() {
       width: 240px;
       min-height: 320px;
       z-index: 2147483646;
-      transition: opacity .16s ease;
+      transition: opacity .12s ease .18s, visibility 0s linear .3s;
       user-select: none;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
@@ -74,6 +75,7 @@ export function ensureSaveControlStyle() {
       position: sticky;
       top: 120px;
       display: flex;
+      width: max-content;
       align-items: flex-start;
       gap: 6px;
       margin-left: 96px;
@@ -81,8 +83,16 @@ export function ensureSaveControlStyle() {
     }
 
     .${CONTROL_SCOPE_CLASS}:hover .${CONTROL_CLASS},
-    .${CONTROL_CLASS}:hover {
+    .${CONTROL_CLASS}:hover,
+    .${CONTROL_CLASS}:focus-within {
       opacity: 1;
+      visibility: visible;
+      transition-delay: 0s;
+    }
+
+    .${CONTROL_CLASS}__primary,
+    .${CONTROL_CLASS}__gear,
+    .${CONTROL_CLASS}__menu {
       pointer-events: auto;
     }
 
@@ -113,7 +123,9 @@ export function ensureSaveControlStyle() {
     }
 
     .${CONTROL_CLASS}__menu {
-      display: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .12s ease .18s, visibility 0s linear .3s;
       position: absolute;
       left: 0;
       top: 44px;
@@ -123,8 +135,13 @@ export function ensureSaveControlStyle() {
       box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
     }
 
-    .${CONTROL_CLASS}:hover .${CONTROL_CLASS}__menu {
-      display: block;
+    .${CONTROL_CLASS}__gear:hover + .${CONTROL_CLASS}__menu,
+    .${CONTROL_CLASS}__gear:focus + .${CONTROL_CLASS}__menu,
+    .${CONTROL_CLASS}__menu:hover,
+    .${CONTROL_CLASS}__menu:focus-within {
+      opacity: 1;
+      visibility: visible;
+      transition-delay: 0s;
     }
 
     .${CONTROL_CLASS}__zip {
@@ -215,6 +232,7 @@ export function createSaveControl(onSave, onZip, onChangeFolder) {
   gear.className = `${CONTROL_CLASS}__gear`;
   gear.textContent = "⚙";
   gear.title = "保存选项";
+  gear.setAttribute("aria-label", "保存选项");
   gear.addEventListener("click", (event) => {
     event.stopPropagation();
   });

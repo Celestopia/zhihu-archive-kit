@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { observeSaveControlChanges, repairSaveControl } from "../src/userscript/ui.js";
+import { ensureSaveControlStyle, observeSaveControlChanges, repairSaveControl } from "../src/userscript/ui.js";
 import { CONTROL_CLASS, CONTROL_HOST_CLASS, CONTROL_SCOPE_CLASS } from "../src/userscript/constants.js";
 
 // Minimal DOM shape for control ownership, class repairs, and observer delivery.
@@ -138,4 +138,31 @@ assert.equal(mutations.length, 0);
 delete globalThis.document;
 delete globalThis.MutationObserver;
 
-console.log("Save control lifecycle checks passed.");
+// The positioning rail must never become a hit target, even in its hover state.
+const previousDocument = globalThis.document;
+let controlCss;
+globalThis.document = {
+  getElementById: () => null,
+  createElement: () => ({}),
+  documentElement: { append(style) { controlCss = style.textContent; } }
+};
+try {
+  ensureSaveControlStyle();
+  const rules = Array.from(controlCss.matchAll(/([^{}]+)\{([^{}]+)\}/g));
+  const rail = rules.find(([, selectors]) => selectors.trim() === `.${CONTROL_CLASS}`);
+  assert.match(rail[2], /pointer-events: none/);
+  assert.match(rail[2], /visibility: hidden/);
+  for (const [, selectors, declarations] of rules) {
+    if (!/pointer-events: auto/.test(declarations)) continue;
+    for (const selector of selectors.split(',').map(value => value.trim())) {
+      assert.ok([`.${CONTROL_CLASS}__primary`, `.${CONTROL_CLASS}__gear`, `.${CONTROL_CLASS}__menu`].includes(selector));
+    }
+  }
+  assert.doesNotMatch(controlCss, new RegExp(`\\.${CONTROL_CLASS}:hover \\.${CONTROL_CLASS}__menu`));
+  assert.match(controlCss, /__gear:hover \+/);
+  assert.match(controlCss, /__menu:focus-within/);
+} finally {
+  globalThis.document = previousDocument;
+}
+
+console.log("Save control lifecycle and hit-target checks passed.");
