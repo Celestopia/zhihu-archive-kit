@@ -209,8 +209,9 @@ function replyIcon() {
 async function renderReplies(children, level, emojiSources) {
   return `
     <details class="comment-replies">
-      <summary>${children.length} 条回复</summary>
+      <summary class="reply-toggle">展开 ${children.length} 条回复 <svg class="reply-toggle__chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m2 4 4 4 4-4"/></svg></summary>
       ${(await Promise.all(children.map((child) => renderComment(child, level, emojiSources)))).join("")}
+      <div class="reply-footer"><button class="reply-toggle" type="button" data-action="collapse-replies"><svg class="reply-toggle__chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m2 8 4-4 4 4"/></svg> 收起回复</button></div>
     </details>
   `;
 }

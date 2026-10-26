@@ -392,6 +392,8 @@ time_exported   -> data-sort-exported
 
 `preview.html` 和导航页卡片共用 `card-template.mjs`；单篇预览默认显示全文，不显示导航页的摘要折叠、内容管理或排序数据。
 
+评论回复使用 `details.comment-replies`：关闭时显示无边框的文字 summary 入口，打开时隐藏 summary，在回复末尾提供“收起回复”。入口使用 14px 文字、12px SVG 箭头和至少 36px 的点击高度，默认透明背景，悬浮时显示淡蓝底色，键盘聚焦时显示轮廓。收起时将焦点返回 summary，入口离开视口时滚动到可见位置。共享脚本捕获原生 toggle 事件，根据所有回复的实际 open 状态同步“展开全部 / 收起全部”；部分展开时点击“展开全部”展开其余回复。
+
 推荐通过本地服务打开：
 
 ```bash

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import vm from "node:vm";
+import { renderCardScript } from "../src/render/card-template.mjs";
 import { renderSavedFolder } from "../src/render/render.mjs";
 
 /**
@@ -185,12 +187,13 @@ assert.match(html, /<span>5<\/span><\/div>\s*<\/div>/);
 assert.doesNotMatch(html, /class="comment-meta"/);
 assert.match(html, /IP 北京/);
 assert.match(html, /comment-image-001\.png/);
-assert.match(html, /<details class="comment-replies">\s*<summary>1 条回复<\/summary>/);
+assert.match(html, /<details class="comment-replies">\s*<summary class="reply-toggle">展开 1 条回复/);
+assert.match(html, /data-action="collapse-replies"><svg class="reply-toggle__chevron"[^>]*><path d="m2 8 4-4 4 4"\/><\/svg> 收起回复<\/button><\/div>\s*<\/details>/);
 assert.doesNotMatch(html, /<details class="comment-replies" open>/);
 assert.match(html, /event\.preventDefault\(\)/);
 assert.match(html, /event\.stopPropagation\(\)/);
 assert.doesNotMatch(html, /comments\.open = true/);
-assert.match(html, /nextExpanded \? "收起全部" : "展开全部"/);
+assert.match(html, /expanded \? "收起全部" : "展开全部"/);
 
 const legacyRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zhmd-render-legacy-"));
 await fs.mkdir(path.join(legacyRoot, "assets"));
@@ -225,5 +228,49 @@ assert.match(legacyHtml, /关注数/);
 assert.match(legacyHtml, /标签/);
 assert.match(legacyHtml, /<p class="question-description-title">问题描述<\/p>\s*<div class="question-description-body"><\/div>/);
 assert.doesNotMatch(legacyHtml, /阅读原问题/);
+
+// Exercise independent reply threads, bulk synchronization, and focus restoration.
+const replyLabel = { textContent: "展开全部" };
+const bulkAttributes = {};
+const bulkButton = {
+  setAttribute(name, value) { bulkAttributes[name] = value; },
+  querySelector() { return replyLabel; },
+  closest() { return comments; }
+};
+let focused = false;
+let scrolled = false;
+const summary = {
+  focus(options) { focused = options.preventScroll; },
+  getBoundingClientRect() { return { top: -100, bottom: -70 }; },
+  scrollIntoView() { scrolled = true; }
+};
+const threads = [
+  { open: false, querySelector() { return summary; }, closest() { return comments; } },
+  { open: false }
+];
+const comments = {
+  querySelectorAll() { return threads; },
+  querySelector() { return bulkButton; }
+};
+const events = {};
+const context = vm.createContext({
+  document: { addEventListener(name, handler) { events[name] = handler; } },
+  window: { innerHeight: 800 }, bulkButton, comments,
+  collapseButton: { closest() { return threads[0]; } }
+});
+vm.runInContext(renderCardScript(), context);
+vm.runInContext("toggleCommentReplies(bulkButton)", context);
+assert.ok(threads.every(thread => thread.open));
+assert.equal(replyLabel.textContent, "收起全部");
+vm.runInContext("collapseReplies(collapseButton)", context);
+assert.equal(threads[0].open, false);
+assert.equal(threads[1].open, true);
+assert.equal(replyLabel.textContent, "展开全部");
+assert.ok(focused && scrolled);
+threads[0].open = true;
+events.toggle({ target: { matches: () => true, closest: () => comments } });
+assert.equal(bulkAttributes["aria-expanded"], "true");
+vm.runInContext("toggleCommentReplies(bulkButton)", context);
+assert.ok(threads.every(thread => !thread.open));
 
 console.log("HTML render checks passed.");

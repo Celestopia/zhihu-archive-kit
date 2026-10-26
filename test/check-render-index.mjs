@@ -374,7 +374,7 @@ assert.match(html, /toggleCommentReplies/);
 assert.match(html, /toggle-comment-replies/);
 assert.match(html, /event\.preventDefault\(\)/);
 assert.doesNotMatch(html, /comments\.open = true/);
-assert.match(html, /nextExpanded \? "收起全部" : "展开全部"/);
+assert.match(html, /expanded \? "收起全部" : "展开全部"/);
 assert.match(html, /npm run render:serve/);
 assert.doesNotMatch(html, /FULL_BODY_ONLY_MARKER/);
 assert.doesNotMatch(html, /COMMENT_ONLY_MARKER/);

@@ -423,24 +423,46 @@ export function renderCardCss() {
     .comment-list {
       padding: 0 20px 20px;
     }
-    .comment-replies > summary {
+    .reply-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       width: fit-content;
+      box-sizing: border-box;
+      min-height: 36px;
       margin-top: 10px;
-      padding: 5px 10px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: #f3f4f6;
-      box-shadow: 0 1px 2px rgba(23, 25, 31, .08);
-      color: var(--muted);
+      margin-left: -10px;
+      padding: 7px 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #75859a;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.5;
+      list-style: none;
     }
-    .comment-replies > summary:hover {
-      background: #e9edf2;
-      color: var(--text);
+    .reply-toggle__chevron {
+      flex: 0 0 12px;
+      width: 12px;
+      height: 12px;
+    }
+    .comment-replies > summary::-webkit-details-marker {
+      display: none;
+    }
+    .comment-replies[open] > summary {
+      display: none;
+    }
+    .reply-footer {
+      margin-left: 47px;
+    }
+    .reply-toggle:hover {
+      background: #eef5ff;
+      color: var(--accent);
     }
     .read-more:focus-visible,
-    .comment-replies > summary:focus-visible {
+    .reply-toggle:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
@@ -925,11 +947,37 @@ export function renderCardScript() {
       if (!comments) {
         return;
       }
-      const expanded = button.getAttribute("aria-expanded") === "true";
-      const nextExpanded = !expanded;
-      comments.querySelectorAll(".comment-replies").forEach((el) => { el.open = nextExpanded; });
-      button.setAttribute("aria-expanded", String(nextExpanded));
-      button.querySelector("[data-label]").textContent = nextExpanded ? "收起全部" : "展开全部";
+      const threads = Array.from(comments.querySelectorAll(".comment-replies"));
+      const nextExpanded = !threads.every((thread) => thread.open);
+      threads.forEach((thread) => { thread.open = nextExpanded; });
+      syncReplyControls(comments);
+    }
+
+    function syncReplyControls(comments) {
+      const threads = Array.from(comments.querySelectorAll(".comment-replies"));
+      const button = comments.querySelector('[data-action="toggle-comment-replies"]');
+      const expanded = threads.length > 0 && threads.every((thread) => thread.open);
+      button.disabled = threads.length === 0;
+      button.setAttribute("aria-expanded", String(expanded));
+      button.querySelector("[data-label]").textContent = expanded ? "收起全部" : "展开全部";
+    }
+
+    document.addEventListener("toggle", (event) => {
+      if (event.target.matches(".comment-replies")) {
+        syncReplyControls(event.target.closest(".comments"));
+      }
+    }, true);
+
+    function collapseReplies(button) {
+      const thread = button.closest(".comment-replies");
+      thread.open = false;
+      const summary = thread.querySelector("summary");
+      summary.focus({ preventScroll: true });
+      const bounds = summary.getBoundingClientRect();
+      if (bounds.top < 0 || bounds.bottom > window.innerHeight) {
+        summary.scrollIntoView({ block: "nearest" });
+      }
+      syncReplyControls(thread.closest(".comments"));
     }
 
     function toggleQuestionDescription(button) {
@@ -985,6 +1033,10 @@ export function renderCardScript() {
         event.preventDefault();
         event.stopPropagation();
         toggleCommentReplies(actionButton);
+      }
+      if (action === "collapse-replies") {
+        event.preventDefault();
+        collapseReplies(actionButton);
       }
       if (action === "toggle-question-description") {
         event.preventDefault();
