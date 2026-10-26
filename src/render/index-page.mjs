@@ -8,7 +8,8 @@ import {
   sortTime
 } from "./card-template.mjs";
 import { escapeAttr, escapeHtml } from "./html-utils.mjs";
-import { parseMarkdownDocument, renderSavedFolder } from "./render.mjs";
+import { loadSavedFolder, renderLoadedFolder } from "./render.mjs";
+import { createRenderPass } from "./render-cache.mjs";
 import { resolveArchiveRoot, defaultEmojiCacheDir } from "../local-data/paths.mjs";
 import { loadAppIconDataUri } from "./app-icon.mjs";
 
@@ -23,6 +24,7 @@ const INTERNAL_DIRECTORY_PREFIX = "_";
  */
 export async function renderOutputIndex(rootPath, { emojiCacheDir = defaultEmojiCacheDir() } = {}) {
   const root = await resolveArchiveRoot(rootPath);
+  const pass = await createRenderPass(emojiCacheDir);
   const iconHref = await loadAppIconDataUri();
   const entries = await fs.readdir(root, { withFileTypes: true });
   const items = [];
@@ -59,13 +61,12 @@ export async function renderOutputIndex(rootPath, { emojiCacheDir = defaultEmoji
         continue;
       }
 
-      const indexMarkdown = await fs.readFile(indexPath, "utf8");
-      const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
-      const parsed = parseMarkdownDocument(indexMarkdown);
+      const saved = await loadSavedFolder(folderPath);
+      const { parsed, commentsJson } = saved;
       const summary = parsed.metadata.content_excerpt
         ? { text: parsed.metadata.content_excerpt, truncated: parsed.metadata.content_excerpt.length >= 160 }
         : extractSummary(parsed.body);
-      const previewPath = await renderSavedFolder(folderPath, { emojiCacheDir });
+      const previewPath = await renderLoadedFolder(saved, pass);
       const type = requireSourceType(parsed.metadata.source_type);
 
       items.push({

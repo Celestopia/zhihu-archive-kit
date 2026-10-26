@@ -53,6 +53,7 @@ src/render/
   markdown.mjs
   math.mjs
   render.mjs
+  render-cache.mjs
   serve-cli.mjs
   serve.mjs
   service-address.mjs
@@ -72,6 +73,7 @@ test/
   check-markdown.mjs
   check-question-metadata.mjs
   check-render.mjs
+  check-render-cache.mjs
   check-render-markdown.mjs
   check-render-edit-api.mjs
   check-render-index.mjs
@@ -319,6 +321,16 @@ preview.html
 
 `preview.html` 与 `assets/` 保持同级，因此正文图片、视频和评论图片继续使用项目已有的相对路径。表情图片直接嵌入 HTML。页面使用和导航页相同的内容卡片模板，默认显示完整正文，评论区由卡片底部的“评论区”按钮展开。
 
+## 增量预览缓存
+
+`render-cache.mjs` 为每个内容目录维护 `_preview-cache.json`，保存源数据与渲染器的组合 SHA-256 指纹，以及 `preview.html` 的文件大小和修改时间。源指纹根据 Markdown 和评论 JSON 的实际字节计算，不只依赖源文件时间戳。渲染器指纹覆盖 `src/render/` 内全部 `.mjs`、`package-lock.json` 和应用 SVG 图标，每个进程计算一次；源码或依赖更新后必须重启服务，以使加载的模块和指纹保持一致。
+
+指纹及预览文件信息匹配时不转换 Markdown、公式和评论，也不读取表情资源或重写预览。缓存缺失、JSON 损坏、指纹不匹配、预览缺失或文件信息改变时重新生成。缓存随内容目录移动；集合管理及归档刷新复用同一路径，只重建需要更新的内容。媒体使用相对链接，不内嵌正文媒体，因此替换媒体文件无需重建 HTML。
+
+预览和缓存分别写入同目录的唯一临时文件后原子替换，同一进程对同目录的输出提交串行执行。缓存只在预览成功替换后写入；预览文件大小及时间校验可识别输出与缓存不一致的中断状态。导航页每次仍重新生成，以反映收藏夹、搜索及排序数据。
+
+每次导航页生成创建独立渲染上下文，包含按表情文件路径缓存的 Promise；多个内容共用同一图片的读取、下载和 data URI 编码结果。下载及响应体读取共用 5 秒超时，同次生成中失败的资源不重复下载，下一次生成可重试。表情文件也通过临时文件原子替换。有表情下载失败的预览仍可阅读，但缓存指纹记为 null，下一轮重新生成以恢复图片。
+
 ## HTML 导航页流程
 
 用户运行：
@@ -330,7 +342,7 @@ npm run render:index -- D:\path\to\archive
 
 `index-cli.mjs` 使用显式传入的根目录；未传入时读取预览启动器记住的根目录。`index-page.mjs` 只扫描根目录下带 `collection.json` 的一级收藏夹目录，跳过无元数据目录和以下划线开头的内部目录。
 
-每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会先通过 `renderSavedFolder()` 生成或刷新 `preview.html`。导航页随后读取 frontmatter、收藏夹元数据和摘要，按 `time_exported` 倒序生成初始页面：
+每个收藏夹内部的直接子目录如果同时包含 `index.md` 和 `comments.json`，会通过 `loadSavedFolder()` 一次读取并解析源文件。`renderLoadedFolder()` 使用同一份数据增量生成 `preview.html`，导航页复用解析结果、收藏夹元数据和摘要，按 `time_exported` 倒序生成初始页面：
 
 ```text
 index.html
@@ -419,7 +431,7 @@ DELETE /api/items/:collection/:folder
 POST   /api/items/:collection/:folder/move
 ```
 
-`GET /api/collections` 返回当前收藏夹、描述和内容数量。`POST /api/collections` 创建收藏夹并写入 `collection.json`。`PATCH /api/collections/:name` 修改收藏夹名称或描述；名称变化时重命名收藏夹目录，并保留 `time_created`。`POST /api/refresh` 重新扫描浏览器直接保存的内容，刷新全部预览和导航页。`DELETE /api/items/:collection/:folder` 永久删除内容目录。`POST /api/items/:collection/:folder/move` 把内容目录移动到目标收藏夹。浏览服务 API 写入成功后会重新运行导航页生成流程，使 `index.html` 和相关 `preview.html` 与文件系统保持一致。
+`GET /api/collections` 返回当前收藏夹、描述和内容数量。`POST /api/collections` 创建收藏夹并写入 `collection.json`。`PATCH /api/collections/:name` 修改收藏夹名称或描述；名称变化时重命名收藏夹目录，并保留 `time_created`。`POST /api/refresh` 重新扫描浏览器直接保存的内容，增量刷新预览并重新生成导航页。`DELETE /api/items/:collection/:folder` 永久删除内容目录。`POST /api/items/:collection/:folder/move` 把内容目录移动到目标收藏夹。浏览服务 API 写入成功后会重新运行导航页生成流程，使 `index.html` 和相关 `preview.html` 与文件系统保持一致。
 
 本地导航页以同源方式访问 API；带不同 `Origin` 的请求返回 `403`，知乎页面不使用该服务。静态响应设置 `Cache-Control: no-store`，确保显式刷新后加载新生成的预览。标题卡片右上角的独立 SVG 环形箭头按钮调用 `POST /api/refresh`；收藏夹管理菜单不包含刷新入口。普通页面重载只读取已生成文件。
 
@@ -551,6 +563,7 @@ npm test
 - 使用最小 DOM 模型验证保存控件的 class 修复、节点移除、host 更换、重复清理、文章容器修复，以及 observer 过滤和修复后的收敛。
 - ZIP 解压是否要求完整内容结构、拒绝路径逃逸，并在目标文件夹已存在时失败。
 - HTML 预览生成器能否读取保存结果并生成包含正文、评论和图片路径的 `preview.html`。
+- 增量缓存验证未变化内容复用、源内容及渲染器指纹变化、缺失或损坏预览、缓存损坏、移动及收藏夹创建、写入失败恢复、表情共享和下载失败重试。
 - MathJax 公式的行内/display 布局、集合转义、代码与链接保护、中文标点加粗、表情隔离、错误转义、宏隔离和并发渲染；集成检查覆盖正文、问题描述、嵌套评论与导航页的数学样式，且验证源数据不被改写。
 - HTML 导航页生成器能否扫描保存根目录、刷新预览页、跳过无效目录，并生成带筛选、排序和分页行为的轻量 `index.html`。
 - 独立刷新按钮的生成、序列化脚本语法、请求期间防重复提交、重载后的单次成功提示、定时/手动关闭和失败后重试。

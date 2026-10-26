@@ -7,31 +7,37 @@ import { renderHtmlDocument } from "./template.mjs";
 import { resolveZhihuEmojiSources } from "./zhihu-emoji.mjs";
 import { defaultEmojiCacheDir } from "../local-data/paths.mjs";
 import { loadAppIconDataUri } from "./app-icon.mjs";
+import { createRenderPass, hashParts, hasCurrentPreview, writePreview } from "./render-cache.mjs";
 
 const OUTPUT_FILE = "preview.html";
 
 export async function renderSavedFolder(folderPath, { emojiCacheDir = defaultEmojiCacheDir() } = {}) {
+  return renderLoadedFolder(await loadSavedFolder(folderPath), await createRenderPass(emojiCacheDir));
+}
+
+export async function loadSavedFolder(folderPath) {
   const root = path.resolve(folderPath);
   const indexPath = path.join(root, "index.md");
   const commentsPath = path.join(root, "comments.json");
-  const outputPath = path.join(root, OUTPUT_FILE);
+  const [indexMarkdown, commentsText] = await Promise.all([
+    readSource(indexPath, "index.md"), readSource(commentsPath, "comments.json")
+  ]);
+  return { root, parsed: parseMarkdownDocument(indexMarkdown), commentsJson: JSON.parse(commentsText), sourceHash: hashParts([indexMarkdown, commentsText]) };
+}
 
-  await assertFile(indexPath, "index.md");
-  await assertFile(commentsPath, "comments.json");
-
-  const indexMarkdown = await fs.readFile(indexPath, "utf8");
-  const commentsJson = JSON.parse(await fs.readFile(commentsPath, "utf8"));
-  const parsed = parseMarkdownDocument(indexMarkdown);
+export async function renderLoadedFolder({ root, parsed, commentsJson, sourceHash }, pass) {
+  const fingerprint = hashParts([sourceHash, pass.rendererFingerprint]);
+  if (await hasCurrentPreview(root, fingerprint)) return path.join(root, OUTPUT_FILE);
   const type = requireSourceType(parsed.metadata.source_type);
   const comments = commentsJson.comments || [];
   const title = displayTitle(parsed.metadata, type);
   const questionDescriptionMarkdown = parsed.metadata.question_description || "";
   const questionDescriptionSummary = extractQuestionDescriptionSummary(questionDescriptionMarkdown);
-  const emojiSources = await resolveZhihuEmojiSources([
+  const { sources: emojiSources, complete: emojiComplete } = await resolveZhihuEmojiSources([
     parsed.body,
     questionDescriptionMarkdown,
     ...collectCommentMarkdown(comments)
-  ], emojiCacheDir);
+  ], pass.emojiCacheDir, pass.emojiResources);
   const iconHref = await loadAppIconDataUri();
 
   const html = renderHtmlDocument({
@@ -67,8 +73,8 @@ export async function renderSavedFolder(folderPath, { emojiCacheDir = defaultEmo
     }, { mode: "preview" })
   });
 
-  await fs.writeFile(outputPath, html, "utf8");
-  return outputPath;
+  // A missing emoji can recover on the next pass; do not mark this preview current.
+  return writePreview(root, html, emojiComplete ? fingerprint : null);
 }
 
 function displayTitle(metadata, type) {
@@ -220,12 +226,9 @@ function collectCommentMarkdown(comments) {
   return values;
 }
 
-async function assertFile(filePath, name) {
+async function readSource(filePath, name) {
   try {
-    const stat = await fs.stat(filePath);
-    if (!stat.isFile()) {
-      throw new Error(`${name} is not a file.`);
-    }
+    return await fs.readFile(filePath, "utf8");
   } catch (error) {
     if (error.code === "ENOENT") {
       throw new Error(`Missing ${name} in the content folder.`);

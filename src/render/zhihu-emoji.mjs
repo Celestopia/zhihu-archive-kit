@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { escapeAttr } from "./html-utils.mjs";
 
 const ZHIHU_EMOJI = [
@@ -96,40 +97,43 @@ for (const [token, url] of ZHIHU_EMOJI) {
 }
 const EMOJI_PATTERN = new RegExp(Array.from(EMOJI_BY_TOKEN.keys()).map(escapeRegex).join("|"), "g");
 
-export async function resolveZhihuEmojiSources(markdownValues, cacheDir) {
-  const tokens = new Set();
-  for (const value of markdownValues) {
-    for (const token of findZhihuEmojiTokens(value || "")) {
-      tokens.add(token);
-    }
-  }
-
-  if (!tokens.size) {
-    return new Map();
-  }
-
-  await fs.mkdir(cacheDir, { recursive: true });
+export async function resolveZhihuEmojiSources(markdownValues, cacheDir, resources = new Map()) {
+  const tokens = new Set(markdownValues.flatMap(value => findZhihuEmojiTokens(value || "")));
   const sources = new Map();
+  let complete = true;
   for (const token of tokens) {
     const emoji = EMOJI_BY_TOKEN.get(token);
-    if (!emoji) {
-      continue;
-    }
-
     const filePath = path.join(cacheDir, emoji.fileName);
-    if (!await isFile(filePath)) {
-      try {
-        await downloadEmoji(emoji.url, filePath);
-      } catch (error) {
-        console.warn(`[Zhihu Archive Kit] failed to download emoji ${token}: ${error.message}`);
-        continue;
-      }
-    }
-
-    const data = await fs.readFile(filePath);
-    sources.set(token, `data:image/png;base64,${data.toString("base64")}`);
+    if (!resources.has(filePath)) resources.set(filePath, loadEmojiSource(emoji, filePath));
+    const source = await resources.get(filePath);
+    if (source === null) complete = false;
+    else sources.set(token, source);
   }
-  return sources;
+  return { sources, complete };
+}
+
+async function loadEmojiSource(emoji, filePath) {
+  let data;
+  try {
+    data = await fs.readFile(filePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    try {
+      data = await downloadEmoji(emoji.url);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      const temporary = `${filePath}.${randomUUID()}.tmp`;
+      try {
+        await fs.writeFile(temporary, data);
+        await fs.rename(temporary, filePath);
+      } finally {
+        await fs.rm(temporary, { force: true });
+      }
+    } catch (downloadError) {
+      console.warn(`[Zhihu Archive Kit] failed to download emoji ${emoji.token}: ${downloadError.message}`);
+      return null;
+    }
+  }
+  return `data:image/png;base64,${data.toString("base64")}`;
 }
 
 export function renderZhihuEmojiInText(text, sources) {
@@ -154,25 +158,10 @@ function replaceEmojiTokens(text, sources) {
   });
 }
 
-async function downloadEmoji(url, filePath) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  const buffer = Buffer.from(await response.arrayBuffer());
-  await fs.writeFile(filePath, buffer);
-}
-
-async function isFile(filePath) {
-  try {
-    const stat = await fs.stat(filePath);
-    return stat.isFile();
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return false;
-    }
-    throw error;
-  }
+async function downloadEmoji(url) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
 }
 
 function escapeRegex(value) {
