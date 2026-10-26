@@ -84,6 +84,8 @@ export async function renderOutputIndex(rootPath, { emojiCacheDir = defaultEmoji
         commentCount: parsed.metadata.comment_count,
         likeCount: parsed.metadata.like_count,
         favoriteCount: parsed.metadata.favorite_count,
+        questionAnswerCount: type === "answer" ? parsed.metadata.question_answer_count : undefined,
+        questionFollowerCount: type === "answer" ? parsed.metadata.question_follower_count : undefined,
         summaryText: summary.text,
         summaryTruncated: summary.truncated
       });
@@ -663,6 +665,8 @@ function renderIndexDocument({ items, collections, iconHref }) {
           <option value="like">喜欢</option>
           <option value="favorite">收藏</option>
           <option value="comment">评论</option>
+          <option value="questionAnswers">问题回答数</option>
+          <option value="questionFollowers">问题关注数</option>
         </select>
         <button id="sort-direction" class="sort-direction" type="button" aria-pressed="true" aria-label="当前降序，点击切换为升序">↓ 降序</button>
       </div>
@@ -672,6 +676,7 @@ function renderIndexDocument({ items, collections, iconHref }) {
         <button type="button" data-filter="article" aria-pressed="false">文章</button>
       </div>
     </section>
+    <p id="sort-scope" role="status" hidden>当前按问题统计排序，仅显示回答。</p>
     <section class="feed" id="content-list">
       ${items.length ? items.map((item) => renderContentCard(item, { mode: "feed" })).join("") : `<div class="empty">没有找到可渲染的内容文件夹。</div>`}
     </section>
@@ -698,6 +703,7 @@ ${initializeArchiveRefresh.toString()}
     const pagination = document.getElementById("pagination");
     const sortFieldSelect = document.getElementById("sort-field");
     const sortDirectionButton = document.getElementById("sort-direction");
+    const sortScope = document.getElementById("sort-scope");
     const cards = Array.from(document.querySelectorAll(".item"));
     const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
     const collectionButtons = Array.from(document.querySelectorAll("[data-collection-filter]"));
@@ -708,7 +714,9 @@ ${initializeArchiveRefresh.toString()}
       upvote: "sortUpvote",
       like: "sortLike",
       favorite: "sortFavorite",
-      comment: "sortComment"
+      comment: "sortComment",
+      questionAnswers: "sortQuestionAnswers",
+      questionFollowers: "sortQuestionFollowers"
     };
     let activeFilter = "all";
     let activeCollection = "all";
@@ -719,12 +727,14 @@ ${initializeArchiveRefresh.toString()}
     let appliedSearchQuery = "";
 
     function applyFilters() {
+      const answersOnly = activeSortField === "questionAnswers" || activeSortField === "questionFollowers";
+      sortScope.hidden = !answersOnly;
       const matchedCards = cards.filter((card) => {
         const matchesType = activeFilter === "all" || card.dataset.type === activeFilter;
         const matchesCollection = activeCollection === "all" || card.dataset.collection === activeCollection;
         const searchValue = appliedSearchMode === "title" ? card.dataset.searchTitle : card.dataset.searchAuthor;
         const matchesQuery = searchValue.toLowerCase().includes(appliedSearchQuery);
-        return matchesType && matchesCollection && matchesQuery;
+        return matchesType && matchesCollection && matchesQuery && (!answersOnly || card.dataset.type === "answer");
       }).sort(compareCards);
 
       contentList.append(...matchedCards);

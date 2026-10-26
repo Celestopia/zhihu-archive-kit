@@ -354,6 +354,8 @@ time_exported   -> data-sort-exported
 
 统计数输出为十进制数值，时间在生成阶段转换为毫秒时间戳，缺失或无效值输出为空字符串。数字 `0` 是有效排序值。`data-sort-comment` 表示知乎原文评论总数，不是 `comments.json` 中已保存的评论数量。排序属性只出现在导航卡片中，单篇 `preview.html` 不输出这些属性。
 
+问题统计排序使用回答 frontmatter 中的 `question_answer_count` 和 `question_follower_count`，分别写入导航卡片的 `data-sort-question-answers` 和 `data-sort-question-followers`。文章对应属性为空。选择“问题回答数”或“问题关注数”时，在排序和分页前排除文章，并显示仅回答的范围提示；当前类型、收藏夹和搜索条件仍叠加生效，因此选择“文章”类型时结果为空。切回其它排序项后取消这一限制。数值零有效，缺失值始终排在末尾，沿用导出时间和目录名的稳定次级排序。
+
 ### 客户端筛选、排序与分页
 
 左侧收藏夹菜单来自 `collection.json`，支持“所有”和单个收藏夹筛选；搜索和回答/文章类型筛选继续叠加生效。

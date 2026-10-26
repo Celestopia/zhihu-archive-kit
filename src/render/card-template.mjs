@@ -621,7 +621,9 @@ function renderSortAttributes(item) {
     ["comment", sortableNumber(item.commentCount)],
     ["created", sortableTime(item.timeCreated)],
     ["modified", sortableTime(item.timeModified)],
-    ["exported", sortableTime(item.timeExported)]
+    ["exported", sortableTime(item.timeExported)],
+    ["question-answers", sortableNumber(item.type === "answer" ? item.questionAnswerCount : undefined)],
+    ["question-followers", sortableNumber(item.type === "answer" ? item.questionFollowerCount : undefined)]
   ].map(([name, value]) => ` data-sort-${name}="${value}"`).join("");
 }
 

@@ -193,6 +193,9 @@ assert.match(html, /id="search-mode"[^>]*aria-label="搜索范围"/);
 assert.match(html, /data-search-title="[^"]+" data-search-author="[^"]*"/);
 assert.doesNotMatch(html, /搜索标题、作者或摘要/);
 checkSearchBehavior(html);
+assert.match(html, /data-sort-question-answers="10467" data-sort-question-followers="35855"/);
+assert.match(html, /value="questionAnswers">问题回答数/);
+assert.match(html, /value="questionFollowers">问题关注数/);
 assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml;base64,/);
 assert.match(html, /id="archive-refresh" title="刷新归档" aria-label="刷新归档" aria-busy="false">\s*<svg/);
 assert.doesNotMatch(html, /data-edit-action="refresh-archive"/);
@@ -220,8 +223,8 @@ assert.match(html, /文章标题/);
 assert.match(html, /分页回答 21/);
 assert.doesNotMatch(html, /问题标签导航页不应展示/);
 assert.doesNotMatch(html, /阅读原问题/);
-assert.doesNotMatch(html, /10467/);
-assert.doesNotMatch(html, /35855/);
+assert.doesNotMatch(html, />\s*10467\s*</);
+assert.doesNotMatch(html, />\s*35855\s*</);
 assert.match(html, /回答作者/);
 assert.match(html, /文章作者/);
 assert.match(html, /创建：2026-06-01 08:00:00/);
@@ -260,7 +263,7 @@ assert.match(html, /data-folder="article-789" data-sort-upvote="5" data-sort-lik
 assert.ok(html.indexOf('data-folder="question-123-answer-456"') < html.indexOf('data-folder="article-789"'));
 assert.match(html, /<section class="toolbar" aria-label="筛选和排序">/);
 assert.match(html, /<label for="sort-field">排序<\/label>/);
-assert.match(html, /<select id="sort-field" class="sort-select">\s*<option value="exported" selected>导出时间<\/option>\s*<option value="created">创建时间<\/option>\s*<option value="modified">修改时间<\/option>\s*<option value="upvote">赞同<\/option>\s*<option value="like">喜欢<\/option>\s*<option value="favorite">收藏<\/option>\s*<option value="comment">评论<\/option>\s*<\/select>/);
+assert.match(html, /<select id="sort-field" class="sort-select">\s*<option value="exported" selected>导出时间<\/option>\s*<option value="created">创建时间<\/option>\s*<option value="modified">修改时间<\/option>\s*<option value="upvote">赞同<\/option>\s*<option value="like">喜欢<\/option>\s*<option value="favorite">收藏<\/option>\s*<option value="comment">评论<\/option>\s*<option value="questionAnswers">问题回答数<\/option>\s*<option value="questionFollowers">问题关注数<\/option>\s*<\/select>/);
 assert.match(html, /<button id="sort-direction" class="sort-direction" type="button" aria-pressed="true" aria-label="当前降序，点击切换为升序">↓ 降序<\/button>/);
 assert.match(html, /\.toolbar \{[\s\S]*?grid-template-columns: minmax\(220px, 1fr\) auto auto;/);
 assert.match(html, /activeCollection = "all"/);
@@ -517,6 +520,7 @@ function checkSearchBehavior(html) {
   const modeListener = html.match(/    searchMode.addEventListener\("change", \(\) => \{[\s\S]*?\n    \}\);/)[0];
   const clickListener = html.match(/    searchButton.addEventListener\("click", \(\) => \{[\s\S]*?\n    \}\);/)[0];
   const keyListener = html.match(/    searchInput.addEventListener\("keydown", \(event\) => \{[\s\S]*?\n    \}\);/)[0];
+  const compareSource = html.match(/    function compareCards\(left, right\) \{[\s\S]*?(?=    function syncSortDirectionButton)/)[0];
   const run = new Function("state", `
     const { cards, searchInput, searchMode, searchButton } = state;
     let appliedSearchMode = "title", appliedSearchQuery = "";
@@ -524,8 +528,13 @@ function checkSearchBehavior(html) {
     let currentPage = 2;
     let activeFilter = "all", activeCollection = "all";
     const visibleCount = {}, currentCollection = {}, currentCollectionDescription = {};
-    const contentList = { append() {} };
-    const compareCards = () => 0;
+    let ordered = [];
+    const contentList = { append(...items) { ordered = items; } };
+    let activeSortField = "exported", sortDescending = true;
+    const sortScope = {};
+    const sortDataKeys = { exported: "sortExported", questionAnswers: "sortQuestionAnswers", questionFollowers: "sortQuestionFollowers" };
+    ${compareSortableValues.toString()}
+    ${compareSource}
     const activeCollectionDescription = () => "";
     const syncHeaderMenu = () => {};
     const renderPagination = () => {};
@@ -536,6 +545,9 @@ function checkSearchBehavior(html) {
     ${keyListener}
     return {
       filter(type, collection) { activeFilter = type; activeCollection = collection; applyFilters(); },
+      sort(field, descending = true) { activeSortField = field; sortDescending = descending; resetToFirstPage(); applyFilters(); },
+      ordered: () => ordered.map(card => card.dataset.searchTitle),
+      scopeVisible: () => !sortScope.hidden,
       goToPage(page) { currentPage = page; },
       page: () => currentPage
     };
@@ -544,7 +556,7 @@ function checkSearchBehavior(html) {
     { searchTitle: "Alpha title", searchAuthor: "Beta", type: "answer", collection: "A" },
     { searchTitle: "Beta title", searchAuthor: "Alpha", type: "article", collection: "B" },
     { searchTitle: "Other", searchAuthor: "", type: "answer", collection: "A" }
-  ].map(dataset => ({ dataset, textContent: "summary-only expanded-body-only", querySelector: () => null }));
+  ].map(dataset => ({ dataset: { sortExported: "", sortQuestionAnswers: "", sortQuestionFollowers: "", ...dataset }, textContent: "summary-only expanded-body-only", querySelector: () => null }));
   const searchInput = { value: " ALPHA ", addEventListener(event, callback) { this[event] = callback; }, setAttribute(name, value) { this[name] = value; } };
   const searchMode = { value: "title", addEventListener(event, callback) { this[event] = callback; } };
   const searchButton = { addEventListener(event, callback) { this[event] = callback; } };
@@ -598,4 +610,48 @@ function checkSearchBehavior(html) {
   assert.equal(prevented, true);
   assert.deepEqual(visible(), ["Alpha title"]);
   assert.equal(controller.page(), 1);
+  searchInput.value = "";
+  searchButton.click();
+  Object.assign(cards[0].dataset, { sortQuestionAnswers: "0", sortQuestionFollowers: "10" });
+  Object.assign(cards[1].dataset, { sortQuestionAnswers: "999", sortQuestionFollowers: "999" });
+  Object.assign(cards[2].dataset, { sortQuestionAnswers: "5", sortQuestionFollowers: "0" });
+  controller.goToPage(2);
+  controller.sort("questionAnswers");
+  assert.equal(controller.page(), 1);
+  assert.equal(controller.scopeVisible(), true);
+  assert.deepEqual(controller.ordered(), ["Other", "Alpha title"]);
+  controller.sort("questionAnswers", false);
+  assert.deepEqual(controller.ordered(), ["Alpha title", "Other"]);
+  controller.sort("questionFollowers");
+  assert.deepEqual(controller.ordered(), ["Alpha title", "Other"]);
+  controller.sort("questionFollowers", false);
+  assert.deepEqual(controller.ordered(), ["Other", "Alpha title"]);
+  cards[0].dataset.sortQuestionFollowers = "";
+  for (const descending of [true, false]) {
+    controller.sort("questionFollowers", descending);
+    assert.deepEqual(controller.ordered(), ["Other", "Alpha title"]);
+  }
+  cards[0].dataset.sortQuestionFollowers = "0";
+  cards[0].dataset.sortExported = "10";
+  cards[2].dataset.sortExported = "20";
+  controller.sort("questionFollowers");
+  assert.deepEqual(controller.ordered(), ["Other", "Alpha title"]);
+  cards[0].dataset.sortExported = "20";
+  cards[0].dataset.folder = "a";
+  cards[2].dataset.folder = "b";
+  controller.sort("questionFollowers");
+  assert.deepEqual(controller.ordered(), ["Alpha title", "Other"]);
+  controller.filter("article", "all");
+  assert.deepEqual(visible(), []);
+  controller.filter("all", "all");
+  controller.sort("exported");
+  assert.equal(visible().length, 3);
+  assert.equal(controller.scopeVisible(), false);
+  for (let i = 0; i < 22; i++) {
+    cards.push({ dataset: { ...cards[0].dataset, searchTitle: `Answer ${i}`, sortQuestionAnswers: String(i + 10) }, querySelector: () => null });
+  }
+  controller.sort("questionAnswers");
+  assert.equal(visible().length, 20);
+  assert.equal(controller.ordered().length, 24);
+  assert.equal(controller.ordered()[0], "Answer 21");
 }
