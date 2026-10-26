@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { compareSortableValues, initializeArchiveRefresh, renderOutputIndex } from "../src/render/index-page.mjs";
+import { compareSortableValues, initializeArchiveRefresh, initializeCollectionEditor, renderOutputIndex } from "../src/render/index-page.mjs";
 
 /**
  * Focused checks for output-level HTML navigation generation.
@@ -214,7 +214,6 @@ assert.match(html, /<p class="summary-row">\s*<span>总数：<strong>23<\/strong
 assert.match(html, /<p class="summary-row">\s*<span>收藏夹：<strong id="current-collection">所有<\/strong><\/span>\s*<span>当前显示：<strong id="visible-count">23<\/strong><\/span>\s*<span>描述：<strong id="current-collection-description">全部收藏夹内容<\/strong><\/span>\s*<\/p>/);
 assert.doesNotMatch(html, /生成时间/);
 assert.match(html, /id="header-menu-button" aria-expanded="false" aria-label="收藏夹操作菜单">...<\/button>/);
-assert.match(html, /data-edit-action="rename-collection">修改收藏夹名称/);
 assert.match(html, /data-edit-action="edit-collection-description">修改收藏夹描述/);
 assert.match(html, /data-edit-action="create-collection">新建收藏夹/);
 assert.match(html, /回答所属问题标题/);
@@ -234,12 +233,11 @@ assert.doesNotMatch(html, / 24:46:52/);
 assert.match(html, /收藏夹：<strong id="current-collection">所有<\/strong>/);
 assert.match(html, /描述：<strong id="current-collection-description">全部收藏夹内容<\/strong>/);
 assert.match(html, /<aside class="collection-nav" aria-label="收藏夹">/);
-assert.match(html, /<button class="collection-nav-add" type="button" data-edit-action="create-collection" aria-label="新建收藏夹">\+<\/button>/);
-assert.match(html, /\.collection-nav-head \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 24px;/);
+assert.match(html, /id="collection-edit"/);
+assert.match(html, /id="collection-editor" hidden/);
+assert.doesNotMatch(html, /contextmenu|collection-context-menu|rename-collection/);
+assert.equal((html.match(/data-edit-action="edit-collection-description">/g) || []).length, 1);
 assert.match(html, /\.collection-nav-title \{[\s\S]*?white-space: nowrap;/);
-assert.match(html, /\.collection-nav-add \{[\s\S]*?justify-self: end;/);
-assert.match(html, /<div class="collection-context-menu" id="collection-context-menu" hidden>/);
-assert.match(html, /\.collection-context-menu \{[\s\S]*?position: fixed;/);
 assert.match(html, /left: max\(16px, calc\(\(100vw - 980px\) \/ 2 - 220px\)\);/);
 assert.match(html, /max-height: min\(70vh, 520px\);/);
 assert.match(html, /\.collection-nav-list \{[\s\S]*?max-height: calc\(min\(70vh, 520px\) - 44px\);[\s\S]*?overflow-y: auto;/);
@@ -265,7 +263,6 @@ assert.match(html, /<section class="toolbar" aria-label="筛选和排序">/);
 assert.match(html, /<label for="sort-field">排序<\/label>/);
 assert.match(html, /<select id="sort-field" class="sort-select">\s*<option value="exported" selected>导出时间<\/option>\s*<option value="created">创建时间<\/option>\s*<option value="modified">修改时间<\/option>\s*<option value="upvote">赞同<\/option>\s*<option value="like">喜欢<\/option>\s*<option value="favorite">收藏<\/option>\s*<option value="comment">评论<\/option>\s*<option value="questionAnswers">问题回答数<\/option>\s*<option value="questionFollowers">问题关注数<\/option>\s*<\/select>/);
 assert.match(html, /<button id="sort-direction" class="sort-direction" type="button" aria-pressed="true" aria-label="当前降序，点击切换为升序">↓ 降序<\/button>/);
-assert.match(html, /\.toolbar \{[\s\S]*?grid-template-columns: minmax\(220px, 1fr\) auto auto;/);
 assert.match(html, /activeCollection = "all"/);
 assert.match(html, /activeSortField = "exported"/);
 assert.match(html, /sortDescending = true/);
@@ -280,10 +277,6 @@ assert.match(html, /currentCollection\.textContent = activeCollection === "all" 
 assert.match(html, /currentCollectionDescription\.textContent = activeCollectionDescription\(\);/);
 assert.match(html, /function activeCollectionDescription\(\) \{[\s\S]*?return button\?\.dataset\.collectionDescription \|\| "暂无收藏夹描述";[\s\S]*?\}/);
 assert.match(html, /function activeCollectionRawDescription\(\) \{[\s\S]*?return button\?\.dataset\.collectionRawDescription \|\| "";[\s\S]*?\}/);
-assert.match(html, /headerMenu\.querySelector\('\[data-edit-action="rename-collection"\]'\)\.hidden = !collectionOnly;/);
-assert.match(html, /document\.addEventListener\("contextmenu", \(event\) => \{/);
-assert.match(html, /collectionContextMenu\.dataset\.collection = button\.dataset\.collectionFilter;/);
-assert.match(html, /function showCollectionContextMenu\(clientX, clientY\)/);
 assert.match(html, /const PAGE_SIZE = 20;/);
 assert.match(html, /let currentPage = 1;/);
 assert.match(html, /<nav class="pagination" id="pagination" aria-label="分页"><\/nav>/);
@@ -654,4 +647,85 @@ function checkSearchBehavior(html) {
   assert.equal(visible().length, 20);
   assert.equal(controller.ordered().length, 24);
   assert.equal(controller.ordered()[0], "Answer 21");
+}
+
+// Exercise the serialized sidebar editor without module-scope dependencies.
+{
+  function element() {
+    return {
+      children: [], attributes: {}, dataset: {}, hidden: false, disabled: false, textContent: '',
+      setAttribute(key, value) { this.attributes[key] = value; },
+      addEventListener(key, handler) { this[key] = handler; },
+      append(...nodes) { this.children.push(...nodes); },
+      replaceChildren() { this.children = []; },
+      get firstChild() { return this.children[0]; },
+      focus() { this.focused = true; },
+      cloneNode() { return element(); }
+    };
+  }
+  function setup(failName) {
+    const rows = element(), status = element(), save = element(), cancel = element();
+    const edit = element(), tools = element(), title = element(), form = element(), list = element();
+    const calls = [], renames = [];
+    let reloads = 0;
+    list.querySelectorAll = () => ['all', '默认收藏夹', '甲', '乙'].map(name => ({
+      dataset: { collectionFilter: name }, querySelector: () => element()
+    }));
+    const selectors = { '.collection-nav-list': list, '.collection-nav-tools': tools, '.collection-nav-title': title };
+    form.querySelector = selector => ({ '.collection-editor-rows': rows, '.collection-editor-status': status, '[data-collection-save]': save, '[data-collection-cancel]': cancel }[selector]);
+    const document = {
+      querySelector: () => ({ querySelector: selector => selectors[selector] }),
+      getElementById: id => id === 'collection-edit' ? edit : form,
+      createElement: element
+    };
+    let failure = failName;
+    const request = async (url, options) => {
+      calls.push([url, options.body]);
+      if (options.body.name === failure) throw new Error('保存失败');
+    };
+    new Function('document', 'request', 'renamed', 'reload', `(${initializeCollectionEditor.toString()})(document, request, renamed, reload)`)(document, request, (oldName, name) => renames.push([oldName, name]), () => reloads++);
+    return { edit, list, tools, title, form, rows, status, cancel, save, calls, renames,
+      inputs: () => rows.children.slice(2).map(row => row.firstChild),
+      submit: () => form.submit({ preventDefault() {} }),
+      clearFailure: () => { failure = null; }, get reloads() { return reloads; }
+    };
+  }
+  const cancelled = setup();
+  cancelled.edit.click();
+  assert.equal(cancelled.list.hidden, true);
+  assert.equal(cancelled.inputs().length, 2);
+  cancelled.inputs()[0].value = '草稿';
+  cancelled.cancel.click();
+  assert.equal(cancelled.list.hidden, false);
+  assert.equal(cancelled.calls.length, 0);
+  cancelled.edit.click();
+  assert.equal(cancelled.inputs()[0].value, '甲');
+  for (const invalid of ['', '乙', '_内部', '../越界', 'CON', '默认收藏夹']) {
+    cancelled.inputs()[0].value = invalid;
+    await cancelled.submit();
+    assert.equal(cancelled.inputs()[0].attributes['aria-invalid'], 'true');
+    assert.equal(cancelled.calls.length, 0);
+  }
+  const saved = setup();
+  saved.edit.click();
+  saved.inputs()[0].value = '新甲';
+  saved.inputs()[1].value = '新乙';
+  await saved.submit();
+  assert.deepEqual(saved.renames, [['甲', '新甲'], ['乙', '新乙']]);
+  assert.equal(saved.reloads, 1);
+  assert.deepEqual(saved.calls.map(call => call[1]), [{ name: '新甲' }, { name: '新乙' }]);
+  const failed = setup('新乙');
+  failed.edit.click();
+  failed.inputs()[0].value = '新甲';
+  failed.inputs()[1].value = '新乙';
+  await failed.submit();
+  assert.equal(failed.reloads, 0);
+  assert.match(failed.status.textContent, /部分名称已保存/);
+  assert.equal(failed.inputs()[1].value, '新乙');
+  assert.equal(failed.save.disabled, false);
+  failed.clearFailure();
+  await failed.submit();
+  assert.equal(failed.reloads, 1);
+  assert.deepEqual(failed.renames, [['甲', '新甲'], ['乙', '新乙']]);
+  assert.equal(failed.calls.length, 3);
 }

@@ -215,28 +215,47 @@ function renderIndexDocument({ items, collections, iconHref }) {
     .collection-nav-head {
       align-items: center;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 24px;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
       margin: 0 0 8px;
     }
-    .collection-nav-add {
+    .collection-nav-tools { display: flex; gap: 4px; }
+    .collection-nav-icon {
       align-items: center;
       border: 0;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
       cursor: pointer;
       display: inline-flex;
       font: inherit;
-      height: 24px;
+      height: 28px;
       justify-content: center;
       justify-self: end;
       line-height: 1;
-      width: 24px;
+      width: 28px;
+      padding: 0;
     }
-    .collection-nav-add:hover {
-      background: #dcecff;
+    .collection-nav-icon:hover {
+      background: var(--accent-soft);
+      color: var(--accent);
     }
+    .collection-nav [hidden] { display: none !important; }
+    .collection-nav :is(button, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .collection-editor-rows { display: grid; gap: 8px; max-height: calc(min(70vh, 520px) - 130px); overflow-y: auto; padding: 3px; }
+    .collection-editor-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 34px; }
+    .collection-editor-row input { box-sizing: border-box; width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; font-size: 14px; }
+    .collection-editor-row input:hover { border-color: #9fbbe0; }
+    .collection-editor-row input[aria-invalid="true"] { border-color: #d92d20; }
+    .collection-editor-error { grid-column: 1 / -1; color: #b42318; font-size: 12px; margin: 4px 0 0; overflow-wrap: anywhere; }
+    .collection-editor-error:empty, .collection-editor-status:empty { display: none; }
+    .collection-editor-status { color: var(--muted); font-size: 12px; margin: 10px 0; }
+    .collection-editor-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+    .collection-editor-actions button { border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--muted); font: inherit; font-size: 13px; padding: 7px 15px; cursor: pointer; }
+    .collection-editor-actions button:hover { background: #f3f6fa; color: var(--text); }
+    .collection-editor-actions [data-collection-save] { border-color: var(--accent); background: var(--accent); color: white; }
+    .collection-editor-actions [data-collection-save]:hover { background: #075bd2; color: white; }
+    .collection-nav button:disabled { opacity: .5; cursor: default; }
     .collection-nav-list {
       display: grid;
       gap: 4px;
@@ -244,7 +263,7 @@ function renderIndexDocument({ items, collections, iconHref }) {
       overflow-y: auto;
       padding-right: 2px;
     }
-    .collection-nav button {
+    .collection-nav-list > button {
       align-items: center;
       display: flex;
       justify-content: space-between;
@@ -258,8 +277,8 @@ function renderIndexDocument({ items, collections, iconHref }) {
       padding: 6px 8px;
       text-align: left;
     }
-    .collection-nav button:hover,
-    .collection-nav button[aria-pressed="true"] {
+    .collection-nav-list > button:hover,
+    .collection-nav-list > button[aria-pressed="true"] {
       background: var(--accent-soft);
       color: var(--accent);
     }
@@ -267,36 +286,6 @@ function renderIndexDocument({ items, collections, iconHref }) {
       color: var(--muted);
       font-size: 12px;
       margin-left: 8px;
-    }
-    .collection-context-menu {
-      position: fixed;
-      z-index: 6;
-      width: 178px;
-      padding: 6px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: 0 10px 28px rgba(16, 24, 40, .14);
-    }
-    .collection-context-menu[hidden] {
-      display: none;
-    }
-    .collection-context-menu button {
-      display: block;
-      width: 100%;
-      border: 0;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--text);
-      cursor: pointer;
-      font: inherit;
-      font-size: 13px;
-      padding: 7px 9px;
-      text-align: left;
-    }
-    .collection-context-menu button:hover {
-      background: var(--accent-soft);
-      color: var(--accent);
     }
     .header,
     .toolbar {
@@ -637,7 +626,6 @@ function renderIndexDocument({ items, collections, iconHref }) {
       <div class="header-menu-wrap">
         <button class="header-menu-button" type="button" id="header-menu-button" aria-expanded="false" aria-label="收藏夹操作菜单">...</button>
         <div class="header-menu" id="header-menu" hidden>
-          <button type="button" data-edit-action="rename-collection">修改收藏夹名称</button>
           <button type="button" data-edit-action="edit-collection-description">修改收藏夹描述</button>
           <button type="button" data-edit-action="create-collection">新建收藏夹</button>
         </div>
@@ -690,6 +678,8 @@ ${compareSortableValues.toString()}
 
 ${initializeArchiveRefresh.toString()}
 
+${initializeCollectionEditor.toString()}
+
     const PAGE_SIZE = ${PAGE_SIZE};
     const searchInput = document.getElementById("search");
     const searchMode = document.getElementById("search-mode");
@@ -700,7 +690,6 @@ ${initializeArchiveRefresh.toString()}
     const contentList = document.getElementById("content-list");
     const headerMenuButton = document.getElementById("header-menu-button");
     const headerMenu = document.getElementById("header-menu");
-    const collectionContextMenu = document.getElementById("collection-context-menu");
     const pagination = document.getElementById("pagination");
     const sortFieldSelect = document.getElementById("sort-field");
     const sortDirectionButton = document.getElementById("sort-direction");
@@ -801,7 +790,6 @@ ${initializeArchiveRefresh.toString()}
 
     function syncHeaderMenu() {
       const collectionOnly = activeCollection !== "all";
-      headerMenu.querySelector('[data-edit-action="rename-collection"]').hidden = !collectionOnly;
       headerMenu.querySelector('[data-edit-action="edit-collection-description"]').hidden = !collectionOnly;
     }
 
@@ -916,18 +904,6 @@ ${initializeArchiveRefresh.toString()}
       });
     }
 
-    document.addEventListener("contextmenu", (event) => {
-      const button = event.target.closest?.("[data-collection-filter]");
-      if (!button || button.dataset.collectionFilter === "all") {
-        return;
-      }
-
-      event.preventDefault();
-      closeFloatingMenus();
-      collectionContextMenu.dataset.collection = button.dataset.collectionFilter;
-      collectionContextMenu.dataset.rawDescription = button.dataset.collectionRawDescription || "";
-      showCollectionContextMenu(event.clientX, event.clientY);
-    });
 
     document.addEventListener("click", (event) => {
       const headerButton = event.target.closest?.("#header-menu-button");
@@ -955,7 +931,7 @@ ${initializeArchiveRefresh.toString()}
         return;
       }
 
-      if (!event.target.closest?.(".header-menu, .item-menu, .collection-context-menu")) {
+      if (!event.target.closest?.(".header-menu, .item-menu")) {
         closeFloatingMenus();
       }
     });
@@ -979,23 +955,11 @@ ${initializeArchiveRefresh.toString()}
       document.querySelectorAll("[data-item-menu-button]").forEach((button) => {
         button.setAttribute("aria-expanded", "false");
       });
-      collectionContextMenu.hidden = true;
     }
 
     function resetItemMenu(menu) {
       menu.classList.remove("item-menu--move");
       menu.innerHTML = '<button type="button" data-edit-action="move-item">移动</button><button type="button" data-edit-action="delete-item">删除</button>';
-    }
-
-    function showCollectionContextMenu(clientX, clientY) {
-      collectionContextMenu.hidden = false;
-      collectionContextMenu.style.left = "0px";
-      collectionContextMenu.style.top = "0px";
-      const rect = collectionContextMenu.getBoundingClientRect();
-      const left = Math.max(8, Math.min(clientX, window.innerWidth - rect.width - 8));
-      const top = Math.max(8, Math.min(clientY, window.innerHeight - rect.height - 8));
-      collectionContextMenu.style.left = \`\${left}px\`;
-      collectionContextMenu.style.top = \`\${top}px\`;
     }
 
     async function handleEditAction(button) {
@@ -1004,15 +968,8 @@ ${initializeArchiveRefresh.toString()}
         await createCollection();
         return;
       }
-      if (action === "rename-collection") {
-        await renameCollection(button.closest("#collection-context-menu")?.dataset.collection || activeCollection);
-        return;
-      }
       if (action === "edit-collection-description") {
-        await editCollectionDescription(
-          button.closest("#collection-context-menu")?.dataset.collection || activeCollection,
-          button.closest("#collection-context-menu")?.dataset.rawDescription
-        );
+        await editCollectionDescription(activeCollection);
         return;
       }
       if (action === "delete-item") {
@@ -1033,29 +990,9 @@ ${initializeArchiveRefresh.toString()}
       if (name === null) {
         return;
       }
-      const description = prompt("收藏夹描述（可留空）", "");
-      if (description === null) {
-        return;
-      }
       await apiRequest("/api/collections", {
         method: "POST",
-        body: { name, description }
-      });
-      location.reload();
-    }
-
-    async function renameCollection(collectionName) {
-      if (collectionName === "all") {
-        alert("请先选择一个具体收藏夹。");
-        return;
-      }
-      const name = prompt("新的收藏夹名称", collectionName);
-      if (name === null) {
-        return;
-      }
-      await apiRequest(\`/api/collections/\${encodeURIComponent(collectionName)}\`, {
-        method: "PATCH",
-        body: { name }
+        body: { name, description: "" }
       });
       location.reload();
     }
@@ -1148,6 +1085,18 @@ ${initializeArchiveRefresh.toString()}
     }
 
     initializeArchiveRefresh(document, window, apiRequest);
+    const restoredCollection = window.sessionStorage.getItem("zhmd-selected-collection");
+    window.sessionStorage.removeItem("zhmd-selected-collection");
+    if (collectionButtons.some(button => button.dataset.collectionFilter === restoredCollection)) {
+      activeCollection = restoredCollection;
+      collectionButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.collectionFilter === activeCollection)));
+    }
+    initializeCollectionEditor(document, apiRequest, (oldName, newName) => {
+      if (activeCollection === oldName) activeCollection = newName;
+    }, () => {
+      window.sessionStorage.setItem("zhmd-selected-collection", activeCollection);
+      location.reload();
+    });
     applyFilters();
   </script>
 </body>
@@ -1206,12 +1155,124 @@ export function initializeArchiveRefresh(document, window, apiRequest) {
   });
 }
 
+export function initializeCollectionEditor(document, apiRequest, renamed, reload) {
+  const nav = document.querySelector(".collection-nav");
+  const edit = document.getElementById("collection-edit");
+  const form = document.getElementById("collection-editor");
+  const list = nav.querySelector(".collection-nav-list");
+  const rows = form.querySelector(".collection-editor-rows");
+  const status = form.querySelector(".collection-editor-status");
+  const save = form.querySelector("[data-collection-save]");
+  const cancel = form.querySelector("[data-collection-cancel]");
+  const tools = nav.querySelector(".collection-nav-tools");
+  const title = nav.querySelector(".collection-nav-title");
+  let drafts = [];
+  let applied = false;
+
+  function finish() {
+    if (applied) { reload(); return; }
+    form.hidden = true;
+    list.hidden = false;
+    tools.hidden = false;
+    title.textContent = "收藏夹";
+    edit.setAttribute("aria-expanded", "false");
+    edit.focus();
+  }
+
+  edit.addEventListener("click", () => {
+    rows.replaceChildren();
+    drafts = [];
+    applied = false;
+    status.textContent = "";
+    for (const button of list.querySelectorAll("[data-collection-filter]")) {
+      const original = button.dataset.collectionFilter;
+      const row = document.createElement("div");
+      row.className = "collection-editor-row";
+      if (original === "all" || original === "默认收藏夹") {
+        const label = document.createElement("span");
+        label.textContent = original === "all" ? "所有" : original;
+        row.append(label);
+      } else {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = original;
+        input.setAttribute("aria-label", "收藏夹名称：" + original);
+        const error = document.createElement("p");
+        error.className = "collection-editor-error";
+        error.id = "collection-name-error-" + drafts.length;
+        input.setAttribute("aria-describedby", error.id);
+        drafts.push({ original, input, error });
+        row.append(input);
+      }
+      const count = button.querySelector(".collection-nav-count").cloneNode(true);
+      row.append(count);
+      if (drafts.at(-1)?.input === row.firstChild) row.append(drafts.at(-1).error);
+      rows.append(row);
+    }
+    list.hidden = true;
+    tools.hidden = true;
+    form.hidden = false;
+    title.textContent = "编辑收藏夹名称";
+    edit.setAttribute("aria-expanded", "true");
+    (drafts[0]?.input || cancel).focus();
+  });
+  cancel.addEventListener("click", finish);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (save.disabled) return;
+    let invalid = false;
+    for (const draft of drafts) {
+      const name = draft.input.value.trim();
+      let message = "";
+      if (!name || name === "." || name === ".." || name.startsWith("_") || /[<>:"/\\|?*\u0000-\u001f]/.test(name) || /[. ]$/.test(name) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(name)) {
+        message = "请输入有效的文件夹名称。";
+      } else if (["all", "所有", "默认收藏夹"].includes(name) || drafts.some(other => other !== draft && (other.input.value.trim().toLowerCase() === name.toLowerCase() || other.original.toLowerCase() === name.toLowerCase()))) {
+        message = "名称已被占用，请使用不同名称。";
+      }
+      draft.error.textContent = message;
+      draft.input.setAttribute("aria-invalid", String(Boolean(message)));
+      invalid ||= Boolean(message);
+    }
+    if (invalid) { drafts.find(draft => draft.error.textContent).input.focus(); return; }
+    save.disabled = cancel.disabled = true;
+    drafts.forEach(draft => { draft.input.disabled = true; });
+    save.textContent = "保存中…";
+    status.textContent = "";
+    try {
+      for (const draft of drafts) {
+        const name = draft.input.value.trim();
+        if (name === draft.original) continue;
+        try {
+          await apiRequest("/api/collections/" + encodeURIComponent(draft.original), { method: "PATCH", body: { name } });
+        } catch (error) {
+          draft.error.textContent = error.message;
+          draft.input.setAttribute("aria-invalid", "true");
+          status.textContent = applied ? "部分名称已保存，其余修改已保留，可重试或取消剩余修改。" : "保存失败，修改已保留，请重试。";
+          return;
+        }
+        renamed(draft.original, name);
+        draft.original = name;
+        draft.input.value = name;
+        applied = true;
+      }
+      finish();
+    } finally {
+      save.disabled = cancel.disabled = false;
+      drafts.forEach(draft => { draft.input.disabled = false; });
+      save.textContent = "保存";
+    }
+  });
+}
+
 function renderCollectionNav({ collections, totalCount }) {
   return `
   <aside class="collection-nav" aria-label="收藏夹">
     <div class="collection-nav-head">
       <p class="collection-nav-title">收藏夹</p>
-      <button class="collection-nav-add" type="button" data-edit-action="create-collection" aria-label="新建收藏夹">+</button>
+      <div class="collection-nav-tools">
+        <button class="collection-nav-icon" id="collection-edit" type="button" title="编辑收藏夹名称" aria-label="编辑收藏夹名称" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg></button>
+        <button class="collection-nav-icon" type="button" data-edit-action="create-collection" title="新建收藏夹" aria-label="新建收藏夹"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
     </div>
     <div class="collection-nav-list">
       <button type="button" data-collection-filter="all" data-collection-description="全部收藏夹内容" data-collection-raw-description="" aria-pressed="true" title="所有">
@@ -1223,11 +1284,9 @@ function renderCollectionNav({ collections, totalCount }) {
         </button>
       `).join("")}
     </div>
+    <form id="collection-editor" hidden><div class="collection-editor-rows"></div><p class="collection-editor-status" role="status"></p><div class="collection-editor-actions"><button type="button" data-collection-cancel>取消</button><button type="submit" data-collection-save>保存</button></div></form>
   </aside>
-  <div class="collection-context-menu" id="collection-context-menu" hidden>
-    <button type="button" data-edit-action="rename-collection">修改收藏夹名称</button>
-    <button type="button" data-edit-action="edit-collection-description">修改收藏夹描述</button>
-  </div>`;
+  `;
 }
 
 function collectionTooltip(collection) {
