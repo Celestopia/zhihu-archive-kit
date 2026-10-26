@@ -598,7 +598,7 @@ export function renderContentCard(item, { mode = "feed" } = {}) {
       <div class="item-head">
         ${titleHtml}
         <div class="item-badges">
-          ${isPreview ? "" : `<button class="top-collapse action-pill" type="button" data-action="toggle-body" data-top-collapse aria-expanded="true" hidden>收起全文</button>`}
+          ${isPreview ? "" : `<button class="top-collapse action-pill" type="button" data-action="toggle-body" data-top-collapse aria-expanded="false"><span data-label>阅读全文</span></button>`}
           ${item.url ? `<a class="source-link action-pill" href="${escapeAttr(item.url)}" target="_blank" rel="noopener noreferrer">阅读原文</a>` : ""}
           <span class="type">${typeLabel}</span>
         </div>
@@ -800,7 +800,7 @@ export function renderCardScript() {
 
       panel.hidden = false;
       if (panelName === "body") {
-        prepareSummaryForExpansion(card, button);
+        prepareSummaryForExpansion(card);
       } else {
         setButtonState(button, "收起评论", true);
       }
@@ -830,17 +830,15 @@ export function renderCardScript() {
       button.querySelector("[data-label]").textContent = label;
     }
 
-    function prepareSummaryForExpansion(card, button) {
+    function prepareSummaryForExpansion(card) {
       const summaryRow = card.querySelector("[data-summary-row]");
       const topCollapseButton = card.querySelector("[data-top-collapse]");
       if (summaryRow) {
         summaryRow.hidden = true;
       }
       if (topCollapseButton) {
-        topCollapseButton.hidden = false;
+        setButtonState(topCollapseButton, "收起全文", true);
       }
-      button.hidden = true;
-      setButtonState(button, "阅读全文", false);
     }
 
     function restoreSummary(card) {
@@ -856,7 +854,7 @@ export function renderCardScript() {
         setButtonState(summaryButton, "阅读全文", false);
       }
       if (topCollapseButton) {
-        topCollapseButton.hidden = true;
+        setButtonState(topCollapseButton, "阅读全文", false);
       }
     }
 

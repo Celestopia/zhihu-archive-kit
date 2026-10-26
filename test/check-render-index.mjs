@@ -321,7 +321,7 @@ assert.match(html, /apiRequest\(itemApiPath\(card\), \{ method: "DELETE" \}\)/);
 assert.match(html, /confirm\(`确定永久删除/);
 assert.match(html, /item\.dataset\.editAction = "move-item-to";/);
 assert.match(html, /\/api\/items\/\$\{encodeURIComponent\(card\.dataset\.collection\)\}\/\$\{encodeURIComponent\(card\.dataset\.folder\)\}/);
-assert.match(html, /<button class="top-collapse action-pill" type="button" data-action="toggle-body" data-top-collapse aria-expanded="true" hidden>收起全文<\/button>\s*<a class="source-link action-pill" href="https:\/\/www\.zhihu\.com\/question\/123\/answer\/456" target="_blank" rel="noopener noreferrer">阅读原文<\/a>\s*<span class="type">回答<\/span>/);
+assert.match(html, /<button class="top-collapse action-pill" type="button" data-action="toggle-body" data-top-collapse aria-expanded="false"><span data-label>阅读全文<\/span><\/button>\s*<a class="source-link action-pill" href="https:\/\/www\.zhihu\.com\/question\/123\/answer\/456" target="_blank" rel="noopener noreferrer">阅读原文<\/a>\s*<span class="type">回答<\/span>/);
 assert.match(html, /<div class="meta">\s*<div class="meta-main">\s*<span>作者：<a href="https:\/\/www\.zhihu\.com\/people\/answer-author">回答作者<\/a><\/span>\s*<span>创建：2026-06-01 08:00:00<\/span>\s*<span>修改：2026-06-13 00:46:52<\/span>\s*<span data-collection-source>收藏夹：默认收藏夹<\/span>\s*<\/div>\s*<span class="meta-export">导出：2026-06-12 00:46:52<\/span>\s*<\/div>/);
 assert.match(html, /<span data-collection-source>收藏夹：技术收藏<\/span>/);
 assert.match(html, /\.meta-export \{[\s\S]*?margin-left: auto;[\s\S]*?text-align: right;/);

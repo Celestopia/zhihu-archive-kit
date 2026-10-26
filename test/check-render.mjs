@@ -273,4 +273,49 @@ assert.equal(bulkAttributes["aria-expanded"], "true");
 vm.runInContext("toggleCommentReplies(bulkButton)", context);
 assert.ok(threads.every(thread => !thread.open));
 
+// Both body entry points keep the persistent top control in sync.
+const bodyPanel = { hidden: true, dataset: { loaded: "1" } };
+const summaryRow = { hidden: false };
+function bodyButton(expanded) {
+  return {
+    hidden: false,
+    label: { textContent: "阅读全文" },
+    expanded: String(expanded),
+    getAttribute() { return this.expanded; },
+    setAttribute(name, value) { this.expanded = value; },
+    querySelector() { return this.label; },
+    closest() { return bodyCard; }
+  };
+}
+const topButton = bodyButton(false);
+const inlineButton = bodyButton(false);
+const tailButton = bodyButton(true);
+const bodyCard = {
+  querySelector(selector) {
+    return {
+      '[data-panel="body"]': bodyPanel,
+      '[data-summary-row]': summaryRow,
+      '[data-top-collapse]': topButton,
+      '.summary-text .read-more': inlineButton
+    }[selector] || null;
+  }
+};
+Object.assign(context, { topButton, inlineButton, tailButton });
+for (const entry of ["topButton", "inlineButton"]) {
+  for (const exit of ["topButton", "tailButton"]) {
+    await vm.runInContext(`togglePanel(${entry}, "body")`, context);
+    assert.equal(bodyPanel.hidden, false);
+    assert.equal(summaryRow.hidden, true);
+    assert.equal(topButton.hidden, false);
+    assert.equal(topButton.expanded, "true");
+    assert.equal(topButton.label.textContent, "收起全文");
+    await vm.runInContext(`togglePanel(${exit}, "body")`, context);
+    assert.equal(bodyPanel.hidden, true);
+    assert.equal(summaryRow.hidden, false);
+    assert.equal(topButton.hidden, false);
+    assert.equal(topButton.expanded, "false");
+    assert.equal(topButton.label.textContent, "阅读全文");
+  }
+}
+
 console.log("HTML render checks passed.");
